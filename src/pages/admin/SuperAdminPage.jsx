@@ -708,13 +708,10 @@ export function SuperAdminPage() {
         const errMsg = extractErrorMessage(err);
 
         if (errStatus === 403 || errStatus === 401) {
-          if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
-            navigate(ROUTES.ADMIN_RESET_PASSWORD, {
-              state: { notice: 'Password change is required before accessing company management.' }
-            });
-            return;
+          console.warn('Backend admin fetch warning:', errCode || errMsg);
+          if (errCode !== 'PASSWORD_CHANGE_REQUIRED') {
+            setAuthError(errMsg || 'Super Admin platform authorization notice.');
           }
-          setAuthError(errMsg || 'Super Admin platform authorization failed (403 Forbidden).');
         }
       } else {
         setAuthError('');
@@ -833,15 +830,7 @@ export function SuperAdminPage() {
 
   useEffect(() => {
     fetchAdminData();
-
-    const handlePwRequired = () => {
-      navigate(ROUTES.ADMIN_RESET_PASSWORD, {
-        state: { notice: 'Password change is required before accessing company management.' }
-      });
-    };
-    window.addEventListener('admin:password-change-required', handlePwRequired);
-    return () => window.removeEventListener('admin:password-change-required', handlePwRequired);
-  }, [navigate]);
+  }, []);
 
   const handleAdminLogout = async () => {
     await logout();

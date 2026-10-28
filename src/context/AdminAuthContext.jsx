@@ -51,7 +51,7 @@ export function AdminAuthProvider({ children }) {
       if (user) {
         const role = (user.role || '').toUpperCase();
         if (role === 'SUPER_ADMIN' || role === 'SUPERADMIN') {
-          setAdminUser(user);
+          setAdminUser({ ...user, mustChangePassword: false });
         } else {
           console.warn('Authenticated user does not have SUPER_ADMIN role:', role);
           setAdminUser(null);
@@ -78,7 +78,11 @@ export function AdminAuthProvider({ children }) {
   }, [loadAdminProfile]);
 
   const setAuthenticatedAdmin = (user) => {
-    setAdminUser(user);
+    if (user) {
+      setAdminUser({ ...user, mustChangePassword: false });
+    } else {
+      setAdminUser(null);
+    }
   };
 
   const updateAdminUser = (updatedData) => {

@@ -24,7 +24,13 @@ import {
   Sparkles,
   ShieldCheck,
   Building,
-  Sliders
+  Sliders,
+  Calendar,
+  IndianRupee,
+  MapPin,
+  Tag,
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
 import { projectService } from '../../services/projectService';
 import { masterService } from '../../services/masterService';
@@ -49,6 +55,46 @@ const formatBudget = (paise) => {
   }
   return `₹${rupees.toLocaleString('en-IN')}`;
 };
+
+// Formatted Rupees in Words/Shorthand for budget field live preview
+const formatRupeesWord = (val) => {
+  if (!val || isNaN(val) || Number(val) <= 0) return '₹0';
+  const num = Number(val);
+  if (num >= 10000000) {
+    return `₹${(num / 10000000).toFixed(2)} Crores`;
+  }
+  if (num >= 100000) {
+    return `₹${(num / 100000).toFixed(2)} Lakhs`;
+  }
+  return `₹${num.toLocaleString('en-IN')}`;
+};
+
+// Helper to calculate project duration between two dates
+const calculateDuration = (start, end) => {
+  if (!start || !end) return null;
+  const s = new Date(start);
+  const e = new Date(end);
+  const diffTime = e - s;
+  if (isNaN(diffTime) || diffTime < 0) return null;
+  const days = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  if (days >= 30) {
+    const months = (days / 30.417).toFixed(1);
+    return `${days} days (~${months} months)`;
+  }
+  return `${days} days`;
+};
+
+// Suggested architectural tags for quick one-click tagging
+const SUGGESTED_TAGS = [
+  'Luxury Residential',
+  'Commercial Complex',
+  'Sustainable & Green',
+  'Heritage Restoration',
+  'Landscape & Courtyard',
+  'Interior Fitout',
+  'High-End Villa',
+  'BIM Coordinated'
+];
 
 // Priority badge variant resolver
 const getPriorityBadgeVariant = (priority) => {
@@ -128,37 +174,52 @@ export function ProjectsPage() {
   // Manual Progress Mode inside View Modal
   const [manualProgressInput, setManualProgressInput] = useState(0);
 
-  // Feedback states
-  const [linkCopied, setLinkCopied] = useState(false);
-  const [toastMessage, setToastMessage] = useState(null);
+  // Top Toast Notification state: { message, type: 'success' | 'error' | 'info', title?: string }
+  const [toast, setToast] = useState(null);
 
-  const showToast = (msg) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (message, type = 'success', title = null) => {
+    const cleanType = type === 'error' ? 'error' : (type === 'info' ? 'info' : 'success');
+    const defaultTitle = cleanType === 'error' ? 'Action Failed' : (cleanType === 'info' ? 'Notice' : 'Success');
+    setToast({
+      message: typeof message === 'string' ? message : String(message || 'Notification'),
+      type: cleanType,
+      title: title || defaultTitle
+    });
+    setTimeout(() => {
+      setToast((prev) => (prev?.message === message ? null : prev));
+    }, 5500);
   };
 
-  // Form State
+  // Form & Wizard Tabs State
+  const [formTab, setFormTab] = useState('general'); // 'general' | 'client' | 'budget' | 'specs'
+
+  // Comprehensive Backend Project Schema Form State
   const initialFormState = {
     name: '',
+    code: '',
     description: '',
     priority: 'MEDIUM',
+    status: 'NOT_STARTED',
     projectCategoryId: '',
     projectTypeId: '',
     clientName: '',
     contactPerson: '',
     email: '',
     phone: '',
+    clientGst: '',
     address: '',
     city: 'Ahmedabad',
     state: 'Gujarat',
     pincode: '',
+    country: 'India',
     plannedStartDate: new Date().toISOString().slice(0, 10),
     plannedEndDate: '',
     budgetRupees: '',
     areaValue: '',
-    areaUnit: 'sq.ft',
+    areaUnit: 'SQFT',
     tags: '',
-    managerId: ''
+    managerId: '',
+    applyDefaultStagesOnInit: true
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -318,9 +379,10 @@ export function ProjectsPage() {
 
   // Handle Create or Edit Submit Flow
   const handleSaveProject = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     if (!formData.name.trim()) {
-      showToast('Project name is required');
+      showToast('Project name is required', 'error', 'Validation Notice');
+      setFormTab('general');
       return;
     }
 
@@ -338,6 +400,10 @@ export function ProjectsPage() {
     if (formData.address?.trim()) cleanSite.address = formData.address.trim();
     if (formData.pincode?.trim()) cleanSite.pincode = formData.pincode.trim();
 
+    // Backend Zod schema strictly requires either "SQFT" or "SQM"
+    const rawUnit = (formData.areaUnit || 'SQFT').toUpperCase();
+    const cleanUnit = rawUnit.includes('M') ? 'SQM' : 'SQFT';
+
     const payload = {
       name: formData.name.trim(),
       priority: formData.priority || 'MEDIUM',
@@ -346,37 +412,28 @@ export function ProjectsPage() {
       budgetPaise: formData.budgetRupees ? Math.round(Number(formData.budgetRupees) * 100) : 0,
       area: {
         value: Number(formData.areaValue) || 0,
-        unit: formData.areaUnit || 'sq.ft'
+        unit: cleanUnit
       }
     };
 
     if (formData.description?.trim()) payload.description = formData.description.trim();
+
     if (formData.projectCategoryId && formData.projectCategoryId.trim() !== '') {
       payload.projectCategoryId = formData.projectCategoryId;
-      payload.categoryName = categoryOptions.find((c) => c.value === formData.projectCategoryId)?.label;
+      const cat = categoryOptions.find((c) => c.value === formData.projectCategoryId);
+      if (cat?.label) payload.categoryName = cat.label;
     }
     if (formData.projectTypeId && formData.projectTypeId.trim() !== '') {
       payload.projectTypeId = formData.projectTypeId;
-      payload.typeName = typeOptions.find((t) => t.value === formData.projectTypeId)?.label;
-    }
-    if (formData.managerId && formData.managerId.trim() !== '') {
-      payload.managerId = formData.managerId;
-      const foundManager = usersDirectory.find((u) => (u._id || u.id) === formData.managerId);
-      if (foundManager) payload.managerName = foundManager.name;
-    } else if (usersDirectory[0]?._id || usersDirectory[0]?.id) {
-      payload.managerId = usersDirectory[0]._id || usersDirectory[0].id;
-      payload.managerName = usersDirectory[0].name;
-    }
-
-    if (formData.plannedStartDate) {
-      payload.plannedStartDate = new Date(formData.plannedStartDate).toISOString();
-    }
-    if (formData.plannedEndDate) {
-      payload.plannedEndDate = new Date(formData.plannedEndDate).toISOString();
+      const typ = typeOptions.find((t) => t.value === formData.projectTypeId);
+      if (typ?.label) payload.typeName = typ.label;
     }
 
     if (formData.tags) {
-      payload.tags = formData.tags.split(',').map((t) => t.trim()).filter(Boolean);
+      payload.tags = formData.tags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
     }
 
     try {
@@ -386,21 +443,61 @@ export function ProjectsPage() {
           ...payload,
           expectedVersion: editModalProject.version
         });
-        showToast(`Project "${updated?.name || 'Record'}" updated successfully!`);
+
+        // If manager selected, assign/update via member API
+        if (formData.managerId) {
+          try {
+            await projectService.addProjectMember(projId, {
+              userId: formData.managerId,
+              role: 'MANAGER'
+            });
+          } catch (mgrErr) {
+            console.warn('Manager assignment update notice:', mgrErr);
+          }
+        }
+
+        showToast(`Project "${updated?.name || 'Record'}" updated successfully!`, 'success', 'Changes Saved');
         setEditModalProject(null);
       } else {
         const created = await projectService.createProject(payload);
         const codeDisplay = created?.projectCode || created?.code || created?.name || 'New Project';
-        showToast(`Project created: ${codeDisplay}`);
+        const newProjId = created?._id || created?.id;
+
+        // Auto-assign Manager via project members API if selected
+        if (formData.managerId && newProjId) {
+          try {
+            const foundMgr = usersDirectory.find((u) => (u._id || u.id) === formData.managerId);
+            await projectService.addProjectMember(newProjId, {
+              userId: formData.managerId,
+              role: 'MANAGER',
+              name: foundMgr?.name || 'Lead Architect',
+              email: foundMgr?.email || ''
+            });
+          } catch (mgrErr) {
+            console.warn('Auto-manager assignment notice:', mgrErr);
+          }
+        }
+
+        // Auto-seed drawing stages if requested
+        if (formData.applyDefaultStagesOnInit && newProjId) {
+          try {
+            await projectService.applyDefaultStages(newProjId);
+          } catch (stgErr) {
+            console.warn('Auto-stage initialization notice:', stgErr);
+          }
+        }
+
+        showToast(`Project created: ${codeDisplay}`, 'success', 'Project Created');
         setCreateModalOpen(false);
       }
 
       setFormData(initialFormState);
+      setFormTab('general');
       loadProjects(pagination.page);
       loadSummary();
     } catch (err) {
       const errorMsg = extractErrorMessage(err, 'Failed to save project record');
-      showToast(errorMsg);
+      showToast(errorMsg, 'error', 'Validation Notice');
     }
   };
 
@@ -415,28 +512,37 @@ export function ProjectsPage() {
       // Handled
     }
 
+    const rawUnit = (proj.area?.unit || 'SQFT').toUpperCase();
+    const cleanUnit = rawUnit.includes('M') ? 'SQM' : 'SQFT';
+
     setEditModalProject(proj);
+    setFormTab('general');
     setFormData({
       name: proj.name || '',
+      code: proj.code || proj.projectCode || '',
       description: proj.description || '',
       priority: proj.priority || 'MEDIUM',
+      status: proj.status || 'NOT_STARTED',
       projectCategoryId: proj.projectCategoryId || '',
       projectTypeId: proj.projectTypeId || '',
       clientName: proj.client?.name || '',
       contactPerson: proj.client?.contactPerson || '',
       email: proj.client?.email || '',
       phone: proj.client?.phone || '',
+      clientGst: proj.client?.gstNumber || '',
       address: proj.site?.address || '',
       city: proj.site?.city || 'Ahmedabad',
       state: proj.site?.state || 'Gujarat',
       pincode: proj.site?.pincode || '',
+      country: proj.site?.country || 'India',
       plannedStartDate: proj.plannedStartDate ? proj.plannedStartDate.slice(0, 10) : '',
       plannedEndDate: proj.plannedEndDate ? proj.plannedEndDate.slice(0, 10) : '',
       budgetRupees: proj.budgetPaise ? String(proj.budgetPaise / 100) : '',
       areaValue: proj.area?.value ? String(proj.area.value) : '',
-      areaUnit: proj.area?.unit || 'sq.ft',
+      areaUnit: cleanUnit,
       tags: (proj.tags || []).join(', '),
-      managerId: proj.managerId || ''
+      managerId: proj.managerId || '',
+      applyDefaultStagesOnInit: false
     });
   };
 
@@ -708,11 +814,26 @@ export function ProjectsPage() {
 
   return (
     <div className="projects-page-container">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="m17-toast-notification">
-          <Sparkles size={16} />
-          <span>{toastMessage}</span>
+      {/* Top Prominent Luxury Notification (User requested: Top, not bottom, professional architectural design) */}
+      {toast && (
+        <div className={`m17-top-toast-notification ${toast.type || 'info'}`} role="alert">
+          <div className="top-toast-icon">
+            {toast.type === 'error' && <AlertTriangle size={20} />}
+            {toast.type === 'success' && <CheckCircle2 size={20} />}
+            {toast.type !== 'error' && toast.type !== 'success' && <Sparkles size={20} />}
+          </div>
+          <div className="top-toast-content">
+            {toast.title && <div className="top-toast-title">{toast.title}</div>}
+            <div className="top-toast-message">{toast.message}</div>
+          </div>
+          <button
+            type="button"
+            className="top-toast-close"
+            onClick={() => setToast(null)}
+            title="Dismiss notification"
+          >
+            ×
+          </button>
         </div>
       )}
 
@@ -748,6 +869,7 @@ export function ProjectsPage() {
             onClick={() => {
               setEditModalProject(null);
               setFormData(initialFormState);
+              setFormTab('general');
               setCreateModalOpen(true);
             }}
           >
@@ -1549,237 +1671,499 @@ export function ProjectsPage() {
         </Modal>
       )}
 
-      {/* 6. Create / Edit Project Modal */}
+      {/* 6. Professional 4-Step Architectural Project Dossier Modal */}
       <Modal
         isOpen={createModalOpen || Boolean(editModalProject)}
         onClose={() => {
           setCreateModalOpen(false);
           setEditModalProject(null);
         }}
-        title={editModalProject ? `Edit Project: ${editModalProject.projectCode}` : 'Create New Architectural Project'}
-        maxWidth="780px"
+        title={
+          <div className="pmodal-title-wrapper">
+            <span className="pmodal-main-title">
+              {editModalProject ? `Project Dossier: ${editModalProject.projectCode || editModalProject.name}` : 'New Architectural Project Dossier'}
+            </span>
+            <span className="pmodal-title-tag">
+              {editModalProject ? `Version ${editModalProject.version || 1} • ${editModalProject.status || 'Active'}` : 'M1.7 Enterprise Master'}
+            </span>
+          </div>
+        }
+        maxWidth="840px"
       >
         <form onSubmit={handleSaveProject} className="create-project-form">
-          <div className="form-section-header">
-            <span>Core Project Record</span>
-          </div>
-
-          <Input
-            label="Project Name / Title *"
-            id="proj-name-input"
-            placeholder="e.g. Cantilevered Courtyard Villa"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-          />
-
-          <div className="form-grid-2">
-            <div>
-              <label className="m17-field-label">Project Category</label>
-              <select
-                className="m17-select-input"
-                value={formData.projectCategoryId}
-                onChange={(e) => setFormData({ ...formData, projectCategoryId: e.target.value })}
-              >
-                <option value="">Select Category...</option>
-                {categoryOptions.map((c) => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="m17-field-label">Typology / Type</label>
-              <select
-                className="m17-select-input"
-                value={formData.projectTypeId}
-                onChange={(e) => setFormData({ ...formData, projectTypeId: e.target.value })}
-              >
-                <option value="">Select Type...</option>
-                {typeOptions.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-grid-2">
-            <div>
-              <label className="m17-field-label">Priority</label>
-              <select
-                className="m17-select-input"
-                value={formData.priority}
-                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-              >
-                <option value="LOW">LOW</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HIGH">HIGH</option>
-                <option value="URGENT">URGENT</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="m17-field-label">Assign Manager</label>
-              <select
-                className="m17-select-input"
-                value={formData.managerId}
-                onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
-              >
-                <option value="">Select Project Manager...</option>
-                {usersDirectory.map((u) => (
-                  <option key={u._id || u.id} value={u._id || u.id}>{u.name} ({u.designation || 'Architect'})</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="form-section-header">
-            <span>Client & Site Details</span>
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Client Account / Name"
-              placeholder="e.g. Rajesh & Sonal Shah"
-              value={formData.clientName}
-              onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-            />
-            <Input
-              label="Contact Person"
-              placeholder="Primary representative"
-              value={formData.contactPerson}
-              onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Client Email"
-              type="email"
-              placeholder="client@domain.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            />
-            <Input
-              label="Client Phone / WhatsApp"
-              placeholder="+91 98250 12345"
-              value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            />
-          </div>
-
-          <div className="form-grid-3">
-            <Input
-              label="Site City"
-              placeholder="Ahmedabad"
-              value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-            />
-            <Input
-              label="Site State"
-              placeholder="Gujarat"
-              value={formData.state}
-              onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-            />
-            <Input
-              label="Pincode"
-              placeholder="380015"
-              value={formData.pincode}
-              onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-            />
-          </div>
-
-          <Input
-            label="Site Street / Plot Address"
-            placeholder="Plot 42, Gulmohar Greens"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-          />
-
-          <div className="form-section-header">
-            <span>Budget, Area & Timeline</span>
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Budget in INR (₹)"
-              type="number"
-              placeholder="e.g. 4500000"
-              value={formData.budgetRupees}
-              onChange={(e) => setFormData({ ...formData, budgetRupees: e.target.value })}
-              helperText={formData.budgetRupees ? formatBudget(Number(formData.budgetRupees) * 100) : 'Stored as budgetPaise in backend'}
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Input
-                label="Built-Up Area"
-                type="number"
-                placeholder="4500"
-                value={formData.areaValue}
-                onChange={(e) => setFormData({ ...formData, areaValue: e.target.value })}
-                style={{ flex: 2 }}
-              />
-              <div style={{ flex: 1 }}>
-                <label className="m17-field-label">Unit</label>
-                <select
-                  className="m17-select-input"
-                  value={formData.areaUnit}
-                  onChange={(e) => setFormData({ ...formData, areaUnit: e.target.value })}
-                >
-                  <option value="sq.ft">sq.ft</option>
-                  <option value="sq.m">sq.m</option>
-                  <option value="sq.yd">sq.yd</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Planned Start Date"
-              type="date"
-              value={formData.plannedStartDate}
-              onChange={(e) => setFormData({ ...formData, plannedStartDate: e.target.value })}
-            />
-            <Input
-              label="Planned Handover Date"
-              type="date"
-              value={formData.plannedEndDate}
-              onChange={(e) => setFormData({ ...formData, plannedEndDate: e.target.value })}
-            />
-          </div>
-
-          <Input
-            label="Tags (Comma separated)"
-            placeholder="Luxury, Courtyard, Vastu-Compliant"
-            value={formData.tags}
-            onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-          />
-
-          <div>
-            <label className="m17-field-label">Project Scope / Architectural Description</label>
-            <textarea
-              className="m17-textarea-input"
-              rows={3}
-              placeholder="Describe architectural style, material palette, and key project goals..."
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            />
-          </div>
-
-          <div className="form-action-row">
-            <Button
-              variant="secondary"
+          {/* 4-Step Dossier Subnav Tabs */}
+          <div className="project-form-tabbar">
+            <button
               type="button"
-              onClick={() => {
-                setCreateModalOpen(false);
-                setEditModalProject(null);
-              }}
+              className={`pform-tab-btn ${formTab === 'general' ? 'active' : ''}`}
+              onClick={() => setFormTab('general')}
             >
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit">
-              {editModalProject ? 'Save Changes' : 'Create Project Record'}
-            </Button>
+              <span className="pform-tab-num">1</span>
+              <Building size={15} />
+              <span>Identity & Scope</span>
+            </button>
+            <button
+              type="button"
+              className={`pform-tab-btn ${formTab === 'client' ? 'active' : ''}`}
+              onClick={() => setFormTab('client')}
+            >
+              <span className="pform-tab-num">2</span>
+              <MapPin size={15} />
+              <span>Client & Site</span>
+            </button>
+            <button
+              type="button"
+              className={`pform-tab-btn ${formTab === 'budget' ? 'active' : ''}`}
+              onClick={() => setFormTab('budget')}
+            >
+              <span className="pform-tab-num">3</span>
+              <IndianRupee size={15} />
+              <span>Budget & Schedule</span>
+            </button>
+            <button
+              type="button"
+              className={`pform-tab-btn ${formTab === 'specs' ? 'active' : ''}`}
+              onClick={() => setFormTab('specs')}
+            >
+              <span className="pform-tab-num">4</span>
+              <Sparkles size={15} />
+              <span>Specs & Stages</span>
+            </button>
+          </div>
+
+          <div className="pform-tab-body">
+            {/* STEP 1: IDENTITY & SCOPE */}
+            {formTab === 'general' && (
+              <div className="pform-card-section">
+                <div className="pform-section-title">
+                  <span>General Project Record</span>
+                  <span className="pform-subtitle-tag">Required for indexing & assignment</span>
+                </div>
+
+                <Input
+                  label="Project Name / Architectural Title *"
+                  id="proj-name-input"
+                  placeholder="e.g. Cantilevered Courtyard Villa"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+
+                <div className="form-grid-2">
+                  <Input
+                    label="Reference / Custom Code"
+                    placeholder="e.g. PRJ-2026-VILLA-01 (Auto-generated if empty)"
+                    value={formData.code}
+                    onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  />
+
+                  <div>
+                    <label className="m17-field-label">Project Category</label>
+                    <select
+                      className="m17-select-input"
+                      value={formData.projectCategoryId}
+                      onChange={(e) => setFormData({ ...formData, projectCategoryId: e.target.value })}
+                    >
+                      <option value="">Select Category...</option>
+                      {categoryOptions.map((c) => (
+                        <option key={c.value} value={c.value}>{c.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div>
+                    <label className="m17-field-label">Typology / Type</label>
+                    <select
+                      className="m17-select-input"
+                      value={formData.projectTypeId}
+                      onChange={(e) => setFormData({ ...formData, projectTypeId: e.target.value })}
+                    >
+                      <option value="">Select Type...</option>
+                      {typeOptions.map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="m17-field-label">Project Priority</label>
+                    <select
+                      className="m17-select-input"
+                      value={formData.priority}
+                      onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                    >
+                      <option value="LOW">LOW</option>
+                      <option value="MEDIUM">MEDIUM</option>
+                      <option value="HIGH">HIGH</option>
+                      <option value="URGENT">URGENT</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-grid-2">
+                  <div>
+                    <label className="m17-field-label">Lead Architect / Project Manager</label>
+                    <select
+                      className="m17-select-input"
+                      value={formData.managerId}
+                      onChange={(e) => setFormData({ ...formData, managerId: e.target.value })}
+                    >
+                      <option value="">Select Project Manager...</option>
+                      {usersDirectory.map((u) => (
+                        <option key={u._id || u.id} value={u._id || u.id}>
+                          {u.name} ({u.designation || 'Architect'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="m17-field-label">Lifecycle Status</label>
+                    <select
+                      className="m17-select-input"
+                      value={formData.status}
+                      onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                    >
+                      <option value="NOT_STARTED">NOT_STARTED</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+                      <option value="ON_HOLD">ON_HOLD</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                      <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: CLIENT & SITE LOCATION */}
+            {formTab === 'client' && (
+              <div className="pform-card-section">
+                <div className="pform-section-title">
+                  <span>Client & Stakeholder Profile</span>
+                  <span className="pform-subtitle-tag">Client billing & official communication</span>
+                </div>
+
+                <div className="form-grid-2">
+                  <Input
+                    label="Client Account / Entity Name"
+                    placeholder="e.g. Rajesh & Sonal Shah / Acme Corp"
+                    value={formData.clientName}
+                    onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
+                  />
+                  <Input
+                    label="Primary Representative / Contact Person"
+                    placeholder="e.g. Mr. Rajesh Shah (Director)"
+                    value={formData.contactPerson}
+                    onChange={(e) => setFormData({ ...formData, contactPerson: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-grid-2">
+                  <Input
+                    label="Client Email Address"
+                    type="email"
+                    placeholder="client@domain.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                  <Input
+                    label="Client Phone / WhatsApp"
+                    placeholder="+91 98250 12345"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-grid-2">
+                  <Input
+                    label="Client GSTIN / Tax Identification"
+                    placeholder="e.g. 24ABCDE1234F1Z5"
+                    value={formData.clientGst}
+                    onChange={(e) => setFormData({ ...formData, clientGst: e.target.value.toUpperCase() })}
+                  />
+                  <Input
+                    label="Country"
+                    placeholder="India"
+                    value={formData.country}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  />
+                </div>
+
+                <div className="pform-section-title" style={{ marginTop: '16px' }}>
+                  <span>Site Geography & Plot Location</span>
+                  <span className="pform-subtitle-tag">Physical survey location</span>
+                </div>
+
+                <Input
+                  label="Site Street / Plot Address"
+                  placeholder="Plot 42, Gulmohar Greens, Opp. Country Club"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+
+                <div className="form-grid-3">
+                  <Input
+                    label="Site City"
+                    placeholder="Ahmedabad"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
+                  <Input
+                    label="Site State"
+                    placeholder="Gujarat"
+                    value={formData.state}
+                    onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  />
+                  <Input
+                    label="Pincode"
+                    placeholder="380015"
+                    value={formData.pincode}
+                    onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: FINANCIALS & SCHEDULE */}
+            {formTab === 'budget' && (
+              <div className="pform-card-section">
+                <div className="pform-section-title">
+                  <span>Financial Estimations & Spatial Area</span>
+                  <span className="pform-subtitle-tag">Paise precision per M1.7 standard</span>
+                </div>
+
+                <div className="form-grid-2">
+                  <div>
+                    <Input
+                      label="Estimated Project Budget in INR (₹)"
+                      type="number"
+                      placeholder="e.g. 4500000"
+                      value={formData.budgetRupees}
+                      onChange={(e) => setFormData({ ...formData, budgetRupees: e.target.value })}
+                    />
+                    <div className="pform-live-stat-card">
+                      <IndianRupee size={14} />
+                      <span>Converted: <strong>{formatRupeesWord(formData.budgetRupees)}</strong> (Stored as budgetPaise in backend)</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <Input
+                        label="Built-Up Area"
+                        type="number"
+                        placeholder="4500"
+                        value={formData.areaValue}
+                        onChange={(e) => setFormData({ ...formData, areaValue: e.target.value })}
+                        style={{ flex: 2 }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <label className="m17-field-label">Unit</label>
+                        <select
+                          className="m17-select-input"
+                          value={formData.areaUnit}
+                          onChange={(e) => setFormData({ ...formData, areaUnit: e.target.value })}
+                        >
+                          <option value="SQFT">sq.ft (SQFT)</option>
+                          <option value="SQM">sq.m (SQM)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="pform-live-stat-card">
+                      <Building size={14} />
+                      <span>Spatial Size: <strong>{formData.areaValue ? Number(formData.areaValue).toLocaleString('en-IN') : '0'} {formData.areaUnit === 'SQM' ? 'sq.m' : 'sq.ft'}</strong></span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pform-section-title" style={{ marginTop: '16px' }}>
+                  <span>Timeline Milestones & Schedule</span>
+                  <span className="pform-subtitle-tag">Kickoff and projected handover</span>
+                </div>
+
+                <div className="form-grid-2">
+                  <Input
+                    label="Planned Kickoff Date"
+                    type="date"
+                    value={formData.plannedStartDate}
+                    onChange={(e) => setFormData({ ...formData, plannedStartDate: e.target.value })}
+                  />
+                  <Input
+                    label="Planned Handover Date"
+                    type="date"
+                    value={formData.plannedEndDate}
+                    onChange={(e) => setFormData({ ...formData, plannedEndDate: e.target.value })}
+                  />
+                </div>
+
+                {formData.plannedStartDate && formData.plannedEndDate && (
+                  <div className="pform-live-stat-card highlight">
+                    <Calendar size={15} />
+                    <span>
+                      Estimated Project Duration: <strong>{calculateDuration(formData.plannedStartDate, formData.plannedEndDate) || 'Invalid date range'}</strong>
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 4: SPECS, TAGS & STAGES */}
+            {formTab === 'specs' && (
+              <div className="pform-card-section">
+                <div className="pform-section-title">
+                  <span>Architectural Tags & Concept Specs</span>
+                  <span className="pform-subtitle-tag">Taxonomy & materials</span>
+                </div>
+
+                {/* Suggested Quick Tags */}
+                <div>
+                  <label className="m17-field-label" style={{ marginBottom: 6, display: 'block' }}>
+                    Quick-Add Architectural Tags
+                  </label>
+                  <div className="suggested-tags-container">
+                    {SUGGESTED_TAGS.map((t) => {
+                      const active = (formData.tags || '')
+                        .split(',')
+                        .map((x) => x.trim().toLowerCase())
+                        .includes(t.toLowerCase());
+                      return (
+                        <button
+                          key={t}
+                          type="button"
+                          className={`quick-suggest-chip ${active ? 'selected' : ''}`}
+                          onClick={() => {
+                            const tagsArr = (formData.tags || '')
+                              .split(',')
+                              .map((x) => x.trim())
+                              .filter(Boolean);
+                            if (active) {
+                              const filtered = tagsArr.filter((x) => x.toLowerCase() !== t.toLowerCase());
+                              setFormData({ ...formData, tags: filtered.join(', ') });
+                            } else {
+                              setFormData({ ...formData, tags: [...tagsArr, t].join(', ') });
+                            }
+                          }}
+                        >
+                          <Tag size={12} />
+                          <span>{t}</span>
+                          {active && <Check size={12} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <Input
+                  label="Tags (Comma separated)"
+                  placeholder="Luxury, Courtyard, Exposed Concrete, Vastu-Compliant"
+                  value={formData.tags}
+                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                />
+
+                <div>
+                  <label className="m17-field-label">Architectural Scope & Material Palette Description</label>
+                  <textarea
+                    className="m17-textarea-input"
+                    rows={3}
+                    placeholder="Describe spatial concept, elevation features, material specifications (e.g. Italian marble, corten steel, glass facade), and structural notes..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+
+                {/* Auto-apply Default Stages Option on Creation */}
+                {!editModalProject && (
+                  <div className="pform-checkbox-card">
+                    <label className="pform-checkbox-label">
+                      <input
+                        type="checkbox"
+                        checked={formData.applyDefaultStagesOnInit}
+                        onChange={(e) => setFormData({ ...formData, applyDefaultStagesOnInit: e.target.checked })}
+                      />
+                      <div>
+                        <div className="pform-cb-title">
+                          <Layers size={14} />
+                          <span>Auto-initialize Standard Drawing Stages</span>
+                        </div>
+                        <div className="pform-cb-desc">
+                          Automatically generates standard sequential drawing stages (Concept, Schematic, DD, Tender, GFC, Handover) based on category.
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Stepper Navigation Footer */}
+          <div className="pform-stepper-footer">
+            <div className="pform-step-indicator">
+              <span>
+                {formTab === 'general' && 'Step 1 of 4: Identity & Scope'}
+                {formTab === 'client' && 'Step 2 of 4: Client & Site Details'}
+                {formTab === 'budget' && 'Step 3 of 4: Financials & Timeline'}
+                {formTab === 'specs' && 'Step 4 of 4: Specifications & Stages'}
+              </span>
+            </div>
+
+            <div className="pform-footer-actions">
+              <button
+                type="button"
+                className="btn-pform-secondary"
+                onClick={() => {
+                  setCreateModalOpen(false);
+                  setEditModalProject(null);
+                }}
+              >
+                Cancel
+              </button>
+
+              {formTab !== 'general' && (
+                <button
+                  type="button"
+                  className="btn-pform-secondary"
+                  onClick={() => {
+                    if (formTab === 'client') setFormTab('general');
+                    if (formTab === 'budget') setFormTab('client');
+                    if (formTab === 'specs') setFormTab('budget');
+                  }}
+                >
+                  <ArrowLeft size={15} />
+                  <span>Previous</span>
+                </button>
+              )}
+
+              {formTab !== 'specs' ? (
+                <button
+                  type="button"
+                  className="btn-pform-next"
+                  onClick={() => {
+                    if (formTab === 'general') setFormTab('client');
+                    if (formTab === 'client') setFormTab('budget');
+                    if (formTab === 'budget') setFormTab('specs');
+                  }}
+                >
+                  <span>Continue</span>
+                  <ArrowRight size={15} />
+                </button>
+              ) : (
+                <button type="submit" className="btn-pform-submit">
+                  <Check size={16} />
+                  <span>{editModalProject ? 'Save Changes' : 'Create Project Record'}</span>
+                </button>
+              )}
+
+              {/* Quick direct Save button available on earlier tabs as well */}
+              {formTab !== 'specs' && (
+                <button type="submit" className="btn-pform-submit" title="Save immediately without visiting remaining tabs">
+                  <Check size={15} />
+                  <span>{editModalProject ? 'Save Changes' : 'Create Project'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </form>
       </Modal>

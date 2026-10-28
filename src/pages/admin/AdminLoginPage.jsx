@@ -28,7 +28,10 @@ export function AdminLoginPage() {
   const [serverError, setServerError] = useState('');
   const [successNotice, setSuccessNotice] = useState('');
 
-  const from = location.state?.from?.pathname || ROUTES.ADMIN;
+  const stateFrom = location.state?.from?.pathname;
+  const from = (stateFrom && !stateFrom.includes('password') && !stateFrom.includes('login'))
+    ? stateFrom
+    : ROUTES.ADMIN;
 
   // Countdown timer for OTP resend cooldown
   useEffect(() => {

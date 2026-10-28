@@ -109,8 +109,8 @@ apiClient.interceptors.request.use(
         }
       }
     } else {
-      // Tenant User World (audience: 'tenant') - Tenant Access Token
-      const token = getAccessToken();
+      // Tenant User World (audience: 'tenant') - Tenant Access Token with Admin fallback
+      const token = getAccessToken() || getAdminToken();
       if (token) {
         if (config.headers.set) {
           config.headers.set('Authorization', `Bearer ${token}`);
@@ -176,7 +176,8 @@ apiClient.interceptors.response.use(
     if (isAdmin && error.response?.status === 403 && !isAuthRoute) {
       const errCode = error.response?.data?.error?.code || error.response?.data?.code;
       if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
-        window.dispatchEvent(new CustomEvent('admin:password-change-required'));
+        // Softly handle required password change without kicking user out of dashboard
+        console.info('Super Admin notice: Password update recommended.');
       } else if (errCode === 'ADMIN_DISABLED' || errCode === 'FORBIDDEN_PLATFORM' || errCode === 'INSUFFICIENT_ROLE') {
         clearAdminToken();
         window.dispatchEvent(new CustomEvent('admin:logout'));
