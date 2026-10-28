@@ -151,7 +151,8 @@ export const authService = {
    * 6. POST /auth/forgot-password - Request Password Reset Email
    * Sends password reset email if account exists (Anti-enumeration response 200).
    */
-  forgotPassword: async (email) => {
+  forgotPassword: async (param) => {
+    const email = typeof param === 'string' ? param : param?.email;
     return await apiClient.post('/auth/forgot-password', {
       email: email?.trim()
     });

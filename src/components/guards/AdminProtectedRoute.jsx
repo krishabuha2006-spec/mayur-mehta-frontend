@@ -32,19 +32,5 @@ export function AdminProtectedRoute({ children }) {
     );
   }
 
-  // Check if admin requires password change per Module M1.2 Section 5
-  if (adminUser.mustChangePassword) {
-    return (
-      <Navigate
-        to={ROUTES.ADMIN_RESET_PASSWORD}
-        state={{
-          from: location,
-          notice: 'Password change is required before accessing company management.'
-        }}
-        replace
-      />
-    );
-  }
-
   return children;
 }

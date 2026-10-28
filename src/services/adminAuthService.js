@@ -99,7 +99,8 @@ export const adminAuthService = {
   /**
    * 8. POST /admin/auth/forgot-password - Super Admin Forgot Password
    */
-  forgotPassword: async ({ email }) => {
+  forgotPassword: async (param) => {
+    const email = typeof param === 'string' ? param : param?.email;
     const res = await apiClient.post('/admin/auth/forgot-password', {
       email: email?.trim()
     });

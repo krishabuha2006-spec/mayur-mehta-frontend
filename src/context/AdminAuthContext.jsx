@@ -81,6 +81,10 @@ export function AdminAuthProvider({ children }) {
     setAdminUser(user);
   };
 
+  const updateAdminUser = (updatedData) => {
+    setAdminUser((prev) => (prev ? { ...prev, ...updatedData } : null));
+  };
+
   const logout = async () => {
     await adminAuthService.logout();
     setAdminUser(null);
@@ -98,6 +102,7 @@ export function AdminAuthProvider({ children }) {
         loading,
         isAuthenticated: !!adminUser,
         setAuthenticatedAdmin,
+        updateAdminUser,
         refreshProfile: loadAdminProfile,
         logout,
         logoutAll

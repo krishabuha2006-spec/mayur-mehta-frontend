@@ -323,11 +323,7 @@ export function Header({ onOpenMobileMenu }) {
       {/* Change Password Modal (Module M1.2 Section 4.1.9) */}
       <Modal
         isOpen={changePasswordOpen}
-        onClose={() => {
-          if (!user?.mustChangePassword) {
-            setChangePasswordOpen(false);
-          }
-        }}
+        onClose={() => setChangePasswordOpen(false)}
         title="Change Account Password"
       >
         <form onSubmit={handleChangePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -392,17 +388,15 @@ export function Header({ onOpenMobileMenu }) {
           />
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
-            {!user?.mustChangePassword && (
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setChangePasswordOpen(false)}
-                style={{ flex: 1 }}
-                disabled={changeLoading}
-              >
-                Cancel
-              </Button>
-            )}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setChangePasswordOpen(false)}
+              style={{ flex: 1 }}
+              disabled={changeLoading}
+            >
+              Cancel
+            </Button>
             <Button
               type="submit"
               variant="primary"
