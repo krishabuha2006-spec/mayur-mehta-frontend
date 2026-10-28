@@ -11,12 +11,20 @@ export function AdminAuthProvider({ children }) {
   // Page Refresh (F5): Authenticate via existing admin token or silent POST /api/v1/admin/auth/refresh
   const loadAdminProfile = useCallback(async () => {
     try {
-      const isAdminRoute = window.location.pathname.startsWith('/admin');
+      const path = window.location.pathname;
+      const isAdminRoute = path.startsWith('/admin');
       if (!isAdminRoute) {
         setAdminUser(null);
         setLoading(false);
         return;
       }
+
+      const isPublicAdminRoute =
+        path === '/admin/login' ||
+        path.startsWith('/admin/forgot-password') ||
+        path.startsWith('/admin/reset-password') ||
+        path.startsWith('/admin/set-password') ||
+        path.startsWith('/admin/auth/');
 
       let user = null;
       const existingToken = getAdminToken();
@@ -29,7 +37,8 @@ export function AdminAuthProvider({ children }) {
         }
       }
 
-      if (!user) {
+      // Only attempt silent refresh if we're on a protected admin page or an existing token expired
+      if (!user && (!isPublicAdminRoute || existingToken)) {
         try {
           await adminAuthService.refreshToken();
           user = await adminAuthService.getProfile();
@@ -38,11 +47,16 @@ export function AdminAuthProvider({ children }) {
           user = null;
         }
       }
-      const role = (user?.role || '').toUpperCase();
-      if (user && (role === 'SUPER_ADMIN' || role === 'SUPERADMIN')) {
-        setAdminUser(user);
+
+      if (user) {
+        const role = (user.role || '').toUpperCase();
+        if (role === 'SUPER_ADMIN' || role === 'SUPERADMIN') {
+          setAdminUser(user);
+        } else {
+          console.warn('Authenticated user does not have SUPER_ADMIN role:', role);
+          setAdminUser(null);
+        }
       } else {
-        console.warn('Authenticated user does not have SUPER_ADMIN role:', role);
         setAdminUser(null);
       }
     } catch {
