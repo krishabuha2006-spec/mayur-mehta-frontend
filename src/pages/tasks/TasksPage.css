@@ -100,13 +100,22 @@
   box-shadow: 0 0 0 2px var(--color-primary-soft);
 }
 
+.tasks-search-pill input.tasks-search-input,
+input[type="text"].tasks-search-input,
 .tasks-search-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font-size: var(--font-size-xs);
-  color: var(--color-text);
-  outline: none;
+  flex: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  font-size: var(--font-size-xs) !important;
+  color: var(--color-text) !important;
+  outline: none !important;
+  line-height: normal !important;
 }
 
 .tasks-meta-bar {

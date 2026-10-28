@@ -308,9 +308,9 @@
   flex: 1;
   height: 40px;
   background-color: #FFFFFF;
-  border: 1px solid rgba(183, 175, 166, 0.32);
-  border-radius: var(--radius-pill);
-  padding: 0 14px;
+  border: 1px solid rgba(183, 175, 166, 0.35);
+  border-radius: 9999px;
+  padding: 0 16px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -328,18 +328,27 @@
   flex-shrink: 0;
 }
 
+.projects-search-pill input.projects-search-input,
+input[type="text"].projects-search-input,
 .projects-search-input {
-  width: 100%;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  color: #2E2925;
-  outline: none;
-  font-family: inherit;
+  flex: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  font-size: 13px !important;
+  color: #2E2925 !important;
+  outline: none !important;
+  font-family: inherit !important;
+  line-height: normal !important;
 }
 
 .projects-search-input::placeholder {
-  color: #A39B92;
+  color: #A39B92 !important;
 }
 
 /* Quick Status Segmented Pill (matches User / Team switch in screenshot) */

@@ -236,12 +236,17 @@
 }
 
 .storage-search-input {
-  border: none;
-  background: transparent;
-  outline: none;
-  font-size: var(--font-size-xs);
-  color: var(--color-text);
-  width: 100%;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  outline: none !important;
+  font-size: var(--font-size-xs) !important;
+  color: var(--color-text) !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 /* File Table */

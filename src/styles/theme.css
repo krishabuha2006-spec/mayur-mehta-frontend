@@ -108,7 +108,7 @@
    ========================================================================= */
 
 /* Universal Inputs & Selects */
-input[type="text"],
+input[type="text"]:not([class*="search-input"]),
 input[type="email"],
 input[type="password"],
 input[type="number"],
