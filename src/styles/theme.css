@@ -33,9 +33,9 @@
   --color-text-muted: #756E67;     /* Taupe-grey secondary */
   --color-text-light: #A39B92;     /* Placeholder grey */
 
-  /* Table Dark Header from Image 1 */
-  --color-table-header: #2E2E2E;   /* Charcoal header */
-  --color-table-header-text: #FFFFFF;
+  /* Table Header Warm Architectural Palette */
+  --color-table-header: #FAF8F5;   /* Warm architectural surface */
+  --color-table-header-text: #7B6F62;
 
   /* Extended Palette from Sheet B */
   --color-ext-1: #F5F2EC;

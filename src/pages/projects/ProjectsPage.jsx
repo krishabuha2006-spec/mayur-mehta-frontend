@@ -35,6 +35,7 @@ import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Dropdown } from '../../components/common/Dropdown/Dropdown';
 import './ProjectsPage.css';
+import { extractErrorMessage } from '../../utils/errorHandler';
 
 // Helper to format Paise into clean Indian Rupee string
 const formatBudget = (paise) => {
@@ -323,39 +324,60 @@ export function ProjectsPage() {
       return;
     }
 
+    const cleanClient = {
+      name: formData.clientName?.trim() || 'Private Client'
+    };
+    if (formData.contactPerson?.trim()) cleanClient.contactPerson = formData.contactPerson.trim();
+    if (formData.email?.trim()) cleanClient.email = formData.email.trim();
+    if (formData.phone?.trim()) cleanClient.phone = formData.phone.trim();
+
+    const cleanSite = {
+      city: formData.city?.trim() || 'Ahmedabad',
+      state: formData.state?.trim() || 'Gujarat'
+    };
+    if (formData.address?.trim()) cleanSite.address = formData.address.trim();
+    if (formData.pincode?.trim()) cleanSite.pincode = formData.pincode.trim();
+
     const payload = {
       name: formData.name.trim(),
-      description: formData.description,
-      priority: formData.priority,
-      projectCategoryId: formData.projectCategoryId || undefined,
-      projectTypeId: formData.projectTypeId || undefined,
-      categoryName: categoryOptions.find((c) => c.value === formData.projectCategoryId)?.label || 'Residential Villa',
-      typeName: typeOptions.find((t) => t.value === formData.projectTypeId)?.label || 'Architecture',
-      client: {
-        name: formData.clientName || 'Private Client',
-        contactPerson: formData.contactPerson,
-        email: formData.email,
-        phone: formData.phone
-      },
-      site: {
-        address: formData.address,
-        city: formData.city || 'Ahmedabad',
-        state: formData.state || 'Gujarat',
-        pincode: formData.pincode
-      },
-      plannedStartDate: formData.plannedStartDate ? new Date(formData.plannedStartDate).toISOString() : undefined,
-      plannedEndDate: formData.plannedEndDate ? new Date(formData.plannedEndDate).toISOString() : undefined,
+      priority: formData.priority || 'MEDIUM',
+      client: cleanClient,
+      site: cleanSite,
       budgetPaise: formData.budgetRupees ? Math.round(Number(formData.budgetRupees) * 100) : 0,
       area: {
         value: Number(formData.areaValue) || 0,
         unit: formData.areaUnit || 'sq.ft'
-      },
-      tags: formData.tags
-        ? formData.tags.split(',').map((t) => t.trim()).filter(Boolean)
-        : [],
-      managerId: formData.managerId || (usersDirectory[0]?._id || usersDirectory[0]?.id),
-      managerName: usersDirectory.find((u) => (u._id || u.id) === formData.managerId)?.name || 'Ar. Mayur Mehta'
+      }
     };
+
+    if (formData.description?.trim()) payload.description = formData.description.trim();
+    if (formData.projectCategoryId && formData.projectCategoryId.trim() !== '') {
+      payload.projectCategoryId = formData.projectCategoryId;
+      payload.categoryName = categoryOptions.find((c) => c.value === formData.projectCategoryId)?.label;
+    }
+    if (formData.projectTypeId && formData.projectTypeId.trim() !== '') {
+      payload.projectTypeId = formData.projectTypeId;
+      payload.typeName = typeOptions.find((t) => t.value === formData.projectTypeId)?.label;
+    }
+    if (formData.managerId && formData.managerId.trim() !== '') {
+      payload.managerId = formData.managerId;
+      const foundManager = usersDirectory.find((u) => (u._id || u.id) === formData.managerId);
+      if (foundManager) payload.managerName = foundManager.name;
+    } else if (usersDirectory[0]?._id || usersDirectory[0]?.id) {
+      payload.managerId = usersDirectory[0]._id || usersDirectory[0].id;
+      payload.managerName = usersDirectory[0].name;
+    }
+
+    if (formData.plannedStartDate) {
+      payload.plannedStartDate = new Date(formData.plannedStartDate).toISOString();
+    }
+    if (formData.plannedEndDate) {
+      payload.plannedEndDate = new Date(formData.plannedEndDate).toISOString();
+    }
+
+    if (formData.tags) {
+      payload.tags = formData.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    }
 
     try {
       if (editModalProject) {
@@ -364,11 +386,12 @@ export function ProjectsPage() {
           ...payload,
           expectedVersion: editModalProject.version
         });
-        showToast(`Project "${updated.name || 'Record'}" updated successfully!`);
+        showToast(`Project "${updated?.name || 'Record'}" updated successfully!`);
         setEditModalProject(null);
       } else {
         const created = await projectService.createProject(payload);
-        showToast(`Project created with code: ${created.projectCode}`);
+        const codeDisplay = created?.projectCode || created?.code || created?.name || 'New Project';
+        showToast(`Project created: ${codeDisplay}`);
         setCreateModalOpen(false);
       }
 
@@ -376,7 +399,8 @@ export function ProjectsPage() {
       loadProjects(pagination.page);
       loadSummary();
     } catch (err) {
-      showToast(`Error: ${err?.message || 'Operation failed'}`);
+      const errorMsg = extractErrorMessage(err, 'Failed to save project record');
+      showToast(errorMsg);
     }
   };
 
@@ -428,7 +452,7 @@ export function ProjectsPage() {
       loadSummary();
       loadTrashCount();
     } catch (err) {
-      showToast(`Delete failed: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Delete failed'));
     }
   };
 
@@ -443,7 +467,7 @@ export function ProjectsPage() {
       loadProjects(pagination.page);
       loadSummary();
     } catch (err) {
-      showToast(`Restore failed: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Restore failed'));
     }
   };
 
@@ -455,7 +479,7 @@ export function ProjectsPage() {
       setTrashCount(list.length);
       setTrashModalOpen(true);
     } catch (err) {
-      showToast('Failed to open trash bin');
+      showToast(extractErrorMessage(err, 'Failed to open trash bin'));
     }
   };
 
@@ -463,11 +487,13 @@ export function ProjectsPage() {
   const handleDuplicateProject = async (project) => {
     try {
       const duplicated = await projectService.duplicateProject(project._id || project.id);
-      showToast(`Duplicated: ${duplicated.projectCode} - ${duplicated.name}`);
+      const codeStr = duplicated?.projectCode || duplicated?.code || 'PROJECT';
+      const nameStr = duplicated?.name || '';
+      showToast(`Duplicated: ${codeStr} - ${nameStr}`);
       loadProjects(1);
       loadSummary();
     } catch (err) {
-      showToast(`Duplicate failed: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Duplicate project failed'));
     }
   };
 
@@ -486,7 +512,7 @@ export function ProjectsPage() {
       loadSummary();
       if (viewModalProject) setViewModalProject(null);
     } catch (err) {
-      showToast(`Archive error: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Archive operation failed'));
     }
   };
 
@@ -519,7 +545,7 @@ export function ProjectsPage() {
         setViewModalProject(updated);
       }
     } catch (err) {
-      showToast(`Status transition error: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Status transition failed'));
     }
   };
 
@@ -543,7 +569,7 @@ export function ProjectsPage() {
       window.URL.revokeObjectURL(url);
       showToast('CSV downloaded successfully.');
     } catch (err) {
-      showToast('Export failed.');
+      showToast(extractErrorMessage(err, 'Export failed'));
     }
   };
 
@@ -560,7 +586,7 @@ export function ProjectsPage() {
       showToast(`Progress calculation set to ${mode}`);
       loadProjects(pagination.page);
     } catch (err) {
-      showToast('Progress mode update failed');
+      showToast(extractErrorMessage(err, 'Progress mode update failed'));
     }
   };
 
@@ -577,7 +603,7 @@ export function ProjectsPage() {
       if (fresh) setViewModalProject(fresh);
       loadProjects(pagination.page);
     } catch (err) {
-      showToast('Failed to apply default stages');
+      showToast(extractErrorMessage(err, 'Failed to apply default stages'));
     }
   };
 
@@ -599,7 +625,7 @@ export function ProjectsPage() {
       if (fresh) setViewModalProject(fresh);
       loadProjects(pagination.page);
     } catch (err) {
-      showToast('Failed to add stage');
+      showToast(extractErrorMessage(err, 'Failed to add stage'));
     }
   };
 
@@ -617,7 +643,7 @@ export function ProjectsPage() {
       loadProjects(pagination.page);
       showToast(`Stage marked ${newStatus}`);
     } catch (err) {
-      showToast('Stage update failed');
+      showToast(extractErrorMessage(err, 'Stage update failed'));
     }
   };
 
@@ -632,7 +658,7 @@ export function ProjectsPage() {
       loadProjects(pagination.page);
       showToast('Stage removed');
     } catch (err) {
-      showToast(`Cannot delete stage: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Cannot delete stage'));
     }
   };
 
@@ -659,7 +685,7 @@ export function ProjectsPage() {
       showToast(selectedRoleToAdd === 'MANAGER' ? 'Manager assigned (previous demoted to LEAD)' : 'Member added');
       loadProjects(pagination.page);
     } catch (err) {
-      showToast(`Add member failed: ${err?.message}`);
+      showToast(extractErrorMessage(err, 'Add member failed'));
     }
   };
 
@@ -676,7 +702,7 @@ export function ProjectsPage() {
       showToast('Member removed from project team');
       loadProjects(pagination.page);
     } catch (err) {
-      showToast('Remove member failed');
+      showToast(extractErrorMessage(err, 'Remove member failed'));
     }
   };
 

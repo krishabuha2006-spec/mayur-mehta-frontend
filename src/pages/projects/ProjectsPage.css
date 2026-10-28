@@ -53,9 +53,9 @@
   flex-wrap: wrap;
 }
 
-/* Primary Dark Taupe Pill Button (Matches Dashboard "+ New Project" button) */
+/* Primary Architectural Taupe Pill Button */
 .btn-primary-pill {
-  background-color: #4A443E;
+  background-color: #7B6F62;
   color: #FFFFFF;
   border: none;
   border-radius: var(--radius-pill);
@@ -66,14 +66,14 @@
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(74, 68, 62, 0.2);
+  box-shadow: 0 2px 6px rgba(123, 111, 98, 0.25);
   transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-primary-pill:hover {
-  background-color: #35302B;
+  background-color: #675C51;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(74, 68, 62, 0.28);
+  box-shadow: 0 4px 12px rgba(123, 111, 98, 0.32);
 }
 
 .btn-secondary-pill {
@@ -378,10 +378,10 @@
 }
 
 .quick-pill.active {
-  background-color: #4A443E;
+  background-color: #7B6F62;
   color: #FFFFFF;
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(46, 40, 34, 0.15);
+  box-shadow: 0 1px 4px rgba(123, 111, 98, 0.28);
 }
 
 /* Drawer Advanced Filters */
@@ -529,16 +529,17 @@
   font-size: 12.5px;
 }
 
-/* Brand Guideline Charcoal Table Header */
+/* Warm Architectural Table Header */
 .projects-data-table thead th {
-  background-color: #2E2E2E;
-  color: #FFFFFF;
-  font-weight: 500;
+  background-color: #FAF8F5;
+  color: #7B6F62;
+  font-weight: 700;
   padding: 13px 16px;
   white-space: nowrap;
-  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(183, 175, 166, 0.35);
+  border-right: 1px solid rgba(183, 175, 166, 0.2);
   font-size: 11px;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
 }
 

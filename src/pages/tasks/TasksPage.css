@@ -141,12 +141,16 @@
 }
 
 .tasks-data-table thead th {
-  background-color: var(--color-table-header);
-  color: #FFFFFF;
-  font-weight: var(--font-weight-medium);
+  background-color: var(--color-table-header, #FAF8F5);
+  color: var(--color-table-header-text, #7B6F62);
+  font-weight: 700;
   padding: 12px 14px;
   white-space: nowrap;
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(183, 175, 166, 0.35);
+  border-right: 1px solid rgba(183, 175, 166, 0.2);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 .tasks-data-table thead th:last-child {
