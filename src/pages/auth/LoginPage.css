@@ -1,0 +1,424 @@
+/* ==========================================================================
+   LoginPage.css - Architectural Frosted Glass & Light Blurred Background
+   Mayur Mehta Design Brand Aesthetic (Warm Ivory, Translucent Glass, Primary Taupe)
+   ========================================================================== */
+
+.innopl-auth-viewport {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F8F6F2;
+  font-family: var(--font-family-base, "Plus Jakarta Sans", "Inter", -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 1. Fullscreen Studio Background: clearly visible, bright daylight architectural feel */
+.innopl-auth-bg-layer {
+  position: absolute;
+  inset: -16px;
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  filter: blur(3px) brightness(1.22) contrast(0.94) saturate(1.08);
+  transform: scale(1.03);
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* 2. Light, Luminous Architectural Tint Overlay (bright & airy) */
+.innopl-auth-overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 40%, rgba(255, 255, 255, 0.48) 0%, rgba(248, 246, 242, 0.68) 100%);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* 3. Centered Frosted Glass Card Stage (Luminous White Translucent Glass) */
+.innopl-auth-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 400px;
+  padding: 36px 32px 28px;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(28px) saturate(1.25);
+  -webkit-backdrop-filter: blur(28px) saturate(1.25);
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 22px;
+  box-shadow: 0 20px 50px -10px rgba(123, 111, 98, 0.12), 0 1px 0 rgba(255, 255, 255, 1) inset;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  animation: cardFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Official Mayur Mehta Logo Container */
+.innopl-logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 28px;
+  width: 100%;
+}
+
+.innopl-logo-container .mayur-mehta-vector-brand {
+  transition: transform 0.22s ease;
+}
+
+.innopl-logo-container .mayur-mehta-vector-brand:hover {
+  transform: scale(1.03);
+}
+
+/* Brand Stage & Header Headings */
+.innopl-brand-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+  margin-bottom: 22px;
+}
+
+.innopl-brand-stage .innopl-logo-container {
+  margin-bottom: 14px;
+}
+
+.innopl-title {
+  font-family: var(--font-family-base, 'Outfit', 'Inter', -apple-system, sans-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2E2925; /* Soft, warm deep bronze/charcoal instead of harsh pure black */
+  letter-spacing: 0.02em;
+  margin: 0 0 6px 0;
+  line-height: 1.3;
+}
+
+.innopl-subtitle {
+  font-family: var(--font-family-base, 'Outfit', 'Inter', -apple-system, sans-serif);
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: #7B6F62; /* Architectural Warm Taupe */
+  margin: 0;
+  line-height: 1.5;
+  max-width: 320px;
+}
+
+/* Alert Banners */
+.innopl-alert {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin-bottom: 14px;
+  box-sizing: border-box;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.innopl-alert.error {
+  background: rgba(166, 75, 62, 0.18);
+  border: 1px solid rgba(166, 75, 62, 0.4);
+  color: #8C2A1E;
+  font-weight: 500;
+}
+
+.innopl-alert.success {
+  background: rgba(94, 122, 107, 0.18);
+  border: 1px solid rgba(94, 122, 107, 0.4);
+  color: #2F4D3D;
+  font-weight: 500;
+}
+
+/* 4. Login Form Fields with Frosted Glass */
+.innopl-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.innopl-field-row {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.innopl-input,
+.innopl-field-row input[type="text"],
+.innopl-field-row input[type="email"],
+.innopl-field-row input[type="password"] {
+  width: 100%;
+  height: 50px;
+  background-color: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.5px solid rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  padding: 0 44px 0 16px !important;
+  font-family: var(--font-family-base);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #2E2925;
+  letter-spacing: 0.03em;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(123, 111, 98, 0.04);
+  box-sizing: border-box;
+}
+
+.innopl-input::placeholder {
+  color: #9E9286;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  opacity: 1;
+}
+
+.innopl-input:focus {
+  background-color: rgba(255, 255, 255, 0.96);
+  border-color: #7B6F62;
+  box-shadow: 0 0 0 3px rgba(123, 111, 98, 0.18), 0 4px 12px rgba(46, 40, 34, 0.06);
+}
+
+.innopl-input:-webkit-autofill,
+.innopl-input:-webkit-autofill:hover, 
+.innopl-input:-webkit-autofill:focus,
+.innopl-input:-webkit-autofill:active {
+  -webkit-text-fill-color: #2E2925 !important;
+  -webkit-box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.9) inset !important;
+  box-shadow: 0 0 0px 1000px rgba(255, 255, 255, 0.9) inset !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.innopl-field-row.has-error .innopl-input {
+  border-color: #A64B3E;
+  background-color: rgba(255, 255, 255, 0.9);
+}
+
+.innopl-error-text {
+  font-size: 11.5px;
+  color: #A64B3E;
+  font-weight: 500;
+  text-align: left;
+  margin-top: -8px;
+  margin-bottom: 2px;
+  padding-left: 2px;
+}
+
+.innopl-field-icon {
+  position: absolute;
+  right: 14px;
+  color: #7B6F62;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.innopl-field-icon-btn {
+  position: absolute;
+  right: 12px;
+  color: #7B6F62;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.innopl-field-icon-btn:hover {
+  color: #2E2E2E;
+}
+
+/* 5. SIGN IN Button with Brand Theme Taupe (#7B6F62) */
+.innopl-submit-btn {
+  width: 100%;
+  height: 48px;
+  background-color: #7B6F62;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  font-family: var(--font-family-base);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #FFFFFF;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(123, 111, 98, 0.32);
+  margin-top: 4px;
+}
+
+.innopl-submit-btn:hover:not(:disabled) {
+  background-color: #685D51;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(123, 111, 98, 0.4);
+}
+
+.innopl-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.innopl-submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.innopl-btn-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: innoplSpin 0.8s linear infinite;
+}
+
+@keyframes innoplSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 6. Remember Me & Forgot Password Row - Perfectly Balanced & Accessible */
+.innopl-aux-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding: 0 4px;
+  font-size: 12.5px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.innopl-remember-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.innopl-checkbox-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.innopl-checkbox-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1.5px solid rgba(123, 111, 98, 0.5);
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.innopl-remember-toggle:hover .innopl-checkbox-box {
+  border-color: #7B6F62;
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(123, 111, 98, 0.15);
+}
+
+.innopl-checkbox-box.is-checked {
+  background-color: #7B6F62;
+  border-color: #7B6F62;
+  box-shadow: 0 2px 6px rgba(123, 111, 98, 0.25);
+}
+
+.innopl-remember-label {
+  color: #5C5248;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  transition: color 0.15s ease;
+}
+
+.innopl-remember-toggle:hover .innopl-remember-label {
+  color: #2E2925;
+}
+
+.innopl-forgot-link {
+  color: #5C5248;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.innopl-forgot-link:hover {
+  color: #2E2925;
+  text-decoration: underline;
+}
+
+/* Stage Footer - Architectural Refined Hairline & Label */
+.innopl-stage-footer {
+  width: 100%;
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(123, 111, 98, 0.14);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7B6F62;
+  font-weight: 500;
+  text-align: center;
+  opacity: 0.85;
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 480px) {
+  .innopl-auth-card {
+    padding: 26px 20px 22px;
+    max-width: 330px;
+    margin: 16px;
+  }
+
+  .innopl-input {
+    height: 46px;
+  }
+
+  .innopl-submit-btn {
+    height: 44px;
+    font-size: 13.5px;
+  }
+}

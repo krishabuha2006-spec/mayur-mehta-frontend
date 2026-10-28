@@ -1,0 +1,55 @@
+.mayur-mehta-vector-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  cursor: pointer;
+  transition: opacity var(--transition-fast, 150ms ease), transform var(--transition-fast, 150ms ease);
+  line-height: 1;
+}
+
+.mayur-mehta-vector-brand:hover {
+  opacity: 0.92;
+}
+
+.mm-master-img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.mm-brand-symbol,
+.mm-brand-full {
+  display: inline-block;
+  pointer-events: none;
+  transition: background-color var(--transition-fast, 150ms ease);
+}
+
+/* ==========================================================================
+   Smooth Continuous 360° Rotation Animation for 9-Circles Symbol
+   ========================================================================== */
+@keyframes mmLogoSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.mm-nine-circles-symbol.animated .mm-circles-rotating-group,
+.mm-nine-circles-symbol.is-rotating .mm-circles-rotating-group {
+  animation: mmLogoSpin 16s linear infinite;
+  transform-origin: 56px 56px;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mm-nine-circles-symbol.animated .mm-circles-rotating-group,
+  .mm-nine-circles-symbol.is-rotating .mm-circles-rotating-group {
+    animation: none !important;
+  }
+}
+

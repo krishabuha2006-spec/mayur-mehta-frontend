@@ -1,0 +1,183 @@
+.mm-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: minmax(135px, 160px) minmax(135px, 160px) minmax(230px, auto);
+  gap: 16px;
+  width: 100%;
+}
+
+.col-1-tall {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  height: 100%;
+}
+
+.col-1-tall .widget-card {
+  height: 100%;
+}
+
+.col-2-top {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.col-2-bottom {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.col-3-top {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.col-3-bottom {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.col-4-stacked {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.col-4-card-slot {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.col-4-card-slot .widget-card {
+  height: 100%;
+  min-height: 0;
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.row-3-chart-left {
+  grid-column: 1 / span 2;
+  grid-row: 3;
+  min-height: 230px;
+}
+
+.row-3-chart-right {
+  grid-column: 3 / span 2;
+  grid-row: 3;
+  min-height: 230px;
+}
+
+.custom-grid-slot {
+  grid-column: span 1;
+}
+
+/* Edit Mode styling */
+.layout-edit-mode .widget-card {
+  outline: 2px dashed var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* Standard Laptops & Height-Constrained Displays (Height <= 820px) */
+@media (max-height: 820px) and (min-width: 1024px) {
+  .mm-dashboard-grid {
+    grid-template-rows: minmax(118px, 138px) minmax(118px, 138px) minmax(205px, auto);
+    gap: 12px;
+  }
+
+  .col-4-card-slot .widget-card {
+    padding: 8px 14px;
+  }
+
+  .row-3-chart-left,
+  .row-3-chart-right {
+    min-height: 205px;
+  }
+}
+
+/* Tablet / Medium Screens (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .mm-dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: auto;
+    gap: 14px;
+  }
+
+  .col-1-tall {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    min-height: 270px;
+  }
+
+  .col-2-top { grid-column: 2; grid-row: 1; }
+  .col-2-bottom { grid-column: 2; grid-row: 2; }
+  .col-3-top { grid-column: 1; grid-row: 3; }
+  .col-3-bottom { grid-column: 1; grid-row: 4; }
+
+  .col-4-stacked {
+    grid-column: 2;
+    grid-row: 3 / span 2;
+    min-height: 270px;
+  }
+
+  .row-3-chart-left {
+    grid-column: 1 / span 2;
+    grid-row: 5;
+    min-height: 240px;
+  }
+
+  .row-3-chart-right {
+    grid-column: 1 / span 2;
+    grid-row: 6;
+    min-height: 240px;
+  }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 767px) {
+  .mm-dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .col-1-tall,
+  .col-2-top,
+  .col-2-bottom,
+  .col-3-top,
+  .col-3-bottom,
+  .col-4-stacked,
+  .row-3-chart-left,
+  .row-3-chart-right,
+  .custom-grid-slot {
+    grid-column: auto;
+    grid-row: auto;
+    width: 100%;
+  }
+
+  .col-1-tall {
+    min-height: 220px;
+  }
+
+  .col-4-stacked {
+    gap: 10px;
+    height: auto;
+  }
+
+  .col-4-card-slot .widget-card {
+    padding: 12px 16px;
+  }
+
+  .row-3-chart-left,
+  .row-3-chart-right {
+    min-height: 220px;
+  }
+}

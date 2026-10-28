@@ -1,0 +1,249 @@
+.quickadd-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(46, 46, 46, 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 999;
+  display: flex;
+  justify-content: flex-end;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.quickadd-drawer {
+  width: 100%;
+  max-width: 480px;
+  height: 100%;
+  background-color: var(--color-card);
+  box-shadow: var(--shadow-drawer);
+  display: flex;
+  flex-direction: column;
+  animation: slideInRight 0.22s ease-out;
+  overflow: hidden;
+}
+
+.quickadd-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-4) var(--spacing-6);
+  border-bottom: 1px solid rgba(183, 175, 166, 0.3);
+}
+
+.quickadd-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+}
+
+.quickadd-close-btn {
+  color: var(--color-border);
+  padding: 4px;
+  border-radius: var(--radius-xs);
+  transition: all var(--transition-fast);
+}
+
+.quickadd-close-btn:hover {
+  color: var(--color-text);
+  background-color: var(--color-surface-alt);
+}
+
+.quickadd-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-5) var(--spacing-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.quickadd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.quickadd-select {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--spacing-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background-color: #FFFFFF;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23756E67' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+}
+
+.quickadd-select:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+.quickadd-select.has-error {
+  border-color: var(--color-danger);
+}
+
+.quickadd-required-text {
+  font-size: 11px;
+  color: var(--color-danger);
+  margin-top: 2px;
+  padding-left: var(--spacing-3);
+}
+
+/* Rich Text Formatting Container */
+.quickadd-editor-container {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background-color: #FFFFFF;
+}
+
+.quickadd-editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 6px var(--spacing-2);
+  border-bottom: 1px solid rgba(183, 175, 166, 0.3);
+  background-color: var(--color-bg);
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  color: var(--color-text);
+  transition: all var(--transition-fast);
+}
+
+.toolbar-btn:hover {
+  background-color: var(--color-surface-alt);
+  color: var(--color-primary);
+}
+
+.quickadd-editor-textarea {
+  width: 100%;
+  padding: var(--spacing-3);
+  border: none;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  resize: vertical;
+  outline: none;
+}
+
+/* Dates Row */
+.quickadd-dates-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-3);
+}
+
+.date-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.quickadd-date-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 var(--spacing-4);
+  padding-right: 36px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background-color: #FFFFFF;
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  outline: none;
+}
+
+.quickadd-date-input:focus {
+  border-color: var(--color-primary);
+}
+
+.date-calendar-icon {
+  position: absolute;
+  right: 14px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* Accordions */
+.quickadd-accordion {
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+  cursor: pointer;
+  background-color: var(--color-surface-alt);
+}
+
+.accordion-content {
+  padding: var(--spacing-3) var(--spacing-4);
+  background-color: #FFFFFF;
+  border-top: 1px solid rgba(183, 175, 166, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+}
+
+.checklist-bullet {
+  color: var(--color-success);
+  font-weight: bold;
+}
+
+.checklist-add-row {
+  display: flex;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
+}
+
+/* Bottom Actions */
+.quickadd-actions-footer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-3);
+  margin-top: auto;
+  padding-top: var(--spacing-4);
+  border-top: 1px solid rgba(183, 175, 166, 0.25);
+}
+
+.quickadd-action-btn {
+  width: 100%;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}

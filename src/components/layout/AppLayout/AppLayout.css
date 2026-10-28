@@ -1,0 +1,48 @@
+.grace-period-banner {
+  background-color: var(--color-warning-soft);
+  color: var(--color-warning);
+  border-bottom: 1px solid rgba(184, 130, 53, 0.3);
+  padding: var(--spacing-2) var(--spacing-6);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.company-suspended-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-bg);
+  padding: var(--spacing-4);
+}
+
+.company-suspended-card {
+  max-width: 480px;
+  background-color: var(--color-card);
+  padding: var(--spacing-8);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-elevated);
+  text-align: center;
+}
+
+.suspended-icon {
+  color: var(--color-danger);
+  margin-bottom: var(--spacing-4);
+}
+
+.company-suspended-card h2 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text);
+  margin-bottom: var(--spacing-2);
+}
+
+.company-suspended-card p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-relaxed);
+}

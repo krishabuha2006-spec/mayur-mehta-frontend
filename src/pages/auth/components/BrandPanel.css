@@ -1,0 +1,461 @@
+/* ==========================================================================
+   BrandPanel.css - Left Visual Panel for Mayur Mehta Design Login Split Screen (55%)
+   Deep Ink / Espresso Background with Blueprint Line-Art & Slow Draw Animation
+   ========================================================================== */
+
+.brand-panel {
+  position: relative;
+  flex: 0 0 52%;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 56px 64px 48px;
+  background: linear-gradient(150deg, #F8F6F2 0%, #EFEAE2 50%, #E8E3DB 100%);
+  border-right: 1px solid #E8E3DB;
+  overflow: hidden;
+  color: #2E2E2E;
+  box-sizing: border-box;
+}
+
+/* Blueprint SVG Container in Background (Architectural Drafting Drawing) */
+.brand-blueprint-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.85;
+}
+
+.brand-blueprint-svg {
+  position: absolute;
+  right: -4%;
+  bottom: -2%;
+  width: 106%;
+  height: 106%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+/* Animated Architectural Drafting Laser Scanner Beam */
+.brand-scanner-beam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg, 
+    transparent 0%, 
+    rgba(123, 111, 98, 0.2) 20%, 
+    rgba(123, 111, 98, 0.85) 50%, 
+    rgba(123, 111, 98, 0.2) 80%, 
+    transparent 100%
+  );
+  box-shadow: 0 0 16px 2px rgba(123, 111, 98, 0.5), 0 0 4px rgba(123, 111, 98, 0.8);
+  animation: scannerBeam 6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+  z-index: 2;
+}
+
+@keyframes scannerBeam {
+  0% {
+    top: 2%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    top: 98%;
+    opacity: 0;
+  }
+}
+
+/* Blueprint Draw-In Animation */
+.blueprint-structure path,
+.blueprint-structure line,
+.blueprint-structure rect,
+.blueprint-structure polygon,
+.blueprint-structure ellipse {
+  stroke-dasharray: 1200;
+  stroke-dashoffset: 1200;
+  animation: blueprintDraw 2s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+}
+
+@keyframes blueprintDraw {
+  0% {
+    stroke-dashoffset: 1200;
+    opacity: 0.1;
+  }
+  40% {
+    opacity: 0.7;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+
+/* Accessible Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .brand-scanner-beam {
+    display: none;
+  }
+  .blueprint-structure path,
+  .blueprint-structure line,
+  .blueprint-structure rect,
+  .blueprint-structure polygon,
+  .blueprint-structure ellipse {
+    animation: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
+/* Atmospheric Vignette & Soft Ambient Light */
+.brand-depth-gradient {
+  position: absolute;
+  inset: 0;
+  background: 
+    radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.75) 0%, transparent 60%),
+    linear-gradient(to right, rgba(248, 246, 242, 0.3) 0%, rgba(232, 227, 219, 0.5) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Foreground Content */
+.brand-panel-content {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+/* Top Header */
+.brand-header-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.brand-hero-logo {
+  display: flex;
+  align-items: center;
+  margin: 4px 0 2px;
+}
+
+.brand-tagline {
+  font-family: var(--font-family-base);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #7B6F62;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* 3 Value Pillars - Staggered Slide In with Hover Elevation */
+.brand-value-points {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 440px;
+  margin-top: auto;
+  margin-bottom: auto;
+  padding: 8px 0;
+}
+
+.value-point-item {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 13px 18px;
+  background: #FFFFFF;
+  border: 1px solid #E8E3DB;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px -2px rgba(46, 46, 46, 0.05), 0 2px 4px -1px rgba(46, 46, 46, 0.02);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: cardSlideFade 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--delay, 0.1s);
+}
+
+.value-point-item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3.5px;
+  background: #7B6F62;
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes cardSlideFade {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.value-point-item:hover {
+  border-color: #7B6F62;
+  transform: translateY(-2px) translateX(4px);
+  box-shadow: 0 8px 24px -4px rgba(123, 111, 98, 0.18);
+}
+
+.value-point-item:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+.value-point-icon-wrap {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #7B6F62;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease;
+}
+
+.value-point-item:hover .value-point-icon-wrap {
+  transform: scale(1.08) rotate(4deg);
+  background-color: #E8E3DB;
+  color: #4A443E;
+}
+
+.value-point-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+
+.value-point-header-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.value-point-title {
+  font-family: var(--font-family-base);
+  font-size: 14px;
+  font-weight: 600;
+  color: #2E2E2E;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.value-point-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #7B6F62;
+  background: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.value-point-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #756E67;
+  margin: 0;
+}
+
+/* Studio Live Metrics Bar */
+.brand-metrics-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid #E8E3DB;
+  border-radius: 14px;
+  padding: 12px 18px;
+  box-shadow: 0 2px 8px rgba(46, 46, 46, 0.03);
+  max-width: 440px;
+  animation: metricsFadeIn 0.7s ease 0.35s both;
+}
+
+@keyframes metricsFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brand-metric-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.metric-number {
+  font-size: 15px;
+  font-weight: 700;
+  color: #2E2E2E;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.live-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #5E7A6B;
+  box-shadow: 0 0 0 0 rgba(94, 122, 107, 0.7);
+  animation: liveDotPulse 2s infinite;
+}
+
+@keyframes liveDotPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 122, 107, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(94, 122, 107, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(94, 122, 107, 0);
+  }
+}
+
+.metric-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #756E67;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.brand-metric-divider {
+  width: 1px;
+  height: 24px;
+  background: #E8E3DB;
+}
+
+/* Footer: Mayur Mehta Design */
+.brand-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.brand-footer-line {
+  height: 1px;
+  background: #E8E3DB;
+}
+
+.brand-footer-text-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #756E67;
+}
+
+.brand-studio-credit {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #2E2E2E;
+}
+
+.brand-bullet {
+  color: #7B6F62;
+}
+
+.brand-version {
+  color: #756E67;
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   Mobile / Tablet Brand Header Variant
+   ========================================================================== */
+.brand-mobile-header {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 16px 12px;
+  gap: 8px;
+}
+
+.brand-mobile-monogram {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-mobile-titles {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.brand-mobile-name {
+  font-family: var(--font-heading, "Cormorant Garamond", Georgia, serif);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.brand-mobile-sub {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.brand-mobile-tagline {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--copper);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+/* Responsive Hide/Show for Split View */
+@media (max-width: 960px) {
+  .brand-panel {
+    display: none;
+  }
+  .brand-mobile-header {
+    display: flex;
+  }
+}

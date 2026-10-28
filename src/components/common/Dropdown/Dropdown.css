@@ -1,0 +1,103 @@
+.dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  min-width: 240px;
+  background-color: #FFFFFF;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 28px -6px rgba(46, 46, 46, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.04);
+  padding: 6px;
+  z-index: 500;
+  animation: dropdownPopIn 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  box-sizing: border-box;
+}
+
+@keyframes dropdownPopIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.dropdown-menu.align-right {
+  right: 0;
+}
+
+.dropdown-menu.align-left {
+  left: 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  border-radius: var(--radius-xs);
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  text-align: left;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.dropdown-item-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: color var(--transition-fast), transform var(--transition-fast);
+}
+
+.dropdown-item:hover {
+  background-color: #F5F1EB;
+  color: var(--color-primary);
+}
+
+.dropdown-item:hover .dropdown-item-icon {
+  color: var(--color-primary);
+  transform: translateX(2px);
+}
+
+.dropdown-item-danger {
+  color: #A64B3E;
+  font-weight: 500;
+}
+
+.dropdown-item-danger .dropdown-item-icon {
+  color: #A64B3E;
+}
+
+.dropdown-item-danger:hover {
+  background-color: rgba(166, 75, 62, 0.08);
+  color: #C53030;
+}
+
+.dropdown-item-danger:hover .dropdown-item-icon {
+  color: #C53030;
+  transform: translateX(2px);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: var(--color-border, #E8E3DB);
+  margin: 5px 0;
+}

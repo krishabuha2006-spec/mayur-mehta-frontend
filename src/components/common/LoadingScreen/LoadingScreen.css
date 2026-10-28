@@ -1,0 +1,90 @@
+/* ==========================================================================
+   LoadingScreen.css - Architectural Seamless Pure Spinner
+   Mayur Mehta Design Brand System (Zero Box, Pure Spinner & Text)
+   ========================================================================== */
+
+.mm-loading-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #F8F6F2;
+  color: #1E1A17;
+  font-family: var(--font-family-base, 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mm-loading-screen.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+}
+
+.mm-loading-screen.is-embedded {
+  min-height: 280px;
+  height: 100%;
+  background-color: transparent;
+}
+
+.mm-loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  animation: mmLoadingFadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes mmLoadingFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.mm-loading-spinner-wrap {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mm-loading-spinner-ring {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 3px solid rgba(123, 111, 98, 0.2);
+  border-top-color: #7B6F62;
+  border-right-color: #7B6F62;
+  animation: mmLoadingSpin 0.75s linear infinite;
+}
+
+@keyframes mmLoadingSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.mm-loading-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7B6F62;
+  letter-spacing: 0.04em;
+  margin: 0;
+}

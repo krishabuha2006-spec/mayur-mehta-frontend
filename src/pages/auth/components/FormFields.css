@@ -1,0 +1,226 @@
+/* ==========================================================================
+   FormFields.css - Architectural Form Controls
+   Floating Labels, 52px Height, 12px Radius, Copper Focus Rings
+   ========================================================================== */
+
+.arch-field-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  position: relative;
+}
+
+/* 50px Height Box with 12px Radius */
+.arch-input-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 50px;
+  background-color: #FAF8F5;
+  border: 1.5px solid #E8E3DB;
+  border-radius: 12px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.arch-input-box:hover:not(.is-disabled) {
+  border-color: #B7AFA6;
+  background-color: #FFFFFF;
+}
+
+/* Focus State with Primary Taupe Architectural Glow */
+.arch-input-box.is-focused {
+  border-color: #7B6F62;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(123, 111, 98, 0.16);
+  outline: none;
+}
+
+/* Disabled State */
+.arch-input-box.is-disabled {
+  background-color: rgba(232, 227, 219, 0.35);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Left Icon */
+.arch-field-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #7B6F62;
+  margin-right: 12px;
+  flex-shrink: 0;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.arch-input-box.is-focused .arch-field-icon {
+  color: #675C51;
+  transform: scale(1.05);
+}
+
+/* Inner Input + Floating Label Wrapper */
+.arch-input-inner {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+/* Native Input */
+.arch-native-input {
+  width: 100%;
+  height: 100%;
+  padding-top: 18px;
+  padding-bottom: 4px;
+  padding-left: 0;
+  padding-right: 0;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  color: #1E1A17;
+  font-family: var(--font-body, "Plus Jakarta Sans", system-ui, sans-serif);
+  font-size: 14.5px;
+  font-weight: 500;
+  box-sizing: border-box;
+}
+
+/* Fix browser autofill styling completely */
+.arch-native-input:-webkit-autofill,
+.arch-native-input:-webkit-autofill:hover, 
+.arch-native-input:-webkit-autofill:focus, 
+.arch-native-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #FAF8F5 inset !important;
+  -webkit-text-fill-color: #1E1A17 !important;
+  caret-color: #1E1A17 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.arch-input-box.is-focused .arch-native-input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+}
+
+.arch-native-input:focus,
+.arch-native-input:focus-visible {
+  outline: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.arch-native-input::placeholder {
+  color: transparent;
+}
+
+/* Floating Label */
+.arch-floating-label {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #756E67;
+  font-family: var(--font-family-base);
+  font-size: 14px;
+  font-weight: 400;
+  pointer-events: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: left top;
+}
+
+/* Floated State (Focused or Has Value) */
+.arch-input-box.is-floated .arch-floating-label,
+.arch-input-box.is-focused .arch-floating-label {
+  top: 8px;
+  transform: translateY(0);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.arch-input-box.is-focused .arch-floating-label {
+  color: #7B6F62;
+}
+
+.arch-required-star {
+  color: #C53030;
+  font-weight: 600;
+}
+
+/* Password Eye Toggle Button */
+.arch-password-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 8px;
+  margin-right: -8px;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  color: #756E67;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.arch-password-toggle-btn:hover {
+  color: #2E2E2E;
+  background-color: #FAF8F5;
+}
+
+.arch-password-toggle-btn:focus-visible {
+  outline: 2px solid #7B6F62;
+  outline-offset: 2px;
+}
+
+/* Caps Lock Warning Banner */
+.arch-caps-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 4px 8px;
+  background-color: rgba(123, 111, 98, 0.08);
+  border: 1px solid rgba(123, 111, 98, 0.25);
+  border-radius: 6px;
+  color: #7B6F62;
+  font-size: 11.5px;
+  font-weight: 600;
+  animation: fadeInCaps 0.2s ease forwards;
+}
+
+@keyframes fadeInCaps {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Inline Error Messaging */
+.arch-field-container.has-error .arch-input-box {
+  border-color: #D36C65;
+  background-color: #FFFBFB;
+}
+
+.arch-field-container.has-error .arch-input-box.is-focused {
+  border-color: #D36C65;
+  box-shadow: 0 0 0 3px rgba(211, 108, 101, 0.14);
+}
+
+.arch-inline-error {
+  margin: 5px 0 0 4px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #C53030;
+  line-height: 1.35;
+  animation: errorFadeIn 0.2s ease;
+}
+
+@keyframes errorFadeIn {
+  from { opacity: 0; transform: translateY(-2px); }
+  to { opacity: 1; transform: translateY(0); }
+}

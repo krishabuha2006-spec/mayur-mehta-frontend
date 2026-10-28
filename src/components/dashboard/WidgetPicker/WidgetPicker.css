@@ -1,0 +1,121 @@
+.widget-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  background-color: #FAF8F5;
+  border: 1px solid rgba(183, 175, 166, 0.35);
+  border-radius: 18px;
+  color: #3A342F;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.16s ease;
+  box-shadow: 0 1px 3px rgba(46, 40, 34, 0.03);
+}
+
+.widget-picker-trigger:hover, 
+.widget-picker-trigger.active {
+  background-color: #F1ECE6;
+  border-color: rgba(123, 111, 98, 0.4);
+  color: #1E1A17;
+}
+
+.picker-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: #3A342F;
+}
+
+.picker-caret {
+  color: #8C847A;
+  transition: transform 0.16s ease;
+}
+
+.picker-caret.open {
+  transform: rotate(180deg);
+}
+
+.widget-picker-dropdown {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.picker-search-box {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2);
+  border-bottom: 1px solid rgba(183, 175, 166, 0.25);
+}
+
+.picker-search-icon {
+  color: var(--color-text-muted);
+}
+
+.picker-search-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  outline: none;
+}
+
+.picker-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+}
+
+.picker-empty {
+  padding: var(--spacing-3);
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+  border-radius: var(--radius-xs);
+  transition: background-color var(--transition-fast);
+  cursor: pointer;
+}
+
+.picker-item:hover {
+  background-color: var(--color-surface-alt);
+}
+
+.picker-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.picker-item-title {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text);
+}
+
+.picker-item-desc {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.picker-item-add {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  margin-left: var(--spacing-2);
+}

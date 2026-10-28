@@ -1,0 +1,108 @@
+.widget-card {
+  background-color: #FFFFFF;
+  border-radius: 18px;
+  border: 1px solid rgba(183, 175, 166, 0.24);
+  box-shadow: 0 2px 10px -2px rgba(46, 40, 34, 0.03), 0 1px 2px rgba(46, 40, 34, 0.02);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  position: relative;
+  transition: box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  height: 100%;
+  min-height: 120px;
+  box-sizing: border-box;
+}
+
+.widget-card:hover {
+  border-color: rgba(123, 111, 98, 0.32);
+  box-shadow: 0 10px 26px -6px rgba(46, 40, 34, 0.07), 0 2px 6px rgba(46, 40, 34, 0.02);
+}
+
+.widget-card-compact {
+  min-height: 64px;
+  border-radius: 14px;
+  padding: 10px 16px;
+}
+
+.widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.widget-card-compact .widget-header {
+  margin-bottom: 0;
+}
+
+.widget-title {
+  font-family: var(--font-family-base);
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #2E2925;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-card-compact .widget-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5A5147;
+}
+
+/* Actions revealed on hover or in edit mode */
+.widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.widget-card:hover .widget-actions,
+.layout-edit-mode .widget-actions {
+  opacity: 1;
+}
+
+.widget-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background-color: transparent;
+  color: #9C948B;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.widget-action-btn:hover {
+  color: #2E2E2E;
+  background-color: rgba(123, 111, 98, 0.1);
+}
+
+.widget-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+.widget-loading-box {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
