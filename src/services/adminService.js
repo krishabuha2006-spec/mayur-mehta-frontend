@@ -370,10 +370,18 @@ export const adminService = {
     try {
       const res = await apiClient.get('/admin/billing/invoices', { params });
       const payload = res?.data || res;
-      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.invoices || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.invoices)
+        ? payload.invoices
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.invoices)
+        ? payload.data.invoices
+        : [];
       return {
         invoices: list,
-        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+        pagination: payload?.pagination || payload?.data?.pagination || { total: list.length, page: 1, limit: 20 }
       };
     } catch (err) {
       if (err?.response?.status === 404) {
@@ -473,10 +481,18 @@ export const adminService = {
     try {
       const res = await apiClient.get('/admin/billing/payments', { params });
       const payload = res?.data || res;
-      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.payments || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.payments)
+        ? payload.payments
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.payments)
+        ? payload.data.payments
+        : [];
       return {
         payments: list,
-        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+        pagination: payload?.pagination || payload?.data?.pagination || { total: list.length, page: 1, limit: 20 }
       };
     } catch (err) {
       if (err?.response?.status === 404) {
@@ -523,7 +539,16 @@ export const adminService = {
     try {
       const res = await apiClient.get('/admin/billing/requests');
       const payload = res?.data || res;
-      return Array.isArray(payload) ? payload : (payload?.data || payload?.requests || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.requests)
+        ? payload.requests
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.requests)
+        ? payload.data.requests
+        : [];
+      return list;
     } catch (err) {
       if (err?.response?.status === 404) return [];
       throw err;

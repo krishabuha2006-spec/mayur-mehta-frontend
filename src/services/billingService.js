@@ -117,10 +117,19 @@ export const billingService = {
     try {
       const res = await apiClient.get('/billing/invoices', { params });
       const payload = res?.data || res;
-      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.invoices || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.invoices)
+        ? payload.invoices
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.invoices)
+        ? payload.data.invoices
+        : [];
+      const pagination = payload?.pagination || payload?.data?.pagination || { total: list.length, page: 1, limit: 20 };
       return {
         invoices: list,
-        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+        pagination
       };
     } catch {
       return { invoices: [], pagination: { total: 0, page: 1, limit: 20 } };
@@ -167,10 +176,19 @@ export const billingService = {
     try {
       const res = await apiClient.get('/billing/payments', { params });
       const payload = res?.data || res;
-      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.payments || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.payments)
+        ? payload.payments
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.payments)
+        ? payload.data.payments
+        : [];
+      const pagination = payload?.pagination || payload?.data?.pagination || { total: list.length, page: 1, limit: 20 };
       return {
         payments: list,
-        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+        pagination
       };
     } catch {
       return { payments: [], pagination: { total: 0, page: 1, limit: 20 } };
@@ -193,7 +211,15 @@ export const billingService = {
     try {
       const res = await apiClient.get('/billing/requests');
       const payload = res?.data || res;
-      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.requests || []);
+      const list = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.requests)
+        ? payload.requests
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : Array.isArray(payload?.data?.requests)
+        ? payload.data.requests
+        : [];
       return list;
     } catch {
       return [];
