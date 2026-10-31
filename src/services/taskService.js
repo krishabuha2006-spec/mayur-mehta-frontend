@@ -66,8 +66,12 @@ export const taskService = {
     if (data.description?.trim()) payload.description = data.description.trim();
     if (data.taskTypeId) payload.taskTypeId = data.taskTypeId;
     if (data.stageId) payload.stageId = data.stageId;
-    if (data.startDate) payload.startDate = new Date(data.startDate).toISOString();
-    if (data.dueDate) payload.dueDate = new Date(data.dueDate).toISOString();
+    if (data.startDate && !isNaN(new Date(data.startDate).getTime())) {
+      payload.startDate = new Date(data.startDate).toISOString();
+    }
+    if (data.dueDate && !isNaN(new Date(data.dueDate).getTime())) {
+      payload.dueDate = new Date(data.dueDate).toISOString();
+    }
     if (data.estimatedMinutes) payload.estimatedMinutes = Number(data.estimatedMinutes);
     if (Array.isArray(data.assignees)) payload.assignees = data.assignees;
     if (Array.isArray(data.tags)) payload.tags = data.tags;
@@ -87,8 +91,12 @@ export const taskService = {
     if (data.description?.trim()) payload.description = data.description.trim();
     if (data.taskTypeId) payload.taskTypeId = data.taskTypeId;
     if (data.stageId) payload.stageId = data.stageId;
-    if (data.startDate) payload.startDate = new Date(data.startDate).toISOString();
-    if (data.dueDate) payload.dueDate = new Date(data.dueDate).toISOString();
+    if (data.startDate && !isNaN(new Date(data.startDate).getTime())) {
+      payload.startDate = new Date(data.startDate).toISOString();
+    }
+    if (data.dueDate && !isNaN(new Date(data.dueDate).getTime())) {
+      payload.dueDate = new Date(data.dueDate).toISOString();
+    }
     if (data.estimatedMinutes) payload.estimatedMinutes = Number(data.estimatedMinutes);
     if (Array.isArray(data.assignees)) payload.assignees = data.assignees;
     if (Array.isArray(data.tags)) payload.tags = data.tags;

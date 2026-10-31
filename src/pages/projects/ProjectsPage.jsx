@@ -629,9 +629,9 @@ export function ProjectsPage() {
       errors.email = 'Please enter a valid client email';
     }
     if (formData.phone?.trim()) {
-      const cleanPhone = formData.phone.trim().replace(/[\s\-\(\)\+]/g, '');
-      if (cleanPhone.length < 10 || cleanPhone.length > 15 || !/^\d+$/.test(cleanPhone)) {
-        errors.phone = 'Please enter a valid 10-digit mobile number';
+      const cleanPhone = formData.phone.trim().replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        errors.phone = 'Phone number must be exactly 10 digits';
       }
     }
 
@@ -653,14 +653,11 @@ export function ProjectsPage() {
       name: formData.clientName?.trim() || 'Private Client'
     };
     if (formData.phone?.trim()) {
-      let rawPhone = formData.phone.trim().replace(/[\s\-\(\)]/g, '');
-      if (/^[6-9]\d{9}$/.test(rawPhone)) {
-        rawPhone = `+91${rawPhone}`;
-      } else if (/^0[6-9]\d{9}$/.test(rawPhone)) {
-        rawPhone = `+91${rawPhone.slice(1)}`;
-      }
-      if (/^\+?[1-9]\d{9,14}$/.test(rawPhone)) {
-        clientData.phone = rawPhone;
+      const cleanPhone = formData.phone.trim().replace(/\D/g, '');
+      if (cleanPhone.length === 10) {
+        clientData.phone = `+91${cleanPhone}`;
+      } else if (/^\+?[1-9]\d{9,14}$/.test(formData.phone.trim())) {
+        clientData.phone = formData.phone.trim();
       }
     }
     if (formData.email?.trim() && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
@@ -2253,6 +2250,8 @@ export function ProjectsPage() {
             <Input
               label="Client Phone Number"
               id="proj-phone-input"
+              type="tel"
+              isPhone={true}
               placeholder="Enter 10-digit phone number"
               value={formData.phone}
               onChange={(e) => {

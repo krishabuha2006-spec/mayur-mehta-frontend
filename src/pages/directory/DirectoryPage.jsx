@@ -134,6 +134,7 @@ export function DirectoryPage() {
     budget: '',
     stage: 'lead'
   });
+  const [contactErrors, setContactErrors] = useState({});
 
   const categories = ['All', 'Team', 'Clients', 'Consultants', 'Contractors', 'Vendors'];
   const allDirectoryList = [...teamMembers, ...contacts];
@@ -191,16 +192,40 @@ export function DirectoryPage() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!newContact.name) return;
+
+    const errors = {};
+    if (!newContact.name?.trim()) {
+      errors.name = 'Contact name is required';
+    }
+    if (!newContact.phone?.trim()) {
+      errors.phone = 'Phone number is required';
+    } else {
+      const cleanPhone = newContact.phone.trim().replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        errors.phone = 'Phone number must be exactly 10 digits';
+      }
+    }
+    if (newContact.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newContact.email.trim())) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setContactErrors(errors);
+      return;
+    }
+    setContactErrors({});
+
+    const cleanPhone = newContact.phone.trim().replace(/\D/g, '');
+    const formattedPhone = cleanPhone.length === 10 ? `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}` : newContact.phone;
 
     const createdLead = {
       id: `lead_${Date.now()}`,
-      name: newContact.name,
-      company: newContact.company || `${newContact.name} Residence`,
-      type: newContact.role || 'Architecture & Interior Design',
-      budget: newContact.budget || '₹50 Lakhs',
-      phone: newContact.phone,
-      email: newContact.email,
+      name: newContact.name.trim(),
+      company: newContact.company?.trim() || `${newContact.name.trim()} Residence`,
+      type: newContact.role?.trim() || 'Architecture & Interior Design',
+      budget: newContact.budget?.trim() || '₹50 Lakhs',
+      phone: formattedPhone,
+      email: newContact.email?.trim() || '',
       stage: newContact.stage || 'lead',
       notesCount: 1,
       lastInteraction: 'Lead registered in CRM pipeline',
@@ -530,11 +555,15 @@ export function DirectoryPage() {
           <div className="form-grid-2">
             <div style={{ gridColumn: 'span 2' }}>
               <Input
-                label="Client / Lead Name *"
+                label="Client / Lead Name"
                 id="c-name"
                 placeholder="e.g. Anand Verma"
                 value={newContact.name}
-                onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                onChange={(e) => {
+                  setNewContact({ ...newContact, name: e.target.value });
+                  if (contactErrors.name) setContactErrors((prev) => ({ ...prev, name: '' }));
+                }}
+                error={contactErrors.name}
                 required
               />
             </div>
@@ -556,11 +585,17 @@ export function DirectoryPage() {
             />
 
             <Input
-              label="Phone Number *"
+              label="Phone Number"
               id="c-phone"
-              placeholder="e.g. +91 98250 11223"
+              type="tel"
+              isPhone={true}
+              placeholder="Enter 10-digit phone number"
               value={newContact.phone}
-              onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+              onChange={(e) => {
+                setNewContact({ ...newContact, phone: e.target.value });
+                if (contactErrors.phone) setContactErrors((prev) => ({ ...prev, phone: '' }));
+              }}
+              error={contactErrors.phone}
               required
             />
 
@@ -570,7 +605,11 @@ export function DirectoryPage() {
               type="email"
               placeholder="client@domain.com"
               value={newContact.email}
-              onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+              onChange={(e) => {
+                setNewContact({ ...newContact, email: e.target.value });
+                if (contactErrors.email) setContactErrors((prev) => ({ ...prev, email: '' }));
+              }}
+              error={contactErrors.email}
             />
 
             <Select

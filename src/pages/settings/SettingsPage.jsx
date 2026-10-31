@@ -117,9 +117,50 @@ export function SettingsPage() {
 
   const handleSaveProfile = async (e) => {
     if (e) e.preventDefault();
+
+    if (profileForm.phone?.trim()) {
+      const cleanPhone = profileForm.phone.trim().replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        showNotice('Primary studio phone must be exactly 10 digits.', 'error');
+        return;
+      }
+    }
+
+    if (profileForm.address?.pincode?.trim()) {
+      const cleanPin = profileForm.address.pincode.trim().replace(/\D/g, '');
+      if (cleanPin.length !== 6) {
+        showNotice('Pincode must be exactly 6 digits.', 'error');
+        return;
+      }
+    }
+
+    if (profileForm.gstNumber?.trim()) {
+      const cleanGst = profileForm.gstNumber.trim().toUpperCase();
+      if (cleanGst.length !== 15) {
+        showNotice('GSTIN must be a 15-character alphanumeric identification number.', 'error');
+        return;
+      }
+    }
+
     setProfileSaving(true);
     try {
-      const res = await companyService.updateProfile(profileForm);
+      const cleanPhone = profileForm.phone?.trim() ? profileForm.phone.trim().replace(/\D/g, '') : '';
+      const payload = {
+        ...profileForm,
+        legalName: profileForm.legalName?.trim() || undefined,
+        phone: cleanPhone ? (cleanPhone.length === 10 ? `+91${cleanPhone}` : cleanPhone) : undefined,
+        gstNumber: profileForm.gstNumber?.trim() ? profileForm.gstNumber.trim().toUpperCase() : undefined,
+        address: {
+          ...profileForm.address,
+          line1: profileForm.address?.line1?.trim() || undefined,
+          city: profileForm.address?.city?.trim() || undefined,
+          state: profileForm.address?.state?.trim() || undefined,
+          pincode: profileForm.address?.pincode ? profileForm.address.pincode.replace(/\D/g, '').slice(0, 6) : undefined,
+          country: profileForm.address?.country?.trim() || undefined
+        }
+      };
+
+      const res = await companyService.updateProfile(payload);
       showNotice('Studio profile updated successfully.');
       if (res) setProfile((prev) => ({ ...prev, ...res }));
     } catch (err) {
@@ -707,11 +748,18 @@ export function SettingsPage() {
                 <div className="settings-form-group">
                   <label className="settings-form-label">Primary Studio Phone</label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    maxLength={10}
                     className="settings-input"
-                    placeholder="+91 98765 43210"
+                    placeholder="Enter 10-digit phone number"
                     value={profileForm.phone}
-                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                    onKeyDown={(e) => {
+                      const allowed = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight'];
+                      if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+                      if (!/^\d$/.test(e.key)) e.preventDefault();
+                    }}
+                    onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                   />
                 </div>
 
@@ -719,10 +767,11 @@ export function SettingsPage() {
                   <label className="settings-form-label">GSTIN / Tax ID</label>
                   <input
                     type="text"
+                    maxLength={15}
                     className="settings-input"
                     placeholder="24AAAAA0000A1Z5"
                     value={profileForm.gstNumber}
-                    onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value.toUpperCase() })}
+                    onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 15) })}
                   />
                 </div>
 
@@ -797,12 +846,19 @@ export function SettingsPage() {
                   <label className="settings-form-label">Pincode</label>
                   <input
                     type="text"
+                    inputMode="numeric"
+                    maxLength={6}
                     className="settings-input"
-                    placeholder="Pincode"
+                    placeholder="Enter 6-digit pincode"
                     value={profileForm.address.pincode}
+                    onKeyDown={(e) => {
+                      const allowed = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight'];
+                      if (allowed.includes(e.key) || e.ctrlKey || e.metaKey) return;
+                      if (!/^\d$/.test(e.key)) e.preventDefault();
+                    }}
                     onChange={(e) => setProfileForm({
                       ...profileForm,
-                      address: { ...profileForm.address, pincode: e.target.value }
+                      address: { ...profileForm.address, pincode: e.target.value.replace(/\D/g, '').slice(0, 6) }
                     })}
                   />
                 </div>

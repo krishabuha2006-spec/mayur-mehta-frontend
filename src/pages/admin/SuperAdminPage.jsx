@@ -1158,14 +1158,33 @@ export function SuperAdminPage() {
     if (!selectedCompanyForEdit) return;
 
     const companyId = selectedCompanyForEdit.id || selectedCompanyForEdit._id;
+
+    if (editCompanyForm.phone?.trim()) {
+      const clean = editCompanyForm.phone.trim().replace(/\D/g, '');
+      if (clean.length !== 10) {
+        setModalError('Studio Contact Phone must be exactly 10 digits');
+        return;
+      }
+    }
+    if (editCompanyForm.ownerPhone?.trim()) {
+      const clean = editCompanyForm.ownerPhone.trim().replace(/\D/g, '');
+      if (clean.length !== 10) {
+        setModalError('Owner Direct Mobile must be exactly 10 digits');
+        return;
+      }
+    }
+
     setModalLoading(true);
     setModalError('');
 
     try {
+      const cleanPhone = editCompanyForm.phone?.trim() ? editCompanyForm.phone.trim().replace(/\D/g, '') : '';
+      const cleanOwnerPhone = editCompanyForm.ownerPhone?.trim() ? editCompanyForm.ownerPhone.trim().replace(/\D/g, '') : '';
+
       await adminService.updateCompanyProfile(companyId, {
         name: editCompanyForm.name.trim(),
         legalName: editCompanyForm.legalName?.trim() || undefined,
-        phone: editCompanyForm.phone?.trim() || undefined,
+        phone: cleanPhone ? (cleanPhone.length === 10 ? `+91${cleanPhone}` : cleanPhone) : undefined,
         gstNumber: editCompanyForm.gstNumber?.trim() || undefined
       });
 
@@ -1179,7 +1198,7 @@ export function SuperAdminPage() {
           await adminService.fixPendingOwner(companyId, {
             name: editCompanyForm.ownerName.trim(),
             email: editCompanyForm.ownerEmail.trim(),
-            mobile: editCompanyForm.ownerPhone?.trim() || undefined
+            mobile: cleanOwnerPhone ? (cleanOwnerPhone.length === 10 ? `+91${cleanOwnerPhone}` : cleanOwnerPhone) : undefined
           });
         } catch (ownerErr) {
           console.warn('Owner update notice:', ownerErr?.message);
@@ -2719,6 +2738,8 @@ export function SuperAdminPage() {
             <Input
               label="Owner Mobile Number"
               id="tenant-owner-phone"
+              type="tel"
+              isPhone={true}
               placeholder="Enter 10-digit mobile number"
               value={newCompanyForm.ownerPhone}
               onChange={(e) => {
@@ -3116,6 +3137,9 @@ export function SuperAdminPage() {
             <Input
               label="Studio Contact Phone"
               id="edit-phone"
+              type="tel"
+              isPhone={true}
+              placeholder="Enter 10-digit phone number"
               value={editCompanyForm.phone}
               onChange={(e) => setEditCompanyForm((prev) => ({ ...prev, phone: e.target.value }))}
             />
@@ -3138,6 +3162,9 @@ export function SuperAdminPage() {
               <Input
                 label="Owner Direct Mobile"
                 id="edit-owner-phone"
+                type="tel"
+                isPhone={true}
+                placeholder="Enter 10-digit mobile number"
                 value={editCompanyForm.ownerPhone}
                 onChange={(e) => setEditCompanyForm((prev) => ({ ...prev, ownerPhone: e.target.value }))}
               />

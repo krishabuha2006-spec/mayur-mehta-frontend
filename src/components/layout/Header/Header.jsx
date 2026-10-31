@@ -57,12 +57,23 @@ export function Header({ onOpenMobileMenu }) {
       setProfileError('Name is required');
       return;
     }
+
+    let formattedMobile = undefined;
+    if (profileForm.mobile?.trim()) {
+      const cleanMobile = profileForm.mobile.trim().replace(/\D/g, '');
+      if (cleanMobile.length !== 10) {
+        setProfileError('Mobile number must be exactly 10 digits');
+        return;
+      }
+      formattedMobile = `+91${cleanMobile}`;
+    }
+
     setProfileLoading(true);
     setProfileError('');
     try {
       await teamService.updateSelf({
         name: profileForm.name.trim(),
-        mobile: profileForm.mobile?.trim() || undefined,
+        mobile: formattedMobile,
         designation: profileForm.designation?.trim() || undefined
       });
       if (refreshUser) {
@@ -464,9 +475,11 @@ export function Header({ onOpenMobileMenu }) {
           <Input
             label="Mobile Number"
             id="profile-mobile"
+            type="tel"
+            isPhone={true}
             value={profileForm.mobile}
             onChange={(e) => setProfileForm({ ...profileForm, mobile: e.target.value })}
-            placeholder="Enter phone number"
+            placeholder="Enter 10-digit phone number"
           />
 
           <div className="form-actions-row">

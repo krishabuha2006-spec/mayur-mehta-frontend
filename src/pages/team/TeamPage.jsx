@@ -126,6 +126,12 @@ export function TeamPage() {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteForm.email.trim())) {
       errors.email = 'Enter a valid work email address';
     }
+    if (inviteForm.mobile?.trim()) {
+      const cleanMobile = inviteForm.mobile.trim().replace(/\D/g, '');
+      if (cleanMobile.length !== 10) {
+        errors.mobile = 'Mobile number must be exactly 10 digits';
+      }
+    }
 
     if (Object.keys(errors).length > 0) {
       setInviteFieldErrors(errors);
@@ -141,7 +147,14 @@ export function TeamPage() {
 
     setInviteLoading(true);
     try {
-      await teamService.inviteUser(inviteForm);
+      const payload = {
+        name: inviteForm.name.trim(),
+        email: inviteForm.email.trim().toLowerCase(),
+        role: inviteForm.role || 'MEMBER',
+        designation: inviteForm.designation?.trim() || undefined,
+        mobile: inviteForm.mobile?.trim() ? `+91${inviteForm.mobile.trim().replace(/\D/g, '')}` : undefined
+      };
+      await teamService.inviteUser(payload);
       await fetchTeamData();
       setInviteModalOpen(false);
       setInviteForm({ name: '', email: '', role: 'MEMBER', mobile: '', designation: '' });
@@ -248,6 +261,22 @@ export function TeamPage() {
   const handleSaveEditMember = async (e) => {
     e.preventDefault();
     if (!selectedMemberForEdit) return;
+
+    if (!editMemberForm.name?.trim()) {
+      setEditMemberError('Name is required');
+      return;
+    }
+
+    let formattedMobile = undefined;
+    if (editMemberForm.mobile?.trim()) {
+      const cleanMobile = editMemberForm.mobile.trim().replace(/\D/g, '');
+      if (cleanMobile.length !== 10) {
+        setEditMemberError('Mobile number must be exactly 10 digits');
+        return;
+      }
+      formattedMobile = `+91${cleanMobile}`;
+    }
+
     setEditMemberLoading(true);
     setEditMemberError('');
     try {
@@ -255,7 +284,7 @@ export function TeamPage() {
       // 1. Update Profile (name, mobile, designation)
       await teamService.updateProfile(memberId, {
         name: editMemberForm.name.trim(),
-        mobile: editMemberForm.mobile?.trim() || undefined,
+        mobile: formattedMobile,
         designation: editMemberForm.designation?.trim() || undefined
       });
 
@@ -680,9 +709,15 @@ export function TeamPage() {
             <Input
               label="Mobile Number"
               id="invite-mobile"
+              type="tel"
+              isPhone={true}
               placeholder="Enter 10-digit mobile number"
               value={inviteForm.mobile}
-              onChange={(e) => setInviteForm((prev) => ({ ...prev, mobile: e.target.value }))}
+              onChange={(e) => {
+                setInviteForm((prev) => ({ ...prev, mobile: e.target.value }));
+                if (inviteFieldErrors.mobile) setInviteFieldErrors((prev) => ({ ...prev, mobile: '' }));
+              }}
+              error={inviteFieldErrors.mobile}
             />
           </div>
 
@@ -854,7 +889,9 @@ export function TeamPage() {
             <Input
               label="Mobile Number"
               id="edit-member-mobile"
-              placeholder="Enter phone number"
+              type="tel"
+              isPhone={true}
+              placeholder="Enter 10-digit mobile number"
               value={editMemberForm.mobile}
               onChange={(e) => setEditMemberForm((prev) => ({ ...prev, mobile: e.target.value }))}
             />
