@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { adminAuthService } from '../services/adminAuthService';
-import { getAdminToken } from '../services/apiClient';
+import { getAdminToken, clearAdminToken } from '../services/apiClient';
 
 export const AdminAuthContext = createContext(null);
 

@@ -3,7 +3,7 @@ import { authService } from '../services/authService';
 import { companyService } from '../services/companyService';
 import { permissionService } from '../services/permissionService';
 import { billingService } from '../services/billingService';
-import { getAccessToken } from '../services/apiClient';
+import { getAccessToken, clearAccessToken } from '../services/apiClient';
 
 export const AuthContext = createContext(null);
 
