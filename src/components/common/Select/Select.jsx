@@ -66,12 +66,16 @@ export function Select({
     }
   };
 
+  const hasAsterisk = typeof label === 'string' && /\*\s*$/.test(label);
+  const displayLabel = hasAsterisk ? label.replace(/\s*\*+\s*$/, '') : label;
+  const showRequired = required || hasAsterisk;
+
   return (
     <div className={`custom-select-field ${className} ${disabled ? 'is-disabled' : ''} ${error ? 'has-error' : ''}`} ref={containerRef}>
       {label && (
         <label className="custom-select-label" htmlFor={id} onClick={() => !disabled && setIsOpen((prev) => !prev)}>
-          {label}
-          {required && <span className="required-indicator"> *</span>}
+          {displayLabel}
+          {showRequired && <span className="required-indicator"> *</span>}
         </label>
       )}
 

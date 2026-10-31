@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2,
+  BarChart3,
   Plus,
   Shield,
   Search,
@@ -57,6 +58,7 @@ import { Avatar } from '../../components/common/Avatar/Avatar';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../constants/routes';
 import { adminService } from '../../services/adminService';
+import { useConfirm } from '../../context/ConfirmationContext';
 import { adminAuthService } from '../../services/adminAuthService';
 import { setAccessToken } from '../../services/apiClient';
 import { useAdminAuth } from '../../context/AdminAuthContext';
@@ -65,6 +67,7 @@ import { LoadingScreen } from '../../components/common/LoadingScreen/LoadingScre
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { isValidEmail } from '../../utils/validators';
 import { SuperAdminBilling } from './SuperAdminBilling';
+import { SuperAdminAnalytics } from './SuperAdminAnalytics';
 import './SuperAdminPage.css';
 
 // =============================================================================
@@ -364,69 +367,37 @@ function formatAuditNarrative(log, targetInfo, clientInfo) {
   return `System security event logged for ${targetInfo.name}.`;
 }
 
-// SessionStorage cache keys for 0ms instant data rendering
-const ADMIN_CACHE_KEYS = {
-  COMPANIES: 'mm_cached_companies',
-  METRICS: 'mm_cached_metrics',
-  AUDIT: 'mm_cached_audit',
-  ADMINS: 'mm_cached_admins'
-};
-
-const getAdminCache = (key, fallback) => {
-  try {
-    const raw = sessionStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-const setAdminCache = (key, val) => {
-  try {
-    sessionStorage.setItem(key, JSON.stringify(val));
-  } catch (err) {
-    console.debug('Admin cache write error:', err);
-  }
-};
-
 export function SuperAdminPage() {
+  const confirm = useConfirm();
   const navigate = useNavigate();
-  const { adminUser, logout, logoutAll } = useAdminAuth();
+  const { adminUser, updateAdminUser, logout, logoutAll } = useAdminAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('tenants'); // 'tenants' | 'admins' | 'plans' | 'audit'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'suspended' | 'deleted'
   const [searchQuery, setSearchQuery] = useState('');
   const [backendLoading, setBackendLoading] = useState(false);
-  const [liveMetrics, setLiveMetrics] = useState(() => getAdminCache(ADMIN_CACHE_KEYS.METRICS, null));
+  const [liveMetrics, setLiveMetrics] = useState(null);
 
-  // Tenant companies strictly from Backend API (MongoDB) - 0ms instant load from cache
-  const [companies, setCompanies] = useState(() => getAdminCache(ADMIN_CACHE_KEYS.COMPANIES, []));
+  // Tenant companies strictly from Backend API (MongoDB)
+  const [companies, setCompanies] = useState([]);
 
   // Super Admin team members strictly from Backend API (MongoDB)
-  const [admins, setAdmins] = useState(() => getAdminCache(ADMIN_CACHE_KEYS.ADMINS, []));
+  const [admins, setAdmins] = useState([]);
   const [adminModalOpen, setAdminModalOpen] = useState(false);
   const [newAdminForm, setNewAdminForm] = useState({ name: '', email: '' });
 
   // Audit logs state strictly from Backend API (MongoDB)
-  const [auditLogs, setAuditLogs] = useState(() => getAdminCache(ADMIN_CACHE_KEYS.AUDIT, []));
+  const [auditLogs, setAuditLogs] = useState([]);
   const [auditSearch, setAuditSearch] = useState('');
   const [auditCategory, setAuditCategory] = useState('ALL'); // 'ALL' | 'COMPANIES' | 'SECURITY' | 'LOGINS'
   const [auditPage, setAuditPage] = useState(1);
   const [auditLimit, setAuditLimit] = useState(10);
 
-  // Synchronous cache-synced companies state updater
-  const updateCompaniesAndCache = (updater) => {
-    setCompanies((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      setAdminCache(ADMIN_CACHE_KEYS.COMPANIES, next);
-      return next;
-    });
-  };
-
   // Modal loading & error feedback
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState('');
   const [authError, setAuthError] = useState('');
+  const [passwordRequiredBanner, setPasswordRequiredBanner] = useState(false);
 
   // Modals state
   const initialCompanyForm = {
@@ -590,7 +561,7 @@ export function SuperAdminPage() {
       await adminService.updateAdmin(selectedAdminForEdit._id || selectedAdminForEdit.id, editAdminName.trim());
       showNotification(`Administrator updated to "${editAdminName.trim()}".`, 'success');
       setEditAdminModalOpen(false);
-      loadAllData();
+      fetchAdminData(true);
     } catch (err) {
       showNotification(extractErrorMessage(err, 'Failed to update administrator'), 'error');
     } finally {
@@ -666,9 +637,15 @@ export function SuperAdminPage() {
         currentPassword: adminCurrentPassword,
         newPassword: adminNewPassword
       });
-      setAdminPasswordSuccess('Super Admin password updated successfully.');
+      setAdminPasswordSuccess('Super Admin password updated successfully. Live access unlocked.');
+      setAuthError('');
+      setPasswordRequiredBanner(false);
+      if (updateAdminUser) {
+        updateAdminUser({ mustChangePassword: false });
+      }
       setTimeout(() => {
         setAdminChangePasswordOpen(false);
+        fetchAdminData(true);
       }, 1200);
     } catch (err) {
       setAdminPasswordError(extractErrorMessage(err, 'Failed to update admin password'));
@@ -694,9 +671,11 @@ export function SuperAdminPage() {
       ]);
 
       if (healthRes.status === 'fulfilled' || dbHealthRes.status === 'fulfilled') {
+        const sysVal = healthRes.status === 'fulfilled' ? healthRes.value : null;
+        const dbVal = dbHealthRes.status === 'fulfilled' ? dbHealthRes.value : null;
         setPlatformHealth({
-          system: healthRes.status === 'fulfilled' ? (healthRes.value?.status || 'operational') : 'operational',
-          db: dbHealthRes.status === 'fulfilled' ? (dbHealthRes.value?.status || 'connected') : 'connected'
+          system: sysVal?.status || sysVal?.data?.status || 'ok',
+          db: dbVal?.database || dbVal?.data?.database || dbVal?.status || 'connected'
         });
       }
 
@@ -709,7 +688,11 @@ export function SuperAdminPage() {
 
         if (errStatus === 403 || errStatus === 401) {
           console.warn('Backend admin fetch warning:', errCode || errMsg);
-          if (errCode !== 'PASSWORD_CHANGE_REQUIRED') {
+          if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
+            setAdminChangePasswordOpen(true);
+            setPasswordRequiredBanner(true);
+            setAuthError('');
+          } else {
             setAuthError(errMsg || 'Super Admin platform authorization notice.');
           }
         }
@@ -729,14 +712,23 @@ export function SuperAdminPage() {
           const storageUsedGb = c.storageUsedGb !== undefined ? c.storageUsedGb : +(storageLimitMB / 1024 * 0.05).toFixed(1);
           const storageLimitGb = +(storageLimitMB / 1024).toFixed(0);
 
+          // Robust extraction matching MongoDB schema (owner object, users array, or flat fields)
+          const ownerObj = Array.isArray(c.owner) ? c.owner[0] : (c.owner && typeof c.owner === 'object' ? c.owner : {});
+          const matchedOwner = !ownerObj.name && Array.isArray(c.users) ? (c.users.find((u) => u.role === 'OWNER') || {}) : {};
+          const finalOwner = { ...matchedOwner, ...ownerObj };
+
+          const ownerName = finalOwner.name || c.ownerName || 'Firm Principal';
+          const ownerEmail = finalOwner.email || c.ownerEmail || '—';
+          const ownerPhone = finalOwner.mobile || c.ownerPhone || c.phone || '—';
+
           return {
             id: c._id || c.id || `comp_${idx}`,
             name: c.name || 'Architecture Firm',
             legalName: c.legalName || '',
-            ownerName: c.owner?.name || c.ownerName || 'Firm Principal',
-            ownerEmail: c.owner?.email || c.ownerEmail || '—',
-            ownerPhone: c.owner?.mobile || c.ownerPhone || c.phone || '—',
-            phone: c.phone || c.owner?.mobile || c.ownerPhone || '',
+            ownerName,
+            ownerEmail,
+            ownerPhone,
+            phone: c.phone || ownerPhone !== '—' ? ownerPhone : '',
             gstNumber: c.gstNumber || '',
             status,
             plan,
@@ -749,12 +741,11 @@ export function SuperAdminPage() {
             daysRemaining: c.deletedAt ? 30 : null
           };
         });
-        updateCompaniesAndCache(apiCompanies);
+        setCompanies(apiCompanies);
       }
 
       if (metricRes.status === 'fulfilled' && metricRes.value) {
         setLiveMetrics(metricRes.value);
-        setAdminCache(ADMIN_CACHE_KEYS.METRICS, metricRes.value);
       }
 
       if (auditRes.status === 'fulfilled' && auditRes.value?.data) {
@@ -812,14 +803,12 @@ export function SuperAdminPage() {
             };
           });
           setAuditLogs(apiLogs);
-          setAdminCache(ADMIN_CACHE_KEYS.AUDIT, apiLogs);
         }
       }
 
       if (adminsRes.status === 'fulfilled' && adminsRes.value) {
         const adminList = Array.isArray(adminsRes.value) ? adminsRes.value : (adminsRes.value?.data || []);
         setAdmins(adminList);
-        setAdminCache(ADMIN_CACHE_KEYS.ADMINS, adminList);
       }
     } catch (err) {
       console.warn('Backend admin fetch info:', err);
@@ -828,9 +817,26 @@ export function SuperAdminPage() {
     }
   };
 
+  // Gate data fetch on adminUser being authenticated — prevents 401/403 races on cold load
   useEffect(() => {
+    if (!adminUser) return; // Token not yet available; wait for AdminAuthContext to resolve
+
+    // Halt calls that will 403-reject until the temporary password is changed
+    if (adminUser.mustChangePassword) {
+      setAdminChangePasswordOpen(true);
+      setPasswordRequiredBanner(true);
+      return;
+    }
+
     fetchAdminData();
-  }, []);
+
+    const onPasswordRequired = () => {
+      setAdminChangePasswordOpen(true);
+      setPasswordRequiredBanner(true);
+    };
+    window.addEventListener('admin:password_change_required', onPasswordRequired);
+    return () => window.removeEventListener('admin:password_change_required', onPasswordRequired);
+  }, [adminUser?.email, adminUser?.mustChangePassword]);
 
   const handleAdminLogout = async () => {
     await logout();
@@ -928,38 +934,14 @@ export function SuperAdminPage() {
       const newCompData = res?.company || res?.data || res || {};
       const newId = newCompData._id || newCompData.id || `comp_${Date.now()}`;
 
-      const createdCompanyObj = {
-        id: newId,
-        _id: newId,
-        name: createdFirmName,
-        legalName: newCompanyForm.legalName?.trim() || '',
-        ownerName: newCompanyForm.ownerName.trim(),
-        ownerEmail: newCompanyForm.ownerEmail.trim(),
-        ownerPhone: newCompanyForm.ownerPhone?.trim() || '—',
-        phone: newCompanyForm.ownerPhone?.trim() || '',
-        gstNumber: newCompanyForm.gstNumber?.trim() || '',
-        status: 'active',
-        plan: planType === 'PAID' ? 'Pro Tier (Paid)' : 'Free Tier (10 Users)',
-        seatsUsed: 1,
-        seatLimit: seatLimitNum,
-        storageUsedGb: +(storageLimitMB / 1024 * 0.05).toFixed(1),
-        storageLimitGb: +(storageLimitMB / 1024).toFixed(0),
-        createdAt: 'Just now',
-        deletedAt: null,
-        daysRemaining: null
-      };
-
-      // 1. Instant optimistic local update (0ms)
-      updateCompaniesAndCache((prev) => [createdCompanyObj, ...prev.filter((c) => c.id !== newId)]);
-
-      // 2. Close modal immediately
+      // Close modal immediately and show notification
       setCreateModalOpen(false);
       setNewCompanyForm(initialCompanyForm);
       setCreateFormErrors({});
       showNotification(`Firm "${createdFirmName}" registered successfully.`);
 
-      // 3. Silent background refresh to synchronize live metrics & audit log
-      fetchAdminData(true);
+      // Refresh dynamic records directly from the database API
+      await fetchAdminData(true);
     } catch (err) {
       setModalError(extractErrorMessage(err));
     } finally {
@@ -1078,9 +1060,14 @@ export function SuperAdminPage() {
 
   // Flow G2: Purge Immediately (POST /admin/companies/:id/purge-now)
   const handlePurgeNow = async (company) => {
-    if (!window.confirm(`Are you sure you want to permanently erase all records for "${company.name}" from the database? This cannot be undone.`)) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Permanently Erase Firm?',
+      message: `Are you sure you want to permanently erase all records for "${company.name}" from the database? This cannot be undone.`,
+      confirmText: 'Erase Permanently',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
 
     const compId = company.id || company._id;
 
@@ -1380,6 +1367,19 @@ export function SuperAdminPage() {
           <nav className="admin-sidebar-nav">
             <button
               type="button"
+              className={`admin-nav-item ${activeTab === 'analytics' ? 'is-active' : ''}`}
+              onClick={() => {
+                setActiveTab('analytics');
+                setMobileSidebarOpen(false);
+              }}
+            >
+              <BarChart3 size={18} className="nav-icon" />
+              <span className="nav-text">Analytics & Vitals</span>
+              <span className="nav-live-dot-pulse" title="Live Telemetry Active" />
+            </button>
+
+            <button
+              type="button"
               className={`admin-nav-item ${activeTab === 'tenants' ? 'is-active' : ''}`}
               onClick={() => {
                 setActiveTab('tenants');
@@ -1486,6 +1486,7 @@ export function SuperAdminPage() {
                 <span>Super Admin Portal</span>
                 <span className="breadcrumb-separator">/</span>
                 <span className="breadcrumb-current">
+                  {activeTab === 'analytics' && 'Analytics & Vitals'}
                   {activeTab === 'tenants' && 'Company Management'}
                   {activeTab === 'admins' && 'Super Admin Team'}
                   {activeTab === 'plans' && 'Plans & Subscriptions'}
@@ -1493,6 +1494,7 @@ export function SuperAdminPage() {
                 </span>
               </div>
               <h1 className="admin-page-title">
+                {activeTab === 'analytics' && 'Platform Analytics & Studio Metrics'}
                 {activeTab === 'tenants' && 'Company Management'}
                 {activeTab === 'admins' && 'Platform Admins & Access Control'}
                 {activeTab === 'plans' && 'Subscription Plans & Pricing'}
@@ -1532,6 +1534,37 @@ export function SuperAdminPage() {
 
         {/* Scrollable Page Body */}
         <main className="admin-page-body">
+          {/* Super Admin Password Change Required Banner */}
+          {passwordRequiredBanner && (
+            <div
+              className="admin-status-toast"
+              role="alert"
+              style={{
+                backgroundColor: '#FFF8F0',
+                border: '1px solid #DFC38D',
+                color: '#1E1A17',
+                marginBottom: '1.25rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.25rem',
+                borderRadius: '8px',
+                width: '100%',
+                boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <AlertTriangle size={20} color="#A0611A" />
+                <span style={{ fontSize: '0.9rem' }}>
+                  <strong>Security Action Required:</strong> Temporary Super Admin password detected. Please set your new permanent password to unlock live backend operations.
+                </span>
+              </div>
+              <Button size="sm" variant="primary" onClick={() => setAdminChangePasswordOpen(true)}>
+                Change Password Now
+              </Button>
+            </div>
+          )}
+
           {/* Authorization Error Banner (403/401) */}
           {authError && (
             <div
@@ -1572,6 +1605,20 @@ export function SuperAdminPage() {
             <LoadingScreen message="Loading..." fullScreen={false} />
           ) : (
             <>
+              {/* TAB 0: EXECUTIVE ANALYTICS & VITALS */}
+              {activeTab === 'analytics' && (
+                <SuperAdminAnalytics
+                  companies={companies}
+                  admins={admins}
+                  auditLogs={auditLogs}
+                  liveMetrics={liveMetrics}
+                  platformHealth={platformHealth}
+                  onDateRangeChange={(_range) => {
+                    fetchAdminData(true);
+                  }}
+                />
+              )}
+
               {/* TAB 1: TENANTS & COMPANIES */}
               {activeTab === 'tenants' && (
             <>

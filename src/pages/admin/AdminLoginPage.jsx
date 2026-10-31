@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Shield, KeyRound, User, Lock, ArrowRight, RotateCw, AlertCircle, CheckCircle2, ChevronLeft, Eye, EyeOff } from 'lucide-react';
+import { Shield, KeyRound, Mail, Lock, ArrowRight, RotateCw, AlertCircle, CheckCircle2, ChevronLeft, Eye, EyeOff, ShieldAlert } from 'lucide-react';
 import { adminAuthService } from '../../services/adminAuthService';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { MayurMehtaLogo } from '../../components/common/MayurMehtaLogo/MayurMehtaLogo';
@@ -19,6 +19,7 @@ export function AdminLoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockActive, setCapsLockActive] = useState(false);
   const [otp, setOtp] = useState('');
   const [challengeId, setChallengeId] = useState('');
   const [maskedEmail, setMaskedEmail] = useState('');
@@ -157,8 +158,16 @@ export function AdminLoginPage() {
 
         {serverError && (
           <div className="admin-alert error" role="alert">
-            <AlertCircle size={16} />
-            <span>{serverError}</span>
+            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{serverError}</div>
+              <div style={{ marginTop: '6px', fontSize: '12px', opacity: 0.9 }}>
+                Looking to sign in as an Architecture Firm Owner or Team Member? Use{' '}
+                <Link to={ROUTES.LOGIN} style={{ color: '#DFC38D', fontWeight: 600, textDecoration: 'underline' }}>
+                  Studio Workspace Login →
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
@@ -168,7 +177,7 @@ export function AdminLoginPage() {
             <div className="admin-field-group">
               <label htmlFor="admin-email">Administrator Email</label>
               <div className="admin-input-wrapper">
-                <User size={16} className="admin-input-icon" />
+                <Mail size={16} className="admin-input-icon" />
                 <input
                   id="admin-email"
                   type="email"
@@ -190,12 +199,14 @@ export function AdminLoginPage() {
                 </Link>
               </div>
               <div className="admin-input-wrapper">
-                <KeyRound size={16} className="admin-input-icon" />
+                <Lock size={16} className="admin-input-icon" />
                 <input
                   id="admin-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  onKeyUp={(e) => setCapsLockActive(e.getModifierState('CapsLock'))}
+                  onKeyDown={(e) => setCapsLockActive(e.getModifierState('CapsLock'))}
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
@@ -210,6 +221,12 @@ export function AdminLoginPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              {capsLockActive && (
+                <div className="admin-caps-warning" role="alert">
+                  <ShieldAlert size={13} />
+                  <span>Caps Lock is ON</span>
+                </div>
+              )}
             </div>
 
             <button type="submit" className="admin-btn-primary" disabled={loading}>

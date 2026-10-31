@@ -1,22 +1,22 @@
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background-color: rgba(46, 46, 46, 0.45);
-  backdrop-filter: blur(2px);
+  background-color: rgba(30, 26, 23, 0.5);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-4);
+  padding: 16px;
   z-index: 1000;
   animation: fadeIn 0.15s ease-out;
 }
 
 .modal-container {
   width: 100%;
-  background-color: var(--color-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-modal);
-  border: 1px solid var(--color-border);
+  background-color: #FFFFFF;
+  border-radius: 14px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E5E7EB;
   overflow: hidden;
   animation: scaleUp 0.18s ease-out;
 }
@@ -25,20 +25,70 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-5) var(--spacing-6);
-  border-bottom: 1px solid rgba(183, 175, 166, 0.3);
+  padding: 20px 28px;
+  border-bottom: 1px solid #F1F5F9;
 }
 
 .modal-title {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text);
+  font-size: 19px;
+  font-weight: 600;
+  color: #1E1A17;
+  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 .modal-body {
-  padding: var(--spacing-6);
-  max-height: calc(85vh - 120px);
+  padding: 24px 28px;
+  max-height: calc(88vh - 120px);
   overflow-y: auto;
+}
+
+/* Universal Form Layout System (matching standard design) */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.form-grid-2:last-child {
+  margin-bottom: 0;
+}
+
+.form-grid-1 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.form-grid-1:last-child {
+  margin-bottom: 0;
+}
+
+.form-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 18px;
+  border-top: 1px solid #F1F5F9;
+}
+
+@media (max-width: 640px) {
+  .modal-header {
+    padding: 16px 20px;
+  }
+
+  .modal-body {
+    padding: 18px 20px;
+  }
+
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
 }
 
 @keyframes fadeIn {

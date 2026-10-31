@@ -20,6 +20,8 @@ import {
   Check
 } from 'lucide-react';
 import { billingService } from '../../services/billingService';
+import { storageService } from '../../services/storageService';
+import { projectService } from '../../services/projectService';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
@@ -27,13 +29,16 @@ import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { formatBytes } from '../../utils/formatBytes';
 import { formatDate } from '../../utils/formatDate';
+import { useConfirm } from '../../context/ConfirmationContext';
 import './StoragePage.css';
 
 export function StoragePage() {
+  const confirm = useConfirm();
   const [activeTier, setActiveTier] = useState('project'); // 'studio' | 'project' | 'personal'
   const [projectFolder, setProjectFolder] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
   const [storageData, setStorageData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -50,17 +55,33 @@ export function StoragePage() {
     sizeMb: 5.0
   });
 
-  // Fetch live storage subscription from Backend (GET /billing)
+  // Fetch live storage subscription from Backend (GET /billing), projects, and persistent files
   useEffect(() => {
     const fetchStorage = async () => {
       setLoading(true);
       try {
-        const sub = await billingService.getSubscription();
-        if (sub && sub.storage) {
-          setStorageData(sub.storage);
-        } else if (sub) {
-          const limitGB = sub.storageQuotaGB || (sub.plan === 'PAID' ? 100 : 5);
-          const usedGB = sub.storageUsedGB || 0;
+        const [sub, persistentFiles, projs] = await Promise.allSettled([
+          billingService.getSubscription(),
+          storageService.getFiles(),
+          projectService.getProjects({ limit: 50 })
+        ]);
+
+        if (persistentFiles.status === 'fulfilled' && Array.isArray(persistentFiles.value)) {
+          setFiles(persistentFiles.value);
+        }
+
+        if (projs.status === 'fulfilled') {
+          const list = Array.isArray(projs.value) ? projs.value : (projs.value?.data || []);
+          const names = list.map((p) => p.name || p.title).filter(Boolean);
+          setProjectsList(names);
+        }
+
+        const subData = sub.status === 'fulfilled' ? sub.value : null;
+        if (subData && subData.storage) {
+          setStorageData(subData.storage);
+        } else if (subData) {
+          const limitGB = subData.storageQuotaGB || (subData.plan === 'PAID' ? 100 : 5);
+          const usedGB = subData.storageUsedGB || 0;
           setStorageData({
             usedBytes: Math.round(usedGB * 1024 * 1024 * 1024),
             limitBytes: Math.round(limitGB * 1024 * 1024 * 1024)
@@ -84,7 +105,8 @@ export function StoragePage() {
     fetchStorage();
   }, []);
 
-  const totalBytesUsed = storageData?.usedBytes || 0;
+  const calculatedBytes = files.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
+  const totalBytesUsed = (storageData?.usedBytes && storageData.usedBytes > 0) ? storageData.usedBytes : calculatedBytes;
   const totalBytesLimit = storageData?.limitBytes || (5 * 1024 * 1024 * 1024);
   const usagePercent = Math.min(Math.round((totalBytesUsed / totalBytesLimit) * 100), 100);
   const isNearLimit = usagePercent >= 85;
@@ -103,12 +125,11 @@ export function StoragePage() {
   });
 
   // Upload handler
-  const handleUploadSubmit = (e) => {
+  const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (!newFile.name) return;
 
-    const created = {
-      id: `f-${Date.now()}`,
+    const filePayload = {
       tier: activeTier,
       name: newFile.name.endsWith('.pdf') || newFile.name.endsWith('.dwg') ? newFile.name : `${newFile.name}.pdf`,
       project: activeTier === 'project' ? newFile.project : activeTier === 'studio' ? 'Studio Master Library' : 'Personal Drafts',
@@ -116,16 +137,19 @@ export function StoragePage() {
       revision: newFile.revision,
       gfcStatus: newFile.category.includes('GFC') ? 'GFC Released' : 'Approved',
       sizeBytes: Math.round(Number(newFile.sizeMb) * 1024 * 1024) || 4500000,
-      uploadedBy: 'Ar. Mayur Mehta',
-      uploadedAt: new Date().toISOString(),
-      fileType: newFile.name.endsWith('.dwg') ? 'dwg' : 'pdf'
+      uploadedBy: 'Ar. Mayur Mehta'
     };
 
-    setFiles([created, ...files]);
+    try {
+      const created = await storageService.saveFile(filePayload);
+      setFiles([created, ...files]);
+    } catch (err) {
+      console.warn('Save file notice:', err);
+    }
     setUploadModalOpen(false);
     setNewFile({
       name: '',
-      project: 'The Courtyard Residence',
+      project: 'The Courtyard Villa',
       category: 'Structural GFC',
       revision: 'R0',
       tier: 'project',
@@ -133,10 +157,22 @@ export function StoragePage() {
     });
   };
 
-  const handleDeleteFile = (id) => {
-    if (window.confirm('Are you sure you want to delete this drawing from the cloud storage drive?')) {
-      setFiles(files.filter((f) => f.id !== id));
+  const handleDeleteFile = async (id) => {
+    const ok = await confirm({
+      title: 'Delete Drawing File?',
+      message: 'Are you sure you want to delete this drawing from the cloud storage drive?',
+      confirmText: 'Delete File',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await storageService.deleteFile(id);
+    } catch (err) {
+      console.warn('Delete file notice:', err);
     }
+    setFiles(files.filter((f) => f.id !== id));
   };
 
   const handleCopyLink = (id, fileName) => {
@@ -254,7 +290,7 @@ export function StoragePage() {
       {activeTier === 'project' && (
         <div className="project-folder-bar">
           <span className="folder-label">Filter Project Folder:</span>
-          {['all', 'The Courtyard Residence', 'Skyline Penthouse 401', 'Linear Workspace Center'].map((p) => (
+          {['all', ...projectsList].map((p) => (
             <button
               key={p}
               type="button"
@@ -348,7 +384,7 @@ export function StoragePage() {
                         type="button"
                         className="file-action-btn"
                         title="Download Drawing"
-                        onClick={() => alert(`Downloading: ${f.name}`)}
+                        onClick={() => storageService.downloadFile(f)}
                       >
                         <Download size={14} />
                       </button>
@@ -385,7 +421,7 @@ export function StoragePage() {
         onClose={() => setUploadModalOpen(false)}
         title="Upload Drawing or File to Cloud Drive"
       >
-        <form onSubmit={handleUploadSubmit} className="storage-upload-form">
+        <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div className="dropzone-box" onClick={() => document.getElementById('file-picker-input')?.click()}>
             <UploadCloud size={36} color="#7B6F62" />
             <div className="dropzone-title">Click to browse or drop architectural drawings here</div>
@@ -407,18 +443,20 @@ export function StoragePage() {
             />
           </div>
 
-          <Input
-            label="Drawing / Document Title"
-            id="modal-file-name"
-            placeholder="Enter document or drawing title"
-            value={newFile.name}
-            onChange={(e) => setNewFile({ ...newFile, name: e.target.value })}
-            required
-          />
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
+              <Input
+                label="Drawing / Document Title *"
+                id="modal-file-name"
+                placeholder="Enter document or drawing title"
+                value={newFile.name}
+                onChange={(e) => setNewFile({ ...newFile, name: e.target.value })}
+                required
+              />
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
             <Select
-              label="Destination Drive"
+              label="Destination Drive *"
               id="modal-tier"
               value={newFile.tier}
               onChange={(e) => setNewFile({ ...newFile, tier: e.target.value })}
@@ -427,10 +465,11 @@ export function StoragePage() {
                 { value: 'studio', label: 'Studio Admin Drive', sublabel: 'Firm-wide master template' },
                 { value: 'personal', label: 'Personal Drive', sublabel: 'Private architect workspace' }
               ]}
+              required
             />
 
             <Select
-              label="Drawing Category"
+              label="Drawing Category *"
               id="modal-category"
               value={newFile.category}
               onChange={(e) => setNewFile({ ...newFile, category: e.target.value })}
@@ -442,10 +481,9 @@ export function StoragePage() {
                 { value: '3D Render', label: 'Photorealistic 3D Render' },
                 { value: 'Contracts & Legal', label: 'Client Contract / BOQ' }
               ]}
+              required
             />
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
             <Select
               label="Revision Index"
               id="modal-rev"
@@ -469,11 +507,11 @@ export function StoragePage() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)', marginTop: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setUploadModalOpen(false)} style={{ flex: 1 }}>
+          <div className="form-actions-row">
+            <Button type="button" variant="secondary" onClick={() => setUploadModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" style={{ flex: 1 }}>
+            <Button type="submit" variant="primary">
               Upload Drawing
             </Button>
           </div>

@@ -16,47 +16,43 @@
  */
 
 :root {
-  /* Core Brand Palette - Sheet B */
-  --color-primary: #7B6F62;        /* Primary Taupe */
-  --color-surface-alt: #E8E3DB;    /* Warm Beige */
-  --color-border: #D8D2CA;         /* Refined Warm Stone Grey */
-  --color-border-subtle: #EAE6DF;  /* Delicate divider */
-  --color-text: #2E2E2E;           /* Charcoal */
+  /* =========================================================================
+     MAYUR MEHTA • DESIGN ARCHITECTURAL STUDIO MANAGEMENT PORTAL TOKENS
+     ========================================================================= */
+  --bg: #F6F2EC;
+  --surface: #FFFFFF;
+  --surface-alt: #FBF8F4;
+  --border: #E8E0D5;
+  --border-subtle: #F0EAE1;
+  --text: #2A241D;
+  --text-muted: #7B6F63;
+  --placeholder: #A39889;
+  --primary: #7A6A58;
+  --primary-hover: #655646;
+  --primary-soft: #EFE7DC;
+  --accent: #B89A74;
 
-  /* Surface & Derived Tokens */
-  --color-bg: #F8F6F2;             /* Warm off-white canvas */
-  --color-card: #FFFFFF;           /* Card & modal surface */
-  --color-card-subtle: #FAF8F5;    /* Subtle nested surface */
-  --color-surface-hover: #F2EFE9;  /* Soft warm hover */
-  --color-primary-hover: #675C51;  /* Darker taupe hover */
-  --color-primary-soft: rgba(123, 111, 98, 0.10); /* 10% taupe */
-  --color-text-muted: #756E67;     /* Taupe-grey secondary */
-  --color-text-light: #A39B92;     /* Placeholder grey */
+  /* Status Colors (Muted architectural semantics) */
+  --success: #4F8A63;
+  --success-soft: rgba(79, 138, 99, 0.12);
+  --warning: #C48A22;
+  --warning-soft: rgba(196, 138, 34, 0.12);
+  --danger: #B5483A;
+  --danger-soft: rgba(181, 72, 58, 0.12);
+  --info: #4B7391;
+  --info-soft: rgba(75, 115, 145, 0.12);
 
-  /* Table Header Warm Architectural Palette */
-  --color-table-header: #FAF8F5;   /* Warm architectural surface */
-  --color-table-header-text: #7B6F62;
+  /* Chart Palette from Brand */
+  --chart-1: #7A6A58;
+  --chart-2: #B89A74;
+  --chart-3: #4F8A63;
+  --chart-4: #4B7391;
+  --chart-5: #C48A22;
+  --chart-6: #A39889;
 
-  /* Extended Palette from Sheet B */
-  --color-ext-1: #F5F2EC;
-  --color-ext-2: #E2DDD5;
-  --color-ext-3: #A89F95;
-  --color-ext-4: #4A443E;
-  --color-ext-5: #22201E;
-  --color-ext-6: #1A1918;
-
-  /* Muted Earthy Architectural Semantics */
-  --color-success: #5E7A6B;        /* Muted architectural sage */
-  --color-success-soft: rgba(94, 122, 107, 0.12);
-  --color-warning: #B88235;        /* Warm amber / ochre */
-  --color-warning-soft: rgba(184, 130, 53, 0.12);
-  --color-danger: #A64B3E;         /* Terracotta / rust */
-  --color-danger-soft: rgba(166, 75, 62, 0.12);
-  --color-info: #5B758E;           /* Muted slate */
-  --color-info-soft: rgba(91, 117, 142, 0.12);
-
-  /* Typography - Modern Architectural Geometric Sans (Plus Jakarta Sans & Inter) */
-  --font-family-base: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Typography */
+  --font-serif: "Fraunces", "Cormorant Garamond", Georgia, serif;
+  --font-family-base: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-family-script: "Brush Script MT", "Segoe Script", "Caveat", cursive;
   --font-weight-light: 300;
   --font-weight-regular: 400;
@@ -72,18 +68,21 @@
   --font-size-2xl: 28px;
   --font-size-3xl: 36px;
 
-  /* Shape & Radii */
+  /* Shape & Radii (Exact: 14px cards / 10px inputs) */
+  --radius-card: 14px;
+  --radius-input: 10px;
   --radius-xs: 6px;
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-pill: 9999px;
 
-  /* Shadows - Minimalist Luxury */
-  --shadow-sm: 0 1px 2px rgba(46, 46, 46, 0.04);
-  --shadow-card: 0 2px 10px -2px rgba(46, 46, 46, 0.04), 0 1px 3px rgba(46, 46, 46, 0.02);
-  --shadow-elevated: 0 12px 28px -6px rgba(46, 46, 46, 0.08), 0 4px 10px -2px rgba(46, 46, 46, 0.03);
-  --shadow-drawer: -6px 0 24px rgba(46, 46, 46, 0.09);
+  /* Shadows - Minimalist Architectural Softness */
+  --shadow-sm: 0 1px 2px rgba(42, 36, 29, 0.04);
+  --shadow-card: 0 2px 10px -2px rgba(42, 36, 29, 0.04), 0 1px 3px rgba(42, 36, 29, 0.02);
+  --shadow-elevated: 0 12px 28px -6px rgba(42, 36, 29, 0.08), 0 4px 10px -2px rgba(42, 36, 29, 0.03);
+  --shadow-drawer: -6px 0 24px rgba(42, 36, 29, 0.09);
 
   /* Spacing */
   --spacing-1: 4px;
@@ -101,6 +100,75 @@
   /* Transitions */
   --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
   --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Backward Compatibility Aliases */
+  --color-bg: var(--bg);
+  --color-card: var(--surface);
+  --color-card-subtle: var(--surface-alt);
+  --color-surface-alt: var(--surface-alt);
+  --color-surface-hover: #F0EAE1;
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-light: var(--placeholder);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
+  --color-accent: var(--accent);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-table-header: var(--surface-alt);
+  --color-table-header-text: var(--primary);
+}
+
+/* Dark Mode Tokens (WCAG AA Compliant) */
+[data-theme="dark"],
+.dark {
+  --bg: #1B1815;
+  --surface: #24201C;
+  --surface-alt: #2D2824;
+  --border: #3D3731;
+  --border-subtle: #332E28;
+  --text: #F6F2EC;
+  --text-muted: #B7AFA6;
+  --placeholder: #8A8177;
+  --primary: #B89A74;
+  --primary-hover: #CCA981;
+  --primary-soft: rgba(184, 154, 116, 0.15);
+  --accent: #C5A059;
+
+  --success: #67A77F;
+  --success-soft: rgba(103, 167, 127, 0.15);
+  --warning: #DCA23B;
+  --warning-soft: rgba(220, 162, 59, 0.15);
+  --danger: #CF5F51;
+  --danger-soft: rgba(207, 95, 81, 0.15);
+  --info: #648CAE;
+  --info-soft: rgba(100, 140, 174, 0.15);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 2px 10px -2px rgba(0, 0, 0, 0.35);
+  --shadow-elevated: 0 12px 28px -6px rgba(0, 0, 0, 0.5);
+  --color-surface-hover: #35302A;
+}
+
+/* Page Titles and Big KPI Numbers in Light Serif */
+.page-title,
+.analytics-main-heading,
+.admin-page-title,
+.vital-number,
+.kpi-value,
+.kpi-big-number {
+  font-family: var(--font-serif) !important;
+  font-weight: 500 !important;
+  letter-spacing: -0.01em !important;
 }
 
 /* =========================================================================
@@ -120,9 +188,9 @@ textarea {
   font-size: var(--font-size-sm) !important;
   font-weight: 450;
   color: var(--color-text);
-  background-color: #FFFFFF;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-input);
   padding: 0 14px;
   height: 42px;
   line-height: 42px;

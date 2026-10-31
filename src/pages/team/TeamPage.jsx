@@ -30,6 +30,7 @@ export function TeamPage() {
   const [inviteForm, setInviteForm] = useState({ name: '', email: '', role: 'MEMBER', mobile: '', designation: '' });
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState('');
+  const [inviteFieldErrors, setInviteFieldErrors] = useState({});
 
   const [roleModalOpen, setRoleModalOpen] = useState(false);
   const [selectedUserForRole, setSelectedUserForRole] = useState(null);
@@ -117,6 +118,20 @@ export function TeamPage() {
   const handleInviteSubmit = async (e) => {
     e.preventDefault();
     setInviteError('');
+
+    const errors = {};
+    if (!inviteForm.name?.trim()) errors.name = 'Full name is required';
+    if (!inviteForm.email?.trim()) {
+      errors.email = 'Work email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteForm.email.trim())) {
+      errors.email = 'Enter a valid work email address';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setInviteFieldErrors(errors);
+      return;
+    }
+    setInviteFieldErrors({});
 
     if (isAtLimit) {
       setInviteModalOpen(false);
@@ -600,68 +615,100 @@ export function TeamPage() {
       {/* 1. Invite Member Modal */}
       <Modal
         isOpen={inviteModalOpen}
-        onClose={() => setInviteModalOpen(false)}
+        onClose={() => {
+          setInviteModalOpen(false);
+          setInviteFieldErrors({});
+          setInviteError('');
+        }}
         title="Invite New Team Member"
+        maxWidth="620px"
       >
-        <form onSubmit={handleInviteSubmit} className="invite-form">
-          {inviteError && <div className="auth-error-alert">{inviteError}</div>}
+        <form onSubmit={handleInviteSubmit} noValidate>
+          {inviteError && (
+            <div className="auth-error-alert" style={{ marginBottom: '14px' }}>
+              {inviteError}
+            </div>
+          )}
 
-          <div className="team-invite-notice">
+          <div className="team-invite-notice" style={{ marginBottom: '16px' }}>
             Seat Allotment: This user will consume <strong>1 seat</strong> ({seatsUsed + 1} of {seatLimit} active).
           </div>
 
-          <Input
-            label="Full Name"
-            id="invite-name"
-            placeholder="Enter full name"
-            value={inviteForm.name}
-            onChange={(e) => setInviteForm((prev) => ({ ...prev, name: e.target.value }))}
-            required
-          />
+          <div className="form-grid-2">
+            <Input
+              label="Full Name"
+              id="invite-name"
+              placeholder="Enter full name"
+              value={inviteForm.name}
+              onChange={(e) => {
+                setInviteForm((prev) => ({ ...prev, name: e.target.value }));
+                if (inviteFieldErrors.name) setInviteFieldErrors((prev) => ({ ...prev, name: '' }));
+              }}
+              error={inviteFieldErrors.name}
+              required
+            />
 
-          <Input
-            label="Work Email Address"
-            id="invite-email"
-            type="email"
-            placeholder="Enter email address"
-            value={inviteForm.email}
-            onChange={(e) => setInviteForm((prev) => ({ ...prev, email: e.target.value }))}
-            icon={Mail}
-            required
-          />
+            <Input
+              label="Work Email Address"
+              id="invite-email"
+              type="email"
+              placeholder="Enter email address"
+              value={inviteForm.email}
+              onChange={(e) => {
+                setInviteForm((prev) => ({ ...prev, email: e.target.value }));
+                if (inviteFieldErrors.email) setInviteFieldErrors((prev) => ({ ...prev, email: '' }));
+              }}
+              error={inviteFieldErrors.email}
+              icon={Mail}
+              required
+            />
+          </div>
 
-          <Input
-            label="Mobile Number (Optional)"
-            id="invite-mobile"
-            placeholder="Enter phone number"
-            value={inviteForm.mobile}
-            onChange={(e) => setInviteForm((prev) => ({ ...prev, mobile: e.target.value }))}
-          />
+          <div className="form-grid-2">
+            <Select
+              label="Studio Access Level"
+              id="invite-role"
+              value={inviteForm.role}
+              onChange={(e) => setInviteForm((prev) => ({ ...prev, role: e.target.value }))}
+              options={[
+                { value: 'MEMBER', label: 'Member', sublabel: 'Architect / Interior Designer' },
+                { value: 'ADMIN', label: 'Studio Admin', sublabel: 'Project Lead / Workspace Manager' }
+              ]}
+              required
+            />
 
-          <Input
-            label="Designation / Role in Firm (Optional)"
-            id="invite-designation"
-            placeholder="Enter designation"
-            value={inviteForm.designation}
-            onChange={(e) => setInviteForm((prev) => ({ ...prev, designation: e.target.value }))}
-          />
+            <Input
+              label="Mobile Number"
+              id="invite-mobile"
+              placeholder="Enter 10-digit mobile number"
+              value={inviteForm.mobile}
+              onChange={(e) => setInviteForm((prev) => ({ ...prev, mobile: e.target.value }))}
+            />
+          </div>
 
-          <Select
-            label="Studio Access Level"
-            id="invite-role"
-            value={inviteForm.role}
-            onChange={(e) => setInviteForm((prev) => ({ ...prev, role: e.target.value }))}
-            options={[
-              { value: 'MEMBER', label: 'Member', sublabel: 'Architect / Interior Designer' },
-              { value: 'ADMIN', label: 'Studio Admin', sublabel: 'Project Lead / Workspace Manager' }
-            ]}
-          />
+          <div className="form-grid-1">
+            <Input
+              label="Designation / Role in Firm"
+              id="invite-designation"
+              placeholder="e.g. Senior Architect / Interior Designer"
+              value={inviteForm.designation}
+              onChange={(e) => setInviteForm((prev) => ({ ...prev, designation: e.target.value }))}
+            />
+          </div>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)', marginTop: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setInviteModalOpen(false)} style={{ flex: 1 }}>
+          <div className="form-actions-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setInviteModalOpen(false);
+                setInviteFieldErrors({});
+                setInviteError('');
+              }}
+            >
               {MESSAGES.APP.CANCEL}
             </Button>
-            <Button type="submit" variant="primary" loading={inviteLoading} style={{ flex: 1 }}>
+            <Button type="submit" variant="primary" loading={inviteLoading}>
               Send Studio Invite
             </Button>
           </div>
@@ -773,48 +820,63 @@ export function TeamPage() {
         isOpen={editMemberModalOpen}
         onClose={() => setEditMemberModalOpen(false)}
         title="Edit Team Member Profile"
+        maxWidth="620px"
       >
-        <form onSubmit={handleSaveEditMember} className="invite-form">
-          {editMemberError && <div className="auth-error-alert">{editMemberError}</div>}
+        <form onSubmit={handleSaveEditMember} noValidate>
+          {editMemberError && (
+            <div className="auth-error-alert" style={{ marginBottom: '14px' }}>
+              {editMemberError}
+            </div>
+          )}
 
-          <Input
-            label="Full Name"
-            id="edit-member-name"
-            value={editMemberForm.name}
-            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, name: e.target.value }))}
-            required
-          />
+          <div className="form-grid-2">
+            <Input
+              label="Full Name"
+              id="edit-member-name"
+              placeholder="Enter full name"
+              value={editMemberForm.name}
+              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, name: e.target.value }))}
+              required
+            />
 
-          <Input
-            label="Work Email Address"
-            id="edit-member-email"
-            type="email"
-            value={editMemberForm.email}
-            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, email: e.target.value }))}
-            required
-          />
+            <Input
+              label="Work Email Address"
+              id="edit-member-email"
+              type="email"
+              placeholder="Enter email address"
+              value={editMemberForm.email}
+              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, email: e.target.value }))}
+              required
+            />
+          </div>
 
-          <Input
-            label="Mobile Number"
-            id="edit-member-mobile"
-            placeholder="Enter phone number"
-            value={editMemberForm.mobile}
-            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, mobile: e.target.value }))}
-          />
+          <div className="form-grid-2">
+            <Input
+              label="Mobile Number"
+              id="edit-member-mobile"
+              placeholder="Enter phone number"
+              value={editMemberForm.mobile}
+              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, mobile: e.target.value }))}
+            />
 
-          <Input
-            label="Designation / Role in Firm"
-            id="edit-member-designation"
-            placeholder="Enter designation"
-            value={editMemberForm.designation}
-            onChange={(e) => setEditMemberForm((prev) => ({ ...prev, designation: e.target.value }))}
-          />
+            <Input
+              label="Designation / Role in Firm"
+              id="edit-member-designation"
+              placeholder="Enter designation"
+              value={editMemberForm.designation}
+              onChange={(e) => setEditMemberForm((prev) => ({ ...prev, designation: e.target.value }))}
+            />
+          </div>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)', marginTop: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setEditMemberModalOpen(false)} style={{ flex: 1 }}>
+          <div className="form-actions-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setEditMemberModalOpen(false)}
+            >
               {MESSAGES.APP.CANCEL}
             </Button>
-            <Button type="submit" variant="primary" loading={editMemberLoading} style={{ flex: 1 }}>
+            <Button type="submit" variant="primary" loading={editMemberLoading}>
               Save Profile Changes
             </Button>
           </div>

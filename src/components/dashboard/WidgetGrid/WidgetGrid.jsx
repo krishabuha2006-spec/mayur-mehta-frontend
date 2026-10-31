@@ -50,8 +50,8 @@ export function WidgetGrid({
 
   const renderWidgetContent = (widget) => {
     if (!widget) return null;
+    const widgetKey = widget.id || widget.key;
     const commonProps = {
-      key: widget.id || widget.key,
       widgetKey: widget.key,
       title: widget.title,
       scope,
@@ -62,13 +62,13 @@ export function WidgetGrid({
 
     switch (widget.type) {
       case WIDGET_TYPES.LIST:
-        return <ListWidget {...commonProps} />;
+        return <ListWidget key={widgetKey} {...commonProps} />;
       case WIDGET_TYPES.COUNT:
-        return <CountWidget {...commonProps} />;
+        return <CountWidget key={widgetKey} {...commonProps} />;
       case WIDGET_TYPES.CHART:
-        return <ChartWidget {...commonProps} />;
+        return <ChartWidget key={widgetKey} {...commonProps} />;
       default:
-        return <ListWidget {...commonProps} />;
+        return <ListWidget key={widgetKey} {...commonProps} />;
     }
   };
 

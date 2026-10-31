@@ -13,7 +13,7 @@ import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
-import { apiClient } from '../../services/apiClient';
+import { libraryService } from '../../services/libraryService';
 import './LibraryPage.css';
 
 export function LibraryPage() {
@@ -25,9 +25,8 @@ export function LibraryPage() {
     const fetchMaterials = async () => {
       setLoading(true);
       try {
-        const res = await apiClient.get('/library');
-        const list = Array.isArray(res) ? res : res?.data || [];
-        setMaterials(list);
+        const list = await libraryService.getMaterials();
+        setMaterials(Array.isArray(list) ? list : []);
       } catch (err) {
         console.warn('GET /library API notice:', err?.response?.status || err.message);
         setMaterials([]);
@@ -61,17 +60,15 @@ export function LibraryPage() {
     return matchesSearch && matchesCat;
   });
 
-  const handleCreateSubmit = (e) => {
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (!newMat.name) return;
-    setMaterials([
-      {
-        id: `mat_${Date.now()}`,
-        code: newMat.code || `MM-${Math.floor(10 + Math.random() * 89)}`,
-        ...newMat
-      },
-      ...materials
-    ]);
+    try {
+      const created = await libraryService.createMaterial(newMat);
+      setMaterials([created, ...materials]);
+    } catch (err) {
+      console.warn('Create material notice:', err);
+    }
     setCreateModalOpen(false);
     setNewMat({
       name: '',
@@ -164,19 +161,21 @@ export function LibraryPage() {
 
       {/* Add Material Modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Add Material Specification">
-        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-          <Input
-            label="Material / Finish Name"
-            id="mat-name"
-            placeholder="Enter material title"
-            value={newMat.name}
-            onChange={(e) => setNewMat({ ...newMat, name: e.target.value })}
-            required
-          />
+        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
+              <Input
+                label="Material / Finish Name *"
+                id="mat-name"
+                placeholder="Enter material title"
+                value={newMat.name}
+                onChange={(e) => setNewMat({ ...newMat, name: e.target.value })}
+                required
+              />
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
             <Select
-              label="Category"
+              label="Category *"
               id="mat-cat"
               value={newMat.category}
               onChange={(e) => setNewMat({ ...newMat, category: e.target.value })}
@@ -186,8 +185,8 @@ export function LibraryPage() {
                 { value: 'Hardware', label: 'Hardware', sublabel: 'Architectural Fittings & Hinges' },
                 { value: 'Textures & Paint', label: 'Textures & Paint', sublabel: 'Lime Plaster, Micro-topping' }
               ]}
+              required
             />
-
 
             <Input
               label="Finish / Polish Type"
@@ -196,9 +195,7 @@ export function LibraryPage() {
               value={newMat.finish}
               onChange={(e) => setNewMat({ ...newMat, finish: e.target.value })}
             />
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
             <Input
               label="Supplier / Vendor"
               id="mat-vendor"
@@ -216,11 +213,11 @@ export function LibraryPage() {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setCreateModalOpen(false)} style={{ flex: 1 }}>
+          <div className="form-actions-row">
+            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" style={{ flex: 1 }}>
+            <Button type="submit" variant="primary">
               Save Specification
             </Button>
           </div>

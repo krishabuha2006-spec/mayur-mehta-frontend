@@ -6,53 +6,94 @@ import { extractErrorMessage } from '../utils/errorHandler';
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
 
 // =========================================================================
-// IN-MEMORY TOKEN STORAGE (Security Specification: Zero LocalStorage/SessionStorage)
-// Refresh Token (rt / art): Stored exclusively in httpOnly Cookies by browser
-// Access Token: Kept in JavaScript memory state to prevent XSS theft
-const safeStorageGet = (key) => {
-  try {
-    return sessionStorage.getItem(key) || localStorage.getItem(key) || null;
-  } catch {
-    return null;
-  }
-};
+// RESILIENT TOKEN STORAGE (In-Memory + SessionStorage Persistence on Refresh)
+// Refresh Token (rt / art): Managed via httpOnly Cookies
+// Access Token: Stored In-Memory with SessionStorage persistence across F5 reloads
+// =========================================================================
 
-const safeStorageSet = (key, value) => {
+let inMemoryAccessToken = null;
+let inMemoryAdminToken = null;
+
+export const getAccessToken = () => {
+  if (inMemoryAccessToken) return inMemoryAccessToken;
   try {
-    if (value) {
-      sessionStorage.setItem(key, value);
-      localStorage.setItem(key, value);
-    } else {
-      sessionStorage.removeItem(key);
-      localStorage.removeItem(key);
+    const saved = sessionStorage.getItem('mm_access_token') || localStorage.getItem('mm_access_token');
+    if (saved) {
+      inMemoryAccessToken = saved;
+      return saved;
     }
   } catch {
-    // Storage restricted/unavailable
+    // Restricted browser storage environment
+  }
+  return null;
+};
+
+export const setAccessToken = (token) => {
+  inMemoryAccessToken = token || null;
+  try {
+    if (token) {
+      sessionStorage.setItem('mm_access_token', token);
+      localStorage.setItem('mm_access_token', token);
+    } else {
+      sessionStorage.removeItem('mm_access_token');
+      localStorage.removeItem('mm_access_token');
+    }
+  } catch {
+    // Restricted browser storage environment
   }
 };
 
-let inMemoryAccessToken = safeStorageGet('mm_access_token');
-let inMemoryAdminToken = safeStorageGet('mm_admin_token');
-
-export const getAccessToken = () => inMemoryAccessToken || safeStorageGet('mm_access_token');
-export const setAccessToken = (token) => {
-  inMemoryAccessToken = token || null;
-  safeStorageSet('mm_access_token', token);
-};
 export const clearAccessToken = () => {
   inMemoryAccessToken = null;
-  safeStorageSet('mm_access_token', null);
+  try {
+    sessionStorage.removeItem('mm_access_token');
+    localStorage.removeItem('mm_access_token');
+  } catch {
+    // Restricted browser storage environment
+  }
 };
 
-export const getAdminToken = () => inMemoryAdminToken || safeStorageGet('mm_admin_token');
+export const getAdminToken = () => {
+  if (inMemoryAdminToken) return inMemoryAdminToken;
+  try {
+    const saved = sessionStorage.getItem('mm_admin_token') || localStorage.getItem('mm_admin_token');
+    if (saved) {
+      inMemoryAdminToken = saved;
+      return saved;
+    }
+  } catch {
+    // Restricted browser storage environment
+  }
+  return null;
+};
+
 export const setAdminToken = (token) => {
   inMemoryAdminToken = token || null;
-  safeStorageSet('mm_admin_token', token);
+  try {
+    if (token) {
+      sessionStorage.setItem('mm_admin_token', token);
+      localStorage.setItem('mm_admin_token', token);
+    } else {
+      sessionStorage.removeItem('mm_admin_token');
+      localStorage.removeItem('mm_admin_token');
+    }
+  } catch {
+    // Restricted browser storage environment
+  }
 };
+
 export const clearAdminToken = () => {
   inMemoryAdminToken = null;
-  safeStorageSet('mm_admin_token', null);
+  try {
+    sessionStorage.removeItem('mm_admin_token');
+    localStorage.removeItem('mm_admin_token');
+  } catch {
+    // Restricted browser storage environment
+  }
 };
+
+// Image 2 Rule 1: Set withCredentials: true so browser automatically sends httpOnly rt / art cookies
+axios.defaults.withCredentials = true;
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -162,6 +203,14 @@ apiClient.interceptors.response.use(
     // Attach parsed human-readable message for easy consumption across components
     error.userMessage = extractErrorMessage(error);
 
+    if (error.response?.status === 422) {
+      const respData = error.response?.data;
+      console.error(
+        `[422 Validation Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n`,
+        JSON.stringify(respData, null, 2)
+      );
+    }
+
     const url = originalRequest.url || '';
     const isAdmin = isAdminPath(url);
 
@@ -176,8 +225,7 @@ apiClient.interceptors.response.use(
     if (isAdmin && error.response?.status === 403 && !isAuthRoute) {
       const errCode = error.response?.data?.error?.code || error.response?.data?.code;
       if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
-        // Softly handle required password change without kicking user out of dashboard
-        console.info('Super Admin notice: Password update recommended.');
+        window.dispatchEvent(new CustomEvent('admin:password_change_required'));
       } else if (errCode === 'ADMIN_DISABLED' || errCode === 'FORBIDDEN_PLATFORM' || errCode === 'INSUFFICIENT_ROLE') {
         clearAdminToken();
         window.dispatchEvent(new CustomEvent('admin:logout'));
@@ -239,6 +287,9 @@ apiClient.interceptors.response.use(
           processAdminQueue(refreshErr, null);
           clearAdminToken();
           window.dispatchEvent(new CustomEvent('admin:logout'));
+          if (!window.location.pathname.includes('/admin/auth') && !window.location.pathname.includes('/admin/login')) {
+            window.location.href = '/admin/login?expired=1';
+          }
         } finally {
           isAdminRefreshing = false;
         }
@@ -279,6 +330,9 @@ apiClient.interceptors.response.use(
           processTenantQueue(refreshErr, null);
           clearAccessToken();
           window.dispatchEvent(new CustomEvent('auth:logout'));
+          if (!window.location.pathname.includes('/auth') && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login?expired=1';
+          }
         } finally {
           isTenantRefreshing = false;
         }

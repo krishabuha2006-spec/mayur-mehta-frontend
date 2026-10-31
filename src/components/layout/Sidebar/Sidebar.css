@@ -15,7 +15,7 @@
   flex-direction: column;
   align-items: center;
   z-index: 100;
-  transition: transform var(--transition-normal, 0.25s ease);
+  transition: width var(--transition-normal, 0.25s cubic-bezier(0.16, 1, 0.3, 1)), transform var(--transition-normal, 0.25s ease);
   overflow-y: auto;
   overflow-x: hidden;
   box-shadow: 2px 0 12px rgba(46, 46, 46, 0.02);
@@ -53,6 +53,7 @@
   border-radius: 14px;
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  flex-shrink: 0;
 }
 
 .sidebar-logo-container:hover .sidebar-brand-mark {
@@ -62,6 +63,33 @@
 
 .sidebar-logo-container:hover .sidebar-brand-mark .mm-circles-rotating-group {
   animation-duration: 8s;
+}
+
+/* Brand Text beside Rotating Logo when Expanded */
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.15;
+  user-select: none;
+  white-space: nowrap;
+  animation: sidebarFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.sidebar-brand-name {
+  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #2E2925;
+}
+
+.sidebar-brand-subtitle {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-size: 11.5px;
+  color: #7B6F62;
+  letter-spacing: 0.05em;
 }
 
 .sidebar-mobile-close {
@@ -231,9 +259,81 @@
   margin-bottom: 2px;
 }
 
-/* Navigation text label: Hidden on desktop rail, visible in mobile drawer */
+/* Navigation text label: Hidden on desktop rail, visible in mobile drawer or when expanded */
 .sidebar-nav-label {
   display: none;
+}
+
+/* ==========================================================================
+   Desktop Expanded Sidebar Mode (Toggled via rotating logo click)
+   ========================================================================== */
+@media (min-width: 769px) {
+  .app-sidebar.sidebar-expanded {
+    width: var(--sidebar-width, 240px);
+    align-items: stretch;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-logo-container {
+    justify-content: flex-start;
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-list {
+    align-items: stretch;
+    padding: 0 12px;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-item {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-link {
+    width: 100%;
+    height: 44px;
+    justify-content: flex-start;
+    padding: 0 14px;
+    gap: 12px;
+    border-radius: 10px;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-label {
+    display: inline-block;
+    font-size: 13.5px;
+    font-weight: 550;
+    color: inherit;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    letter-spacing: 0.01em;
+    animation: sidebarFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-link:hover .sidebar-nav-label {
+    color: #1A1A1A;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-nav-link.active .sidebar-nav-label {
+    color: #1F1B18;
+    font-weight: 600;
+  }
+
+  .app-sidebar.sidebar-expanded .sidebar-divider {
+    width: calc(100% - 24px);
+    margin: 6px 12px 8px;
+  }
+}
+
+@keyframes sidebarFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 /* Mobile Responsive Drawer */

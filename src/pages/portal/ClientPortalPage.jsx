@@ -50,17 +50,15 @@ export function ClientPortalPage() {
         setCurrentProject(data);
         setDrawingsList(data.drawings || []);
         setQuotationsList(data.quotations || []);
-      } else {
-        setCurrentProject(null);
-        setErrorMessage('Invalid access code. Please check with your architect.');
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      console.warn('GET /portal/:code API notice:', err?.response?.status || err.message);
+    } catch {
+      // Backend /portal/:code pending — show "not found" instead of fake data
       setCurrentProject(null);
-      setErrorMessage(err?.response?.data?.message || 'Access code not found.');
-    } finally {
-      setLoading(false);
+      setErrorMessage('Portal not available. Please contact your architect.');
     }
+    setLoading(false);
   };
 
   useEffect(() => {

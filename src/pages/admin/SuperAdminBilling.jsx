@@ -28,11 +28,13 @@ import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
+import { useConfirm } from '../../context/ConfirmationContext';
 import { adminService } from '../../services/adminService';
 import { formatCurrency, formatPaise } from '../../utils/formatCurrency';
 import { extractErrorMessage } from '../../utils/errorHandler';
 
 export function SuperAdminBilling({ companies = [], onNotification }) {
+  const confirm = useConfirm();
   const [subTab, setSubTab] = useState('overview'); // 'overview' | 'invoices' | 'payments' | 'requests' | 'actions'
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -171,9 +173,15 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
 
   // Handle Issue Invoice (POST /admin/billing/invoices/:id/issue)
   const handleIssueInvoice = async (invoiceId) => {
-    if (!window.confirm('Issue this invoice? This will freeze snapshots and assign a permanent, gapless Financial Year invoice number.')) {
-      return;
-    }
+    const ok = await confirm({
+      title: 'Issue Financial Invoice?',
+      message: 'Issue this invoice? This will freeze line snapshots and assign a permanent, gapless Financial Year invoice sequence number.',
+      confirmText: 'Issue Invoice',
+      cancelText: 'Cancel',
+      variant: 'primary'
+    });
+    if (!ok) return;
+
     setActionLoading(true);
     try {
       await adminService.issueInvoice(invoiceId);
@@ -205,7 +213,15 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
 
   // Handle Delete Draft Invoice (DELETE /admin/billing/invoices/:id)
   const handleDeleteDraft = async (invoiceId) => {
-    if (!window.confirm('Delete this draft invoice permanently?')) return;
+    const ok = await confirm({
+      title: 'Delete Draft Invoice?',
+      message: 'Are you sure you want to delete this draft invoice permanently? This cannot be undone.',
+      confirmText: 'Delete Draft',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
     setActionLoading(true);
     try {
       await adminService.deleteDraftInvoice(invoiceId);
@@ -1045,24 +1061,26 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
         isOpen={createInvoiceOpen}
         onClose={() => setCreateInvoiceOpen(false)}
         title="Create Invoice Draft (Module M1.6)"
-        maxWidth="580px"
+        maxWidth="620px"
       >
-        <form onSubmit={handleCreateDraftInvoice} className="billing-request-form">
-          <Select
-            label="Client Company"
-            id="inv-company"
-            value={newInvoiceForm.companyId}
-            onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, companyId: e.target.value }))}
-            options={[
-              { value: '', label: 'Select client firm...' },
-              ...companies.map((c) => ({ value: c._id || c.id, label: c.name }))
-            ]}
-            required
-          />
+        <form onSubmit={handleCreateDraftInvoice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
+              <Select
+                label="Client Company *"
+                id="inv-company"
+                value={newInvoiceForm.companyId}
+                onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, companyId: e.target.value }))}
+                options={[
+                  { value: '', label: 'Select client firm...' },
+                  ...companies.map((c) => ({ value: c._id || c.id, label: c.name }))
+                ]}
+                required
+              />
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Select
-              label="Invoice Type"
+              label="Invoice Type *"
               id="inv-type"
               value={newInvoiceForm.invoiceType}
               onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, invoiceType: e.target.value }))}
@@ -1075,7 +1093,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               required
             />
             <Select
-              label="Billing Cycle"
+              label="Billing Cycle *"
               id="inv-cycle"
               value={newInvoiceForm.billingCycle}
               onChange={(e) => {
@@ -1098,11 +1116,9 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               ]}
               required
             />
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Input
-              label="Licensed Seats"
+              label="Licensed Seats *"
               id="inv-seats"
               type="number"
               min="1"
@@ -1123,7 +1139,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               required
             />
             <Input
-              label="Taxable Amount (₹ INR)"
+              label="Taxable Amount (₹ INR) *"
               id="inv-amount"
               type="number"
               step="1"
@@ -1131,43 +1147,47 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, amountInr: Number(e.target.value) || 0 }))}
               required
             />
+
+            {/* Live GST Calculation Preview */}
+            <div style={{ gridColumn: 'span 2', background: '#FAF8F5', border: '1px solid #ECE7E0', borderRadius: '8px', padding: '12px 14px', fontSize: '13px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7B6F62' }}>
+                <span>Taxable Value:</span>
+                <strong>{formatCurrency(Number(newInvoiceForm.amountInr) || 0)}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7B6F62' }}>
+                <span>18% GST (CGST 9% + SGST 9%):</span>
+                <strong>{formatCurrency(Math.round((Number(newInvoiceForm.amountInr) || 0) * 0.18))}</strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#1E1A17', borderTop: '1px dashed #E5DFD7', paddingTop: '6px', marginTop: '2px', fontWeight: 700 }}>
+                <span>Total Payable with GST:</span>
+                <strong style={{ color: '#1E6B37' }}>
+                  {formatCurrency(Math.round((Number(newInvoiceForm.amountInr) || 0) * 1.18))}
+                </strong>
+              </div>
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <Input
+                label="Line Item Description *"
+                id="inv-desc"
+                value={newInvoiceForm.description}
+                onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, description: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <Input
+                label="Payment Due Date (Optional)"
+                id="inv-due-date"
+                type="date"
+                value={newInvoiceForm.dueDate}
+                onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))}
+              />
+            </div>
           </div>
 
-          {/* Live GST Calculation Preview */}
-          <div style={{ background: '#FAF8F5', border: '1px solid #ECE7E0', borderRadius: '6px', padding: '10px 14px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7B6F62' }}>
-              <span>Taxable Value:</span>
-              <strong>{formatCurrency(Number(newInvoiceForm.amountInr) || 0)}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#7B6F62' }}>
-              <span>18% GST (CGST 9% + SGST 9%):</span>
-              <strong>{formatCurrency(Math.round((Number(newInvoiceForm.amountInr) || 0) * 0.18))}</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#1E1A17', borderTop: '1px dashed #E5DFD7', paddingTop: '4px', marginTop: '2px', fontWeight: 700 }}>
-              <span>Total Payable with GST:</span>
-              <strong style={{ color: '#1E6B37' }}>
-                {formatCurrency(Math.round((Number(newInvoiceForm.amountInr) || 0) * 1.18))}
-              </strong>
-            </div>
-          </div>
-
-          <Input
-            label="Line Item Description"
-            id="inv-desc"
-            value={newInvoiceForm.description}
-            onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, description: e.target.value }))}
-            required
-          />
-
-          <Input
-            label="Payment Due Date (Optional)"
-            id="inv-due-date"
-            type="date"
-            value={newInvoiceForm.dueDate}
-            onChange={(e) => setNewInvoiceForm((prev) => ({ ...prev, dueDate: e.target.value }))}
-          />
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
+          <div className="form-actions-row">
             <Button
               type="button"
               variant="secondary"
@@ -1192,36 +1212,38 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
         isOpen={recordPaymentOpen}
         onClose={() => setRecordPaymentOpen(false)}
         title="Record Manual Offline Payment"
-        maxWidth="540px"
+        maxWidth="580px"
       >
-        <form onSubmit={handleRecordPayment} className="billing-request-form">
-          <Select
-            label="Target Invoice to Credit"
-            id="pmt-invoice"
-            value={paymentForm.invoiceId}
-            onChange={(e) => {
-              const selectedInv = invoices.find((i) => (i._id || i.id) === e.target.value);
-              setPaymentForm((prev) => ({
-                ...prev,
-                invoiceId: e.target.value,
-                amountInr: selectedInv ? ((selectedInv.totalPaise - (selectedInv.paidPaise || 0)) / 100).toString() : prev.amountInr
-              }));
-            }}
-            options={[
-              { value: '', label: 'Select invoice...' },
-              ...invoices
-                .filter((i) => i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID')
-                .map((i) => ({
-                  value: i._id || i.id,
-                  label: `${i.invoiceNumber || 'INV'} - ${getCompanyName(i.companyId)} (${formatPaise(i.totalPaise)})`
-                }))
-            ]}
-            required
-          />
+        <form onSubmit={handleRecordPayment} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
+              <Select
+                label="Target Invoice to Credit *"
+                id="pmt-invoice"
+                value={paymentForm.invoiceId}
+                onChange={(e) => {
+                  const selectedInv = invoices.find((i) => (i._id || i.id) === e.target.value);
+                  setPaymentForm((prev) => ({
+                    ...prev,
+                    invoiceId: e.target.value,
+                    amountInr: selectedInv ? ((selectedInv.totalPaise - (selectedInv.paidPaise || 0)) / 100).toString() : prev.amountInr
+                  }));
+                }}
+                options={[
+                  { value: '', label: 'Select invoice...' },
+                  ...invoices
+                    .filter((i) => i.status === 'ISSUED' || i.status === 'PARTIALLY_PAID')
+                    .map((i) => ({
+                      value: i._id || i.id,
+                      label: `${i.invoiceNumber || 'INV'} - ${getCompanyName(i.companyId)} (${formatPaise(i.totalPaise)})`
+                    }))
+                ]}
+                required
+              />
+            </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
             <Input
-              label="Amount Credited (₹ INR)"
+              label="Amount Credited (₹ INR) *"
               id="pmt-amount"
               type="number"
               step="0.01"
@@ -1230,7 +1252,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               required
             />
             <Select
-              label="Payment Channel"
+              label="Payment Channel *"
               id="pmt-method"
               value={paymentForm.method}
               onChange={(e) => setPaymentForm((prev) => ({ ...prev, method: e.target.value }))}
@@ -1243,37 +1265,39 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               ]}
               required
             />
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <Input
+                label="Bank UTR / Cheque Reference Number *"
+                id="pmt-ref"
+                placeholder="e.g. HDFC20261026008492"
+                value={paymentForm.reference}
+                onChange={(e) => setPaymentForm((prev) => ({ ...prev, reference: e.target.value }))}
+                required
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label className="form-label" htmlFor="pmt-notes">
+                Payment Remarks & Audit Notes
+              </label>
+              <textarea
+                id="pmt-notes"
+                className="form-textarea"
+                rows={2}
+                placeholder="e.g. Credited via HDFC current account, confirmed with bank statement..."
+                value={paymentForm.notes}
+                onChange={(e) => setPaymentForm((prev) => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
+
+            <div style={{ gridColumn: 'span 2', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', padding: '12px 14px', fontSize: '13px', color: '#065F46' }}>
+              <strong>Atomic Activation:</strong> Fully paying this invoice will immediately activate the firm's subscription,
+              synchronize seat limits, and release any restriction gate.
+            </div>
           </div>
 
-          <Input
-            label="Bank UTR / Cheque Reference Number"
-            id="pmt-ref"
-            placeholder="e.g. HDFC20261026008492"
-            value={paymentForm.reference}
-            onChange={(e) => setPaymentForm((prev) => ({ ...prev, reference: e.target.value }))}
-            required
-          />
-
-          <div className="form-group-row">
-            <label className="form-label" htmlFor="pmt-notes">
-              Payment Remarks & Audit Notes
-            </label>
-            <textarea
-              id="pmt-notes"
-              className="form-textarea"
-              rows={2}
-              placeholder="e.g. Credited via HDFC current account, confirmed with bank statement..."
-              value={paymentForm.notes}
-              onChange={(e) => setPaymentForm((prev) => ({ ...prev, notes: e.target.value }))}
-            />
-          </div>
-
-          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '6px', padding: '10px 12px', fontSize: '12px', color: '#065F46' }}>
-            <strong>Atomic Activation:</strong> Fully paying this invoice will immediately activate the firm's subscription,
-            synchronize seat limits, and release any restriction gate.
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '1rem' }}>
+          <div className="form-actions-row">
             <Button
               type="button"
               variant="secondary"

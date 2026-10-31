@@ -11,29 +11,24 @@ import { masterService } from '../../services/masterService';
 import { permissionService } from '../../services/permissionService';
 import { teamService } from '../../services/teamService';
 import { extractErrorMessage } from '../../utils/errorHandler';
+import { useConfirm } from '../../context/ConfirmationContext';
 import {
   Building2,
   Sliders,
   Layers,
   ShieldCheck,
-  Palette,
   Upload,
   Trash2,
   Save,
   RotateCcw,
   Plus,
-  Check,
   AlertCircle,
-  ExternalLink,
   Lock,
   Unlock,
   Edit2,
-  Eye,
   RefreshCw,
   Phone,
   MapPin,
-  Clock,
-  Sparkles,
   CheckCircle2,
   ChevronUp,
   ChevronDown,
@@ -48,15 +43,16 @@ const COLOR_PRESETS = [
 ];
 
 export function SettingsPage() {
+  const confirm = useConfirm();
   const { company, user: currentUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'profile';
   const initialUserId = searchParams.get('user');
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const [activeTab, setActiveTab] = useState(initialTab === 'branding' ? 'profile' : initialTab);
   const [notice, setNotice] = useState({ text: '', type: 'success' });
 
   // =========================================================================
-  // 1. COMPANY PROFILE & BRANDING STATE (Module M1.5)
+  // 1. COMPANY PROFILE & BRANDING STATE
   // =========================================================================
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -82,7 +78,7 @@ export function SettingsPage() {
 
   const showNotice = (text, type = 'success') => {
     setNotice({ text, type });
-    setTimeout(() => setNotice({ text: '', type: 'success' }), 5000);
+    setTimeout(() => setNotice({ text: '', type: 'success' }), 4500);
   };
 
   const handleTabChange = (tab) => {
@@ -120,14 +116,14 @@ export function SettingsPage() {
   };
 
   const handleSaveProfile = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setProfileSaving(true);
     try {
       const res = await companyService.updateProfile(profileForm);
-      showNotice('Company profile updated successfully.');
+      showNotice('Studio profile updated successfully.');
       if (res) setProfile((prev) => ({ ...prev, ...res }));
     } catch (err) {
-      showNotice(extractErrorMessage(err, 'Failed to update company profile'), 'error');
+      showNotice(extractErrorMessage(err, 'Failed to update studio profile'), 'error');
     } finally {
       setProfileSaving(false);
     }
@@ -139,7 +135,7 @@ export function SettingsPage() {
       const nextState = !supportAccessEnabled;
       await companyService.toggleSupportAccess(nextState);
       setSupportAccessEnabled(nextState);
-      showNotice(nextState ? 'Support impersonation access enabled.' : 'Support impersonation access revoked.');
+      showNotice(nextState ? 'Technical support access enabled.' : 'Technical support access revoked.');
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to update support access'), 'error');
     } finally {
@@ -151,12 +147,13 @@ export function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
-      showNotice('Please upload a valid image file (PNG, JPG, SVG).', 'error');
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    if (!allowedTypes.includes(file.type.toLowerCase())) {
+      showNotice('Please upload a valid image (PNG, JPEG, or WEBP).', 'error');
       return;
     }
-    if (file.size > 2 * 1024 * 1024) {
-      showNotice('Logo file size must be less than 2MB.', 'error');
+    if (file.size > 1 * 1024 * 1024) {
+      showNotice('Logo file size exceeds 1MB limit.', 'error');
       return;
     }
 
@@ -164,7 +161,7 @@ export function SettingsPage() {
     try {
       await companyService.uploadLogo(file);
       setLogoTimestamp(Date.now());
-      showNotice('Company logo uploaded successfully.');
+      showNotice('Studio logo uploaded successfully.');
       fetchProfile();
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to upload logo'), 'error');
@@ -175,11 +172,19 @@ export function SettingsPage() {
   };
 
   const handleDeleteLogo = async () => {
-    if (!window.confirm('Are you sure you want to remove the custom company logo?')) return;
+    const ok = await confirm({
+      title: 'Remove Studio Logo?',
+      message: 'Are you sure you want to remove the custom studio logo?',
+      confirmText: 'Remove Logo',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await companyService.deleteLogo();
       setLogoTimestamp(Date.now());
-      showNotice('Company logo removed.');
+      showNotice('Studio logo removed.');
       fetchProfile();
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to remove logo'), 'error');
@@ -187,7 +192,7 @@ export function SettingsPage() {
   };
 
   // =========================================================================
-  // 2. COMPANY SETTINGS STATE (Module M1.5: /api/v1/settings)
+  // 2. COMPANY SETTINGS STATE (/api/v1/settings)
   // =========================================================================
   const [settingsGroups, setSettingsGroups] = useState([]);
   const [settingsValues, setSettingsValues] = useState({});
@@ -233,17 +238,17 @@ export function SettingsPage() {
     setSettingsSaving(true);
     try {
       await settingsService.updateSettings(settingsValues);
-      showNotice('Company settings saved successfully.');
+      showNotice('Studio preferences saved successfully.');
       fetchSettings();
     } catch (err) {
-      showNotice(extractErrorMessage(err, 'Failed to save settings'), 'error');
+      showNotice(extractErrorMessage(err, 'Failed to save preferences'), 'error');
     } finally {
       setSettingsSaving(false);
     }
   };
 
   // =========================================================================
-  // 3. MASTER CATEGORIES STATE (Module M1.5: /api/v1/master/*)
+  // 3. MASTER CATEGORIES STATE (/api/v1/master/*)
   // =========================================================================
   const [masterTypes, setMasterTypes] = useState([]);
   const [selectedType, setSelectedType] = useState(null);
@@ -314,21 +319,29 @@ export function SettingsPage() {
       fetchMasterItems(selectedType.key);
       fetchMasterTypes();
     } catch (err) {
-      showNotice(extractErrorMessage(err, 'Failed to save master item'), 'error');
+      showNotice(extractErrorMessage(err, 'Failed to save item'), 'error');
     } finally {
       setItemSaving(false);
     }
   };
 
   const handleDeleteItem = async (item) => {
-    if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) return;
+    const ok = await confirm({
+      title: 'Delete Item?',
+      message: `Are you sure you want to delete "${item.name}"?`,
+      confirmText: 'Delete Item',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await masterService.deleteItem(selectedType.key, item.id);
       showNotice(`Deleted "${item.name}".`);
       fetchMasterItems(selectedType.key);
       fetchMasterTypes();
     } catch (err) {
-      showNotice(extractErrorMessage(err, 'Failed to delete master item'), 'error');
+      showNotice(extractErrorMessage(err, 'Failed to delete item'), 'error');
     }
   };
 
@@ -344,12 +357,20 @@ export function SettingsPage() {
       fetchMasterItems(selectedType.key);
       fetchMasterTypes();
     } catch (err) {
-      showNotice(extractErrorMessage(err, 'Failed to change item status'), 'error');
+      showNotice(extractErrorMessage(err, 'Failed to update item status'), 'error');
     }
   };
 
   const handleRestoreDefaults = async () => {
-    if (!window.confirm(`Restore default system items for ${selectedType.label}? Any missing defaults will be restored.`)) return;
+    const ok = await confirm({
+      title: 'Restore Default Items?',
+      message: `Restore default system items for ${selectedType.label}?`,
+      confirmText: 'Restore Defaults',
+      cancelText: 'Cancel',
+      variant: 'primary'
+    });
+    if (!ok) return;
+
     try {
       await masterService.restoreDefaults(selectedType.key);
       showNotice(`Default items restored for ${selectedType.label}.`);
@@ -372,7 +393,7 @@ export function SettingsPage() {
     try {
       const orderedIds = newItems.map((item) => item.id);
       await masterService.reorderItems(selectedType.key, orderedIds);
-      showNotice('Category order updated.');
+      showNotice('Order updated.');
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to reorder items'), 'error');
       fetchMasterItems(selectedType.key);
@@ -380,7 +401,7 @@ export function SettingsPage() {
   };
 
   // =========================================================================
-  // 4. PERMISSIONS ENGINE STATE (Module M1.5: /api/v1/permissions/*)
+  // 4. PERMISSIONS ENGINE STATE (/api/v1/permissions/*)
   // =========================================================================
   const [myPermissions, setMyPermissions] = useState(null);
   const [permModules, setPermModules] = useState([]);
@@ -484,7 +505,15 @@ export function SettingsPage() {
 
   const handleResetUserPerms = async () => {
     if (!selectedUser) return;
-    if (!window.confirm(`Reset custom permissions for ${selectedUser.name} back to role defaults?`)) return;
+    const ok = await confirm({
+      title: 'Reset Permissions?',
+      message: `Reset custom permissions for ${selectedUser.name} to role defaults?`,
+      confirmText: 'Reset Defaults',
+      cancelText: 'Cancel',
+      variant: 'warning'
+    });
+    if (!ok) return;
+
     setPermSaving(true);
     try {
       await permissionService.resetUserPermissions(selectedUser.id);
@@ -501,13 +530,13 @@ export function SettingsPage() {
   useEffect(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam);
+      setActiveTab(tabParam === 'branding' ? 'profile' : tabParam);
     }
   }, [searchParams]);
 
-  // Initial tab loading
+  // Tab data fetching
   useEffect(() => {
-    if (activeTab === 'profile' || activeTab === 'branding') fetchProfile();
+    if (activeTab === 'profile') fetchProfile();
     else if (activeTab === 'settings') fetchSettings();
     else if (activeTab === 'master') fetchMasterTypes();
     else if (activeTab === 'permissions') fetchPermissionsData();
@@ -530,18 +559,18 @@ export function SettingsPage() {
       {/* Top Header */}
       <div className="settings-page-header">
         <div>
-          <h1 className="settings-page-title">Company Settings & Workspace Hub</h1>
+          <h1 className="settings-page-title">Studio Settings</h1>
           <p className="settings-page-subtitle">
-            Configure company branding, system lookups, architectural category defaults, and user permissions.
+            Manage your firm's identity, workspace preferences, lookups, and access controls.
           </p>
         </div>
         {profile?.companyCode && (
           <div className="settings-header-badges">
             <span className="settings-badge-code">
-              Code: {profile.companyCode}
+              Workspace: <strong>{profile.companyCode}</strong>
             </span>
             <span className="settings-badge-plan">
-              Plan: {profile.plan || 'FREE'}
+              {profile.plan || 'PAID'}
             </span>
           </div>
         )}
@@ -550,156 +579,118 @@ export function SettingsPage() {
       {/* Notice Banner */}
       {notice.text && (
         <div className={`settings-notice-banner ${notice.type}`}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            {notice.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle2 size={18} />}
-            <span>{notice.text}</span>
-          </div>
+          {notice.type === 'error' ? <AlertCircle size={16} /> : <CheckCircle2 size={16} />}
+          <span>{notice.text}</span>
         </div>
       )}
 
-      {/* Tabs Navigation */}
+      {/* Simplified Modern Tab Navigation (4 essential tabs) */}
       <div className="settings-tabs-wrapper">
         <div className="settings-tabs-nav">
           <button
             className={`settings-tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => handleTabChange('profile')}
           >
-            <Building2 size={16} />
-            Company Profile & Logo
+            <Building2 size={15} />
+            <span>Studio Profile</span>
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}
             onClick={() => handleTabChange('settings')}
           >
-            <Sliders size={16} />
-            Company Settings
+            <Sliders size={15} />
+            <span>Preferences</span>
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'master' ? 'active' : ''}`}
             onClick={() => handleTabChange('master')}
           >
-            <Layers size={16} />
-            Master Categories
+            <Layers size={15} />
+            <span>Master Categories</span>
           </button>
           <button
             className={`settings-tab-btn ${activeTab === 'permissions' ? 'active' : ''}`}
             onClick={() => handleTabChange('permissions')}
           >
-            <ShieldCheck size={16} />
-            Permissions Engine
-          </button>
-          <button
-            className={`settings-tab-btn ${activeTab === 'branding' ? 'active' : ''}`}
-            onClick={() => handleTabChange('branding')}
-          >
-            <Palette size={16} />
-            Brand Guidelines (Sheet B)
+            <ShieldCheck size={15} />
+            <span>Permissions</span>
           </button>
         </div>
       </div>
 
       {/* =====================================================================
-          TAB 1: COMPANY PROFILE & LOGO (Module M1.5)
+          TAB 1: STUDIO PROFILE (Streamlined, professional, un-cluttered)
           ===================================================================== */}
       {activeTab === 'profile' && (
         <div className="settings-tab-panel">
-          {/* Logo & Branding Management */}
           <div className="settings-card">
-            <div className="settings-card-header">
-              <div>
-                <h3 className="settings-card-title">
-                  <Palette size={18} color="var(--color-primary)" />
-                  Company Logo & Workspace Identity
-                </h3>
-                <p className="settings-card-desc">
-                  Upload your firm's authentic vector or high-resolution logo for headers, blueprints, and reports.
-                </p>
-              </div>
-            </div>
-
-            <div className="settings-logo-container">
-              <div className="settings-logo-preview">
+            {/* Header: Studio Identity & Logo */}
+            <div className="studio-identity-section">
+              <div className="studio-logo-avatar">
                 {profile?.branding?.hasLogo ? (
                   <img
                     src={`/api/v1/company/logo?t=${logoTimestamp}`}
-                    alt={profile?.name || 'Company Logo'}
+                    alt={profile?.name || 'Studio Logo'}
                     onError={(e) => {
                       e.target.style.display = 'none';
                     }}
                   />
                 ) : (
-                  <MayurMehtaLogo variant="symbol" size="md" color="taupe" />
+                  <MayurMehtaLogo variant="symbol" size={40} color="taupe" />
                 )}
               </div>
 
-              <div className="settings-logo-actions">
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <label className="btn btn-outline" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer', padding: '8px 14px', fontSize: '13px', borderRadius: '6px' }}>
-                    <Upload size={15} />
-                    {logoUploading ? 'Uploading...' : 'Upload New Logo'}
-                    <input
-                      type="file"
-                      accept="image/png, image/jpeg, image/svg+xml"
-                      style={{ display: 'none' }}
-                      disabled={logoUploading}
-                      onChange={handleLogoUpload}
-                    />
-                  </label>
+              <div className="studio-identity-meta">
+                <div className="studio-identity-title-row">
+                  <div>
+                    <h3 className="studio-identity-name">{profile?.name || 'Architectural Studio'}</h3>
+                    <p className="studio-identity-hint">Official brand logo for drawing title blocks, reports, and headers.</p>
+                  </div>
 
-                  {profile?.branding?.hasLogo && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleDeleteLogo}
-                      style={{ color: '#dc2626' }}
-                    >
-                      <Trash2 size={15} />
-                      Remove Custom Logo
-                    </Button>
-                  )}
+                  <div className="studio-logo-actions">
+                    <label className="settings-btn-upload">
+                      <Upload size={14} />
+                      <span>{logoUploading ? 'Uploading...' : 'Upload Logo'}</span>
+                      <input
+                        type="file"
+                        accept="image/png, image/jpeg, image/webp"
+                        style={{ display: 'none' }}
+                        disabled={logoUploading}
+                        onChange={handleLogoUpload}
+                      />
+                    </label>
+
+                    {profile?.branding?.hasLogo && (
+                      <button
+                        type="button"
+                        className="settings-btn-remove"
+                        onClick={handleDeleteLogo}
+                        title="Remove custom logo"
+                      >
+                        <Trash2 size={14} />
+                        <span>Remove</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <span className="settings-form-hint">
-                  Supports PNG, SVG, or JPG under 2MB. Default architectural monogram will be used if no logo is provided.
-                </span>
               </div>
             </div>
-          </div>
 
-          {/* Profile Details Form */}
-          <div className="settings-card">
-            <div className="settings-card-header">
-              <div>
-                <h3 className="settings-card-title">
-                  <Building2 size={18} color="var(--color-primary)" />
-                  Company Legal & Contact Details
-                </h3>
-                <p className="settings-card-desc">
-                  Update primary firm credentials, tax registration, and billing address.
-                </p>
-              </div>
-              <Button
-                variant="primary"
-                onClick={handleSaveProfile}
-                disabled={profileSaving}
-                loading={profileSaving}
-              >
-                <Save size={16} />
-                Save Profile
-              </Button>
-            </div>
+            <div className="settings-divider" />
 
-            <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-5)' }}>
+            {/* Profile Form */}
+            <form onSubmit={handleSaveProfile} className="studio-profile-form">
+              <div className="settings-section-title">Studio Credentials & Tax Details</div>
+              
               <div className="settings-form-grid">
                 <div className="settings-form-group">
                   <label className="settings-form-label">Brand Name (Display)</label>
                   <input
                     type="text"
-                    className="settings-input"
+                    className="settings-input settings-input-readonly"
                     value={profile?.name || ''}
                     disabled
-                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.04)', color: 'var(--color-text-muted)' }}
                   />
-                  <span className="settings-form-hint">Managed via platform administrator</span>
                 </div>
 
                 <div className="settings-form-group">
@@ -707,7 +698,7 @@ export function SettingsPage() {
                   <input
                     type="text"
                     className="settings-input"
-                    placeholder="Enter legal entity name"
+                    placeholder="e.g. Mayur Mehta Architects LLP"
                     value={profileForm.legalName}
                     onChange={(e) => setProfileForm({ ...profileForm, legalName: e.target.value })}
                   />
@@ -718,7 +709,7 @@ export function SettingsPage() {
                   <input
                     type="text"
                     className="settings-input"
-                    placeholder="Enter phone number"
+                    placeholder="+91 98765 43210"
                     value={profileForm.phone}
                     onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                   />
@@ -729,14 +720,14 @@ export function SettingsPage() {
                   <input
                     type="text"
                     className="settings-input"
-                    placeholder="Enter GSTIN or Tax ID"
+                    placeholder="24AAAAA0000A1Z5"
                     value={profileForm.gstNumber}
                     onChange={(e) => setProfileForm({ ...profileForm, gstNumber: e.target.value.toUpperCase() })}
                   />
                 </div>
 
                 <div className="settings-form-group">
-                  <label className="settings-form-label">Timezone</label>
+                  <label className="settings-form-label">Studio Timezone</label>
                   <select
                     className="settings-select"
                     value={profileForm.timezone}
@@ -752,116 +743,118 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              <div className="settings-divider" />
+
               {/* Address Form Section */}
-              <div style={{ paddingTop: 'var(--spacing-3)', borderTop: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-3)' }}>
-                <span className="settings-form-label" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <MapPin size={14} /> Registered Studio Address
-                </span>
-                <div className="settings-form-grid">
-                  <div className="settings-form-group" style={{ gridColumn: 'span 2' }}>
-                    <label className="settings-form-label">Address Line 1</label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      placeholder="Enter address line 1"
-                      value={profileForm.address.line1}
-                      onChange={(e) => setProfileForm({
-                        ...profileForm,
-                        address: { ...profileForm.address, line1: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="settings-form-group">
-                    <label className="settings-form-label">City</label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      placeholder="Enter city"
-                      value={profileForm.address.city}
-                      onChange={(e) => setProfileForm({
-                        ...profileForm,
-                        address: { ...profileForm.address, city: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="settings-form-group">
-                    <label className="settings-form-label">State</label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      placeholder="Enter state"
-                      value={profileForm.address.state}
-                      onChange={(e) => setProfileForm({
-                        ...profileForm,
-                        address: { ...profileForm.address, state: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="settings-form-group">
-                    <label className="settings-form-label">Pincode</label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      placeholder="Enter pincode"
-                      value={profileForm.address.pincode}
-                      onChange={(e) => setProfileForm({
-                        ...profileForm,
-                        address: { ...profileForm.address, pincode: e.target.value }
-                      })}
-                    />
-                  </div>
-                  <div className="settings-form-group">
-                    <label className="settings-form-label">Country</label>
-                    <input
-                      type="text"
-                      className="settings-input"
-                      value={profileForm.address.country}
-                      onChange={(e) => setProfileForm({
-                        ...profileForm,
-                        address: { ...profileForm.address, country: e.target.value }
-                      })}
-                    />
-                  </div>
+              <div className="settings-section-title">
+                <MapPin size={15} /> Registered Studio Address
+              </div>
+
+              <div className="settings-address-grid">
+                <div className="settings-form-group span-full">
+                  <label className="settings-form-label">Address Line</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="Studio street address, suite or building name"
+                    value={profileForm.address.line1}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, line1: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="settings-form-group">
+                  <label className="settings-form-label">City</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="City"
+                    value={profileForm.address.city}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, city: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="settings-form-group">
+                  <label className="settings-form-label">State</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="State"
+                    value={profileForm.address.state}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, state: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="settings-form-group">
+                  <label className="settings-form-label">Pincode</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    placeholder="Pincode"
+                    value={profileForm.address.pincode}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, pincode: e.target.value }
+                    })}
+                  />
+                </div>
+
+                <div className="settings-form-group">
+                  <label className="settings-form-label">Country</label>
+                  <input
+                    type="text"
+                    className="settings-input"
+                    value={profileForm.address.country}
+                    onChange={(e) => setProfileForm({
+                      ...profileForm,
+                      address: { ...profileForm.address, country: e.target.value }
+                    })}
+                  />
                 </div>
               </div>
-            </form>
-          </div>
 
-          {/* Support Impersonation Access Toggle */}
-          <div className="settings-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 'var(--spacing-4)' }}>
-              <div>
-                <h3 className="settings-card-title" style={{ fontSize: 'var(--font-size-sm)' }}>
-                  <ShieldCheck size={18} color="var(--color-primary)" />
-                  Technical Support Impersonation Access
-                </h3>
-                <p className="settings-card-desc">
-                  Grant permission to platform support administrators to securely impersonate this company for diagnosing workspace issues. All access is logged to your immutable audit log.
-                </p>
+              <div className="settings-divider" />
+
+              {/* Footer Row: Support Access & Save Button */}
+              <div className="settings-card-footer">
+                <div className="settings-support-toggle">
+                  <button
+                    type="button"
+                    className={`settings-toggle-btn ${supportAccessEnabled ? 'active' : ''}`}
+                    onClick={handleToggleSupportAccess}
+                    disabled={supportLoading}
+                  >
+                    {supportAccessEnabled ? <Unlock size={14} /> : <Lock size={14} />}
+                    <span>Support Impersonation: {supportAccessEnabled ? 'Allowed' : 'Disabled'}</span>
+                  </button>
+                  <span className="settings-support-hint">Permit platform admin access for workspace diagnosis.</span>
+                </div>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={profileSaving}
+                  loading={profileSaving}
+                >
+                  <Save size={16} />
+                  Save Studio Profile
+                </Button>
               </div>
-              <Button
-                variant={supportAccessEnabled ? 'primary' : 'outline'}
-                onClick={handleToggleSupportAccess}
-                disabled={supportLoading}
-                loading={supportLoading}
-              >
-                {supportAccessEnabled ? (
-                  <>
-                    <Unlock size={16} /> Access Allowed (Revoke)
-                  </>
-                ) : (
-                  <>
-                    <Lock size={16} /> Allow Support Access
-                  </>
-                )}
-              </Button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* =====================================================================
-          TAB 2: COMPANY SETTINGS (Module M1.5: /api/v1/settings)
+          TAB 2: WORKSPACE PREFERENCES (/api/v1/settings)
           ===================================================================== */}
       {activeTab === 'settings' && (
         <div className="settings-tab-panel">
@@ -870,10 +863,10 @@ export function SettingsPage() {
               <div>
                 <h3 className="settings-card-title">
                   <Sliders size={18} color="var(--color-primary)" />
-                  Company Preferences & System Descriptors
+                  Workspace Preferences
                 </h3>
                 <p className="settings-card-desc">
-                  Workspace-wide configuration for date formatting, currencies, project code conventions, and notification rules.
+                  Set default conventions for project identifiers, date formats, and workflow notifications.
                 </p>
               </div>
               <Button
@@ -883,40 +876,31 @@ export function SettingsPage() {
                 loading={settingsSaving}
               >
                 <Save size={16} />
-                Save Settings
+                Save Preferences
               </Button>
             </div>
 
             {settingsLoading ? (
-              <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                <RefreshCw size={24} className="spin" style={{ margin: '0 auto 8px' }} />
-                <span>Loading system settings descriptors...</span>
+              <div className="settings-loading-state">
+                <RefreshCw size={22} className="spin" />
+                <span>Loading preferences...</span>
               </div>
             ) : settingsGroups.length === 0 ? (
-              <div style={{ padding: 'var(--spacing-6)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              <div className="settings-empty-state">
                 No configurable settings groups returned by backend.
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
+              <div className="settings-groups-container">
                 {settingsGroups.map((group) => (
-                  <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-                    <div style={{ paddingBottom: '6px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                        {group.label}
-                      </span>
+                  <div key={group.key} className="settings-group-block">
+                    <div className="settings-group-heading">
+                      {group.label}
                     </div>
 
                     <div className="settings-form-grid">
                       {(group.settings || []).map((setting) => (
                         <div key={setting.key} className="settings-form-group">
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label className="settings-form-label">{setting.label}</label>
-                            {setting.isDefault && (
-                              <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-surface)', padding: '2px 6px', borderRadius: '4px' }}>
-                                Default
-                              </span>
-                            )}
-                          </div>
+                          <label className="settings-form-label">{setting.label}</label>
 
                           {setting.type === 'enum' && setting.options ? (
                             <select
@@ -931,16 +915,15 @@ export function SettingsPage() {
                               ))}
                             </select>
                           ) : setting.type === 'boolean' ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingTop: '4px' }}>
+                            <div className="settings-checkbox-row">
                               <input
                                 type="checkbox"
                                 id={`setting-${setting.key}`}
                                 checked={!!settingsValues[setting.key]}
                                 onChange={(e) => handleSettingChange(setting.key, e.target.checked)}
-                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
                               />
-                              <label htmlFor={`setting-${setting.key}`} style={{ fontSize: '13px', cursor: 'pointer' }}>
-                                Enabled
+                              <label htmlFor={`setting-${setting.key}`}>
+                                Enable setting
                               </label>
                             </div>
                           ) : (
@@ -967,42 +950,42 @@ export function SettingsPage() {
       )}
 
       {/* =====================================================================
-          TAB 3: MASTER CATEGORIES (Module M1.5: /api/v1/master/*)
+          TAB 3: MASTER CATEGORIES (/api/v1/master/*)
           ===================================================================== */}
       {activeTab === 'master' && (
         <div className="settings-tab-panel">
           <div className="master-categories-layout">
-            {/* Sidebar of 10 Master Types */}
+            {/* Sidebar of Master Types */}
             <div className="master-types-sidebar">
-              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '4px 8px' }}>
-                Master Lookups ({masterTypes.length})
-              </span>
+              <div className="master-types-sidebar-header">
+                Lookups ({masterTypes.length})
+              </div>
               {masterTypes.map((type) => (
                 <button
                   key={type.key}
                   className={`master-type-nav-item ${selectedType?.key === type.key ? 'active' : ''}`}
                   onClick={() => setSelectedType(type)}
                 >
-                  <span>{type.label}</span>
+                  <span className="master-type-label">{type.label}</span>
                   <span className="master-type-badge">
-                    {type.activeCount ?? 0}/{type.totalCount ?? 0}
+                    {type.activeCount ?? 0}
                   </span>
                 </button>
               ))}
             </div>
 
-            {/* Main Items Listing for Selected Type */}
-            <div className="settings-card" style={{ flex: 1 }}>
+            {/* Main Items Listing */}
+            <div className="settings-card flex-1">
               {selectedType ? (
                 <>
                   <div className="settings-card-header">
                     <div>
                       <h3 className="settings-card-title">
                         <Layers size={18} color="var(--color-primary)" />
-                        {selectedType.label} Items
+                        {selectedType.label}
                       </h3>
                       <p className="settings-card-desc">
-                        Manage active and custom options for architectural project tags, space allocations, and status workflows.
+                        Manage available project options and tags.
                       </p>
                     </div>
 
@@ -1013,7 +996,7 @@ export function SettingsPage() {
                         onClick={handleRestoreDefaults}
                         title="Restore system default entries"
                       >
-                        <RotateCcw size={15} />
+                        <RotateCcw size={14} />
                         Restore Defaults
                       </Button>
                       <Button
@@ -1021,35 +1004,35 @@ export function SettingsPage() {
                         size="sm"
                         onClick={handleOpenCreateItem}
                       >
-                        <Plus size={15} />
+                        <Plus size={14} />
                         Add Item
                       </Button>
                     </div>
                   </div>
 
                   {masterLoading ? (
-                    <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                      <RefreshCw size={24} className="spin" style={{ margin: '0 auto 8px' }} />
-                      <span>Loading master items...</span>
+                    <div className="settings-loading-state">
+                      <RefreshCw size={22} className="spin" />
+                      <span>Loading items...</span>
                     </div>
                   ) : masterItems.length === 0 ? (
-                    <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+                    <div className="settings-empty-state">
                       <p>No items found for this category.</p>
                       <Button variant="outline" size="sm" onClick={handleRestoreDefaults} style={{ marginTop: '8px' }}>
-                        Load Default Categories
+                        Load Defaults
                       </Button>
                     </div>
                   ) : (
-                    <div style={{ overflowX: 'auto' }}>
-                      <table className="permissions-matrix-table">
+                    <div className="settings-table-wrapper">
+                      <table className="settings-table">
                         <thead>
                           <tr>
                             <th style={{ width: '40px' }}>Color</th>
-                            {selectedType.allowCode && <th style={{ width: '80px' }}>Code</th>}
+                            {selectedType.allowCode && <th style={{ width: '90px' }}>Code</th>}
                             <th>Item Name</th>
-                            <th style={{ width: '90px' }}>Type</th>
-                            <th style={{ width: '90px' }}>Status</th>
-                            <th style={{ width: '130px', textAlign: 'right' }}>Actions</th>
+                            <th style={{ width: '80px' }}>Origin</th>
+                            <th style={{ width: '85px' }}>Status</th>
+                            <th style={{ width: '120px', textAlign: 'right' }}>Actions</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1058,14 +1041,8 @@ export function SettingsPage() {
                               <td>
                                 {selectedType.allowColor ? (
                                   <span
-                                    style={{
-                                      display: 'inline-block',
-                                      width: '16px',
-                                      height: '16px',
-                                      borderRadius: '50%',
-                                      backgroundColor: item.color || '#7B6F62',
-                                      border: '1px solid rgba(0,0,0,0.15)'
-                                    }}
+                                    className="master-color-dot"
+                                    style={{ backgroundColor: item.color || '#7B6F62' }}
                                   />
                                 ) : (
                                   <span style={{ color: 'var(--color-text-muted)' }}>—</span>
@@ -1073,85 +1050,65 @@ export function SettingsPage() {
                               </td>
                               {selectedType.allowCode && (
                                 <td>
-                                  <span style={{ fontSize: '11px', fontFamily: 'monospace', fontWeight: 600, padding: '2px 6px', background: 'var(--color-surface)', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+                                  <span className="master-code-tag">
                                     {item.code || '—'}
                                   </span>
                                 </td>
                               )}
                               <td>
-                                <span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{item.name}</span>
+                                <span className="master-item-name">{item.name}</span>
                               </td>
                               <td>
                                 {item.isDefault ? (
-                                  <span style={{ fontSize: '10px', color: 'var(--color-primary)', background: 'rgba(123, 111, 98, 0.1)', padding: '2px 6px', borderRadius: '4px', fontWeight: 600 }}>
-                                    System
-                                  </span>
+                                  <span className="badge-system">System</span>
                                 ) : (
-                                  <span style={{ fontSize: '10px', color: 'var(--color-text-muted)', background: 'var(--color-surface)', padding: '2px 6px', borderRadius: '4px' }}>
-                                    Custom
-                                  </span>
+                                  <span className="badge-custom">Custom</span>
                                 )}
                               </td>
                               <td>
                                 <button
+                                  type="button"
                                   onClick={() => handleToggleActiveItem(item)}
-                                  style={{
-                                    border: 'none',
-                                    background: item.isActive ? '#ecfdf5' : '#f3f4f6',
-                                    color: item.isActive ? '#065f46' : '#6b7280',
-                                    padding: '3px 8px',
-                                    borderRadius: '999px',
-                                    fontSize: '11px',
-                                    fontWeight: 600,
-                                    cursor: 'pointer'
-                                  }}
+                                  className={`btn-status-pill ${item.isActive ? 'active' : 'inactive'}`}
                                 >
                                   {item.isActive ? 'Active' : 'Inactive'}
                                 </button>
                               </td>
                               <td style={{ textAlign: 'right' }}>
-                                <div style={{ display: 'inline-flex', gap: '3px', alignItems: 'center' }}>
+                                <div className="master-item-actions">
                                   <button
+                                    type="button"
                                     onClick={() => handleReorderItem(index, 'up')}
                                     disabled={index === 0}
                                     title="Move Up"
-                                    style={{
-                                      border: 'none',
-                                      background: 'transparent',
-                                      cursor: index === 0 ? 'not-allowed' : 'pointer',
-                                      padding: '3px',
-                                      color: index === 0 ? 'var(--color-border)' : 'var(--color-text-muted)'
-                                    }}
+                                    className="btn-icon-action"
                                   >
-                                    <ChevronUp size={15} />
+                                    <ChevronUp size={14} />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleReorderItem(index, 'down')}
                                     disabled={index === masterItems.length - 1}
                                     title="Move Down"
-                                    style={{
-                                      border: 'none',
-                                      background: 'transparent',
-                                      cursor: index === masterItems.length - 1 ? 'not-allowed' : 'pointer',
-                                      padding: '3px',
-                                      color: index === masterItems.length - 1 ? 'var(--color-border)' : 'var(--color-text-muted)'
-                                    }}
+                                    className="btn-icon-action"
                                   >
-                                    <ChevronDown size={15} />
+                                    <ChevronDown size={14} />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleOpenEditItem(item)}
                                     title="Edit item"
-                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '3px', color: 'var(--color-text-muted)' }}
+                                    className="btn-icon-action"
                                   >
-                                    <Edit2 size={15} />
+                                    <Edit2 size={14} />
                                   </button>
                                   <button
+                                    type="button"
                                     onClick={() => handleDeleteItem(item)}
                                     title="Delete item"
-                                    style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: '3px', color: '#dc2626' }}
+                                    className="btn-icon-action btn-danger"
                                   >
-                                    <Trash2 size={15} />
+                                    <Trash2 size={14} />
                                   </button>
                                 </div>
                               </td>
@@ -1163,8 +1120,8 @@ export function SettingsPage() {
                   )}
                 </>
               ) : (
-                <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                  Select a category lookup type from the left sidebar.
+                <div className="settings-empty-state">
+                  Select a category from the left sidebar.
                 </div>
               )}
             </div>
@@ -1177,32 +1134,26 @@ export function SettingsPage() {
         <Modal
           isOpen={itemModalOpen}
           onClose={() => setItemModalOpen(false)}
-          title={editingItem ? `Edit Item in ${selectedType?.label}` : `Add Item to ${selectedType?.label}`}
+          title={editingItem ? `Edit ${selectedType?.label}` : `Add to ${selectedType?.label}`}
         >
-          <form onSubmit={handleSaveItem} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-            <div className="settings-form-group">
-              <label className="settings-form-label">Item Name *</label>
-              <input
-                type="text"
-                className="settings-input"
-                placeholder="Enter item name"
-                value={itemForm.name}
-                required
-                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
-              />
-            </div>
+          <form onSubmit={handleSaveItem} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <Input
+              label="Item Name *"
+              id="master-item-name"
+              placeholder="e.g. Commercial Studio"
+              value={itemForm.name}
+              required
+              onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
+            />
 
             {selectedType?.allowCode && (
-              <div className="settings-form-group">
-                <label className="settings-form-label">Identifier Code</label>
-                <input
-                  type="text"
-                  className="settings-input"
-                  placeholder="Enter identifier code"
-                  value={itemForm.code}
-                  onChange={(e) => setItemForm({ ...itemForm, code: e.target.value.toUpperCase() })}
-                />
-              </div>
+              <Input
+                label="Identifier Code (Optional)"
+                id="master-item-code"
+                placeholder="e.g. COMM"
+                value={itemForm.code}
+                onChange={(e) => setItemForm({ ...itemForm, code: e.target.value.toUpperCase() })}
+              />
             )}
 
             {selectedType?.allowColor && (
@@ -1228,12 +1179,12 @@ export function SettingsPage() {
               </div>
             )}
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: 'var(--spacing-4)' }}>
-              <Button type="button" variant="ghost" onClick={() => setItemModalOpen(false)}>
+            <div className="form-actions-row">
+              <Button type="button" variant="secondary" onClick={() => setItemModalOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" variant="primary" loading={itemSaving} disabled={itemSaving}>
-                <Save size={16} />
+                <Save size={15} />
                 Save Item
               </Button>
             </div>
@@ -1242,7 +1193,7 @@ export function SettingsPage() {
       )}
 
       {/* =====================================================================
-          TAB 4: PERMISSIONS ENGINE (Module M1.5: /api/v1/permissions/*)
+          TAB 4: PERMISSIONS (/api/v1/permissions/*)
           ===================================================================== */}
       {activeTab === 'permissions' && (
         <div className="settings-tab-panel">
@@ -1251,10 +1202,10 @@ export function SettingsPage() {
               <div>
                 <h3 className="settings-card-title">
                   <ShieldCheck size={18} color="var(--color-primary)" />
-                  Role Capabilities & User Permission Overrides
+                  Role Capabilities & User Overrides
                 </h3>
                 <p className="settings-card-desc">
-                  Granular action access control (view, edit, delete, export) and data scopes (own vs all) per module.
+                  Granular permission control (view, edit, delete, export) and data scopes per module.
                 </p>
               </div>
 
@@ -1266,8 +1217,8 @@ export function SettingsPage() {
                     onClick={handleResetUserPerms}
                     disabled={permSaving}
                   >
-                    <RotateCcw size={15} />
-                    Reset to Defaults
+                    <RotateCcw size={14} />
+                    Reset to Role Defaults
                   </Button>
                   <Button
                     variant="primary"
@@ -1276,56 +1227,34 @@ export function SettingsPage() {
                     disabled={permSaving}
                     loading={permSaving}
                   >
-                    <Save size={16} />
+                    <Save size={14} />
                     Save Overrides
                   </Button>
                 </div>
               )}
             </div>
 
-            {/* Caller Effective Permissions Strip (M1.5 GET /permissions/me) */}
+            {/* Caller Role Strip */}
             {myPermissions && (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px',
-                marginBottom: '16px',
-                background: 'rgba(123, 111, 98, 0.08)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid rgba(123, 111, 98, 0.2)'
-              }}>
+              <div className="settings-role-strip">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <UserCheck size={18} color="var(--color-primary)" />
-                  <div>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text)' }}>
-                      Your Active Role: <strong style={{ color: 'var(--color-primary)' }}>{myPermissions.role || 'OWNER'}</strong>
-                    </span>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginLeft: '12px' }}>
-                      {myPermissions.isOwner ? 'Full Studio Owner Capabilities' : 'Role Scoped Access'}
-                    </span>
-                  </div>
+                  <UserCheck size={17} color="var(--color-primary)" />
+                  <span style={{ fontSize: '13px', color: 'var(--color-text)' }}>
+                    Your Role: <strong>{myPermissions.role || 'OWNER'}</strong>
+                  </span>
                 </div>
-                <span style={{
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  padding: '3px 8px',
-                  borderRadius: '999px',
-                  background: 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-muted)'
-                }}>
-                  Active Capabilities (GET /permissions/me)
+                <span className="badge-system">
+                  {myPermissions.isOwner ? 'Full Studio Owner Privileges' : 'Role Scoped Access'}
                 </span>
               </div>
             )}
 
             {/* User Selector Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'var(--color-surface)', borderRadius: 'var(--radius-md)' }}>
-              <span style={{ fontSize: '13px', fontWeight: 600 }}>Select Team Member:</span>
+            <div className="settings-user-select-bar">
+              <span className="settings-form-label" style={{ margin: 0 }}>Select Team Member:</span>
               <select
                 className="settings-select"
-                style={{ maxWidth: '320px' }}
+                style={{ maxWidth: '340px' }}
                 value={selectedUser?.id || ''}
                 onChange={(e) => {
                   const u = teamUsers.find((x) => x.id === e.target.value);
@@ -1339,42 +1268,43 @@ export function SettingsPage() {
                 ))}
               </select>
               {selectedUser && (
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                   Active Role: <strong>{selectedUser.role}</strong>
                 </span>
               )}
             </div>
 
-            {/* Matrix of Modules */}
+            {/* Module Matrix Table */}
             {permLoading ? (
-              <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-                <RefreshCw size={24} className="spin" style={{ margin: '0 auto 8px' }} />
-                <span>Loading permission module descriptors...</span>
+              <div className="settings-loading-state">
+                <RefreshCw size={22} className="spin" />
+                <span>Loading permissions...</span>
               </div>
             ) : permModules.length === 0 ? (
-              <div style={{ padding: 'var(--spacing-8)', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              <div className="settings-empty-state">
                 No permission modules registered on backend.
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="permissions-matrix-table">
+              <div className="settings-table-wrapper">
+                <table className="settings-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '220px' }}>Module & Group</th>
+                      <th style={{ width: '220px' }}>Module</th>
                       <th>Allowed Action Privileges</th>
-                      <th style={{ width: '140px' }}>Data Scope</th>
+                      <th style={{ width: '160px' }}>Data Scope</th>
                     </tr>
                   </thead>
                   <tbody>
                     {permModules.map((mod) => {
                       const userOverride = userOverrides[mod.key] || { actions: [], dataScope: 'ALL' };
+
                       return (
                         <tr key={mod.key}>
                           <td>
                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                               <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{mod.label}</span>
                               <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                                {mod.group} • {mod.key}
+                                {mod.group}
                               </span>
                             </div>
                           </td>
@@ -1388,9 +1318,8 @@ export function SettingsPage() {
                                       type="checkbox"
                                       checked={isChecked}
                                       onChange={() => handleActionToggle(mod.key, act)}
-                                      style={{ cursor: 'pointer' }}
                                     />
-                                    <span style={{ textTransform: 'capitalize' }}>{act}</span>
+                                    <span>{act}</span>
                                   </label>
                                 );
                               })}
@@ -1400,7 +1329,7 @@ export function SettingsPage() {
                             {mod.supportsScope ? (
                               <select
                                 className="settings-select"
-                                style={{ padding: '4px 8px', fontSize: '12px' }}
+                                style={{ height: '34px', padding: '0 10px', fontSize: '12px' }}
                                 value={userOverride.dataScope || 'ALL'}
                                 onChange={(e) => handleScopeChange(mod.key, e.target.value)}
                               >
@@ -1408,7 +1337,7 @@ export function SettingsPage() {
                                 <option value="OWN">OWN (Assigned Only)</option>
                               </select>
                             ) : (
-                              <span style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Global (All)</span>
+                              <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Company Wide</span>
                             )}
                           </td>
                         </tr>
@@ -1418,70 +1347,6 @@ export function SettingsPage() {
                 </table>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* =====================================================================
-          TAB 5: BRAND GUIDELINES & VECTOR MARKS (Sheet B)
-          ===================================================================== */}
-      {activeTab === 'branding' && (
-        <div className="settings-tab-panel">
-          <div className="settings-card">
-            <div className="settings-card-header">
-              <div>
-                <h3 className="settings-card-title">
-                  <ShieldCheck size={18} color="var(--color-primary)" />
-                  Brand Guidelines & Logo Variations (Sheet B)
-                </h3>
-                <p className="settings-card-desc">
-                  Source of truth for colors, typography (Segoe UI + Chevron Λ), and authentic vector marks
-                </p>
-              </div>
-            </div>
-
-            {/* 4 Logo Variations Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 'var(--spacing-4)' }}>
-              <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--spacing-3)' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  01. Primary Logo (Taupe)
-                </span>
-                <div style={{ padding: 'var(--spacing-2) 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MayurMehtaLogo variant="primary" size="md" color="taupe" showTagline={true} />
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>9 circles + divider + chevron Λ + signature</span>
-              </div>
-
-              <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--spacing-3)' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  02. Horizontal (No Tagline)
-                </span>
-                <div style={{ padding: 'var(--spacing-2) 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MayurMehtaLogo variant="horizontal" size="md" color="taupe" showTagline={false} />
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>Standard architectural title</span>
-              </div>
-
-              <div style={{ padding: 'var(--spacing-4)', backgroundColor: 'var(--color-surface)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--spacing-3)' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  03. Symbol Only (3x3 Grid)
-                </span>
-                <div style={{ padding: 'var(--spacing-2) 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MayurMehtaLogo variant="symbol" size="lg" color="taupe" />
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>9 touching circles (no gap)</span>
-              </div>
-
-              <div style={{ padding: 'var(--spacing-4)', backgroundColor: '#2E2E2E', borderRadius: 'var(--radius-md)', border: '1px solid #1A1A1A', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--spacing-3)' }}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: '#E8E3DB', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  04. Monochrome & Reverse (White)
-                </span>
-                <div style={{ padding: 'var(--spacing-2) 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <MayurMehtaLogo variant="primary" size="md" color="white" showTagline={true} />
-                </div>
-                <span style={{ fontSize: '11px', color: '#B7AFA6' }}>High contrast for dark prints</span>
-              </div>
-            </div>
           </div>
         </div>
       )}

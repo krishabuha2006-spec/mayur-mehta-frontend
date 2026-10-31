@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { User, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, Check } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, Check, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { MayurMehtaLogo } from '../../components/common/MayurMehtaLogo/MayurMehtaLogo';
 import { ROUTES } from '../../constants/routes';
@@ -11,6 +11,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [capsLockActive, setCapsLockActive] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [fieldErrors, setFieldErrors] = useState({});
   const [serverError, setServerError] = useState('');
@@ -21,7 +22,8 @@ export function LoginPage() {
   const location = useLocation();
 
   const from = location.state?.from?.pathname || ROUTES.DASHBOARD;
-  const stateMessage = location.state?.message;
+  const isExpired = new URLSearchParams(location.search).get('expired') === '1';
+  const stateMessage = location.state?.message || (isExpired ? 'Your session has expired. Please sign in again.' : null);
 
   const validateAll = () => {
     const errs = {};
@@ -89,8 +91,16 @@ export function LoginPage() {
 
         {serverError && (
           <div className="innopl-alert error" role="alert">
-            <AlertCircle size={16} />
-            <span>{serverError}</span>
+            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div>
+              <div style={{ fontWeight: 600 }}>{serverError}</div>
+              <div style={{ marginTop: '4px', fontSize: '12px', opacity: 0.9 }}>
+                Platform Super Administrator?{' '}
+                <Link to={ROUTES.ADMIN_LOGIN} style={{ color: '#7B6F62', fontWeight: 600, textDecoration: 'underline' }}>
+                  Sign in to Admin Console →
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
@@ -102,7 +112,7 @@ export function LoginPage() {
               id="login-email-input"
               type="email"
               name="email"
-              placeholder="Enter your email"
+              placeholder="Enter your studio email"
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
@@ -114,7 +124,7 @@ export function LoginPage() {
               autoFocus
             />
             <span className="innopl-field-icon" aria-hidden="true">
-              <User size={18} />
+              <Mail size={18} />
             </span>
           </div>
           {fieldErrors.email && (
@@ -133,6 +143,8 @@ export function LoginPage() {
                 setPassword(e.target.value);
                 if (fieldErrors.password) setFieldErrors((prev) => ({ ...prev, password: '' }));
               }}
+              onKeyUp={(e) => setCapsLockActive(e.getModifierState('CapsLock'))}
+              onKeyDown={(e) => setCapsLockActive(e.getModifierState('CapsLock'))}
               className="innopl-input"
               autoComplete="current-password"
               disabled={loading}
@@ -144,9 +156,15 @@ export function LoginPage() {
               title={showPassword ? 'Hide password' : 'Show password'}
               tabIndex={-1}
             >
-              {showPassword ? <EyeOff size={18} /> : <KeyRound size={18} />}
+              {showPassword ? <EyeOff size={18} /> : <Lock size={18} />}
             </button>
           </div>
+          {capsLockActive && (
+            <div className="innopl-caps-warning" role="alert">
+              <ShieldAlert size={14} />
+              <span>Caps Lock is ON</span>
+            </div>
+          )}
           {fieldErrors.password && (
             <span className="innopl-error-text">{fieldErrors.password}</span>
           )}

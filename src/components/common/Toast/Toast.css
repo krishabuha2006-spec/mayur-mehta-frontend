@@ -1,0 +1,165 @@
+/* =========================================================================
+   Mayur Mehta Brand Architectural Toast Component Styles (Top-Right Floating)
+   ========================================================================= */
+
+.toast-container {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 999999;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.toast-container > * {
+  pointer-events: auto;
+}
+
+.mm-toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 340px;
+  max-width: min(480px, 92vw);
+  padding: 14px 20px;
+  border-radius: 14px;
+  background-color: #FFFFFF;
+  color: #2E2925;
+  border: 1px solid rgba(183, 175, 166, 0.35);
+  box-shadow: 0 12px 32px -4px rgba(46, 46, 46, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.06);
+  font-size: 13.5px;
+  font-weight: 500;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: slideInToastRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
+}
+
+@keyframes slideInToastRight {
+  from {
+    opacity: 0;
+    transform: translateX(36px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.mm-toast-success {
+  background-color: #FFFFFF;
+  border: 1px solid #CBE8D5;
+  box-shadow: 0 12px 32px -4px rgba(5, 150, 105, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.mm-toast-success .mm-toast-icon-wrap {
+  color: #059669;
+  background-color: #ECFDF5;
+  border: 1px solid #A7F3D0;
+}
+
+.mm-toast-success .toast-icon.success {
+  color: #059669;
+}
+
+.mm-toast-error {
+  background-color: #FFFFFF;
+  border: 1px solid #FECACA;
+  box-shadow: 0 12px 32px -4px rgba(220, 38, 38, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.mm-toast-error .mm-toast-icon-wrap {
+  color: #DC2626;
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+}
+
+.mm-toast-error .toast-icon.error {
+  color: #DC2626;
+}
+
+.mm-toast-warning {
+  background-color: #FFFFFF;
+  border: 1px solid #FDE68A;
+  box-shadow: 0 12px 32px -4px rgba(217, 119, 6, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.mm-toast-warning .mm-toast-icon-wrap {
+  color: #D97706;
+  background-color: #FFFBEB;
+  border: 1px solid #FCD34D;
+}
+
+.mm-toast-warning .toast-icon.warning {
+  color: #D97706;
+}
+
+.mm-toast-info {
+  background-color: #FFFFFF;
+  border: 1px solid #D8D2C8;
+  box-shadow: 0 12px 32px -4px rgba(123, 111, 98, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.mm-toast-info .mm-toast-icon-wrap {
+  color: #7B6F62;
+  background-color: #F8F6F2;
+  border: 1px solid #D8D2C8;
+}
+
+.mm-toast-info .toast-icon.info {
+  color: #7B6F62;
+}
+
+.mm-toast-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.mm-toast-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.mm-toast-title {
+  font-weight: 700;
+  font-size: 13.5px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: #2E2925;
+}
+
+.mm-toast-message {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5A524A;
+  word-break: break-word;
+}
+
+.mm-toast-close {
+  background: transparent;
+  border: none;
+  color: #8C827A;
+  cursor: pointer;
+  padding: 5px;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.mm-toast-close:hover {
+  color: #2E2925;
+  background: #F4EFEB;
+}

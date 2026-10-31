@@ -18,12 +18,15 @@ export function Input({
   ...rest
 }) {
   const inputId = id || name;
+  const hasAsterisk = typeof label === 'string' && /\*\s*$/.test(label);
+  const displayLabel = hasAsterisk ? label.replace(/\s*\*+\s*$/, '') : label;
+  const showRequired = required || hasAsterisk;
 
   return (
     <div className={`form-field ${error ? 'has-error' : ''} ${className}`}>
       {label && (
         <label htmlFor={inputId} className="form-label">
-          {label} {required && <span className="required-indicator">*</span>}
+          {displayLabel} {showRequired && <span className="required-indicator">*</span>}
         </label>
       )}
       <div className="input-wrapper">

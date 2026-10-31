@@ -58,8 +58,8 @@ export const MESSAGES = {
     PAY_NOW: 'Pay Now',
     INVOICES: 'Billing History',
     STORAGE_USAGE: 'Storage Meter',
-    UPGRADE_MODAL_TITLE: 'Upgrade Required (HTTP 402)',
-    UPGRADE_MODAL_DESC: 'You have reached the maximum seat limit for your current subscription. Upgrade your plan to add more architects and collaborators.'
+    UPGRADE_MODAL_TITLE: 'Seat Limit Reached (10/10 Free Users)',
+    UPGRADE_MODAL_DESC: 'You have reached the free limit of 10 users. Adding an 11th user requires a paid plan. Alternatively, removing any inactive user frees their seat immediately at ₹0.'
   },
   COMPANY_STATE: {
     SUSPENDED_TITLE: 'Workspace Suspended',

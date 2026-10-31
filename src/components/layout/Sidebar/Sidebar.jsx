@@ -50,7 +50,12 @@ const ICON_MAP = {
   HelpCircle
 };
 
-export function Sidebar({ mobileOpen = false, onCloseMobile }) {
+export function Sidebar({
+  expanded = false,
+  onToggleExpand,
+  mobileOpen = false,
+  onCloseMobile
+}) {
   const { navigation, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
@@ -65,6 +70,7 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
   const bottomNav = filteredNav.filter((item) => ['Settings', 'Settings2'].includes(item.iconKey));
 
   const handleMouseEnter = (item, e) => {
+    if (expanded) return;
     const rect = e.currentTarget.getBoundingClientRect();
     setHoveredTooltip({
       label: item.label,
@@ -100,10 +106,12 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
           <IconComponent size={20} strokeWidth={1.8} className="sidebar-nav-icon" />
           <span className="sidebar-nav-label">{item.label}</span>
 
-          {/* Inline CSS Tooltip (Desktop) */}
-          <span className="sidebar-inline-tooltip" role="tooltip" aria-hidden="true">
-            {item.label}
-          </span>
+          {/* Inline CSS Tooltip (Desktop collapsed fallback) */}
+          {!expanded && (
+            <span className="sidebar-inline-tooltip" role="tooltip" aria-hidden="true">
+              {item.label}
+            </span>
+          )}
         </NavLink>
       </li>
     );
@@ -113,24 +121,36 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
     <>
       {mobileOpen && <div className="sidebar-mobile-backdrop" onClick={onCloseMobile} />}
 
-      <aside className={`app-sidebar ${mobileOpen ? 'sidebar-mobile-open' : ''}`}>
-        {/* Top Product Logo: Official Mayur Mehta Design Hallmark */}
+      <aside className={`app-sidebar ${expanded ? 'sidebar-expanded' : ''} ${mobileOpen ? 'sidebar-mobile-open' : ''}`}>
+        {/* Top Product Logo: Official Mayur Mehta Design Hallmark - Click toggles expand/collapse */}
         <div
-          className="sidebar-logo-container"
-          onClick={() => navigate(ROUTES.DASHBOARD)}
+          className={`sidebar-logo-container ${expanded ? 'sidebar-logo-expanded' : ''}`}
+          onClick={onToggleExpand}
           role="button"
           tabIndex={0}
-          title="Mayur Mehta Design - Dashboard"
+          title={expanded ? 'Click logo to collapse sidebar' : 'Click logo to expand sidebar'}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Collapse sidebar menu' : 'Expand sidebar menu'}
         >
           <div className="sidebar-brand-mark" title="Mayur Mehta Design">
             <MayurMehtaLogo variant="symbol" size="sidebar" color="taupe" />
           </div>
 
+          {expanded && (
+            <div className="sidebar-brand-text">
+              <span className="sidebar-brand-name">MAYUR MEHTA</span>
+              <span className="sidebar-brand-subtitle">design</span>
+            </div>
+          )}
+
           {mobileOpen && (
             <button
               type="button"
               className="sidebar-mobile-close"
-              onClick={onCloseMobile}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onCloseMobile) onCloseMobile();
+              }}
               aria-label="Close menu"
             >
               <X size={18} />
@@ -155,8 +175,8 @@ export function Sidebar({ mobileOpen = false, onCloseMobile }) {
         </nav>
       </aside>
 
-      {/* Floating High-Z-Index Tooltip: Appears immediately on hover and stays as long as cursor is over the icon */}
-      {hoveredTooltip && (
+      {/* Floating High-Z-Index Tooltip: Appears immediately on hover when collapsed */}
+      {!expanded && hoveredTooltip && (
         <div
           className="sidebar-floating-tooltip"
           style={{ top: `${hoveredTooltip.top}px` }}

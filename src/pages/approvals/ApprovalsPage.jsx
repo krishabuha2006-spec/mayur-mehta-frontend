@@ -14,7 +14,7 @@ import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { formatDate } from '../../utils/formatDate';
-import { apiClient } from '../../services/apiClient';
+import { approvalService } from '../../services/approvalService';
 import './ApprovalsPage.css';
 
 export function ApprovalsPage() {
@@ -25,35 +25,40 @@ export function ApprovalsPage() {
   const [selectedApp, setSelectedApp] = useState(null);
   const [revisionNotes, setRevisionNotes] = useState('');
 
+  const fetchApprovals = async () => {
+    setLoading(true);
+    try {
+      const list = await approvalService.getApprovals();
+      setApprovals(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.warn('Approvals fetch error:', err?.message);
+      setApprovals([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchApprovals = async () => {
-      setLoading(true);
-      try {
-        const res = await apiClient.get('/approvals');
-        const list = Array.isArray(res) ? res : res?.data || [];
-        setApprovals(list);
-      } catch (err) {
-        console.warn('GET /approvals API notice:', err?.response?.status || err.message);
-        setApprovals([]);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchApprovals();
   }, []);
 
   const filtered = approvals.filter((item) => {
     const status = item.status || '';
-    if (activeTab === 'pending') return status.includes('Pending');
+    if (activeTab === 'pending') return status.includes('Pending') || status.includes('Review');
     if (activeTab === 'revisions') return status.includes('Revision');
     if (activeTab === 'approved') return status.includes('Approved');
     return true;
   });
 
-  const handleApprove = (id) => {
-    setApprovals(
-      approvals.map((a) => (a.id === id ? { ...a, status: 'Approved' } : a))
-    );
+  const handleApprove = async (item) => {
+    try {
+      await approvalService.approveDrawing(item);
+      setApprovals(
+        approvals.map((a) => (a.id === item.id ? { ...a, status: 'Approved & Sealed' } : a))
+      );
+    } catch (err) {
+      console.warn('Approve drawing error:', err?.message);
+    }
   };
 
   const openRevisionModal = (item) => {
@@ -61,14 +66,19 @@ export function ApprovalsPage() {
     setRevisionModalOpen(true);
   };
 
-  const handleRevisionSubmit = (e) => {
+  const handleRevisionSubmit = async (e) => {
     e.preventDefault();
     if (!selectedApp) return;
-    setApprovals(
-      approvals.map((a) =>
-        a.id === selectedApp.id ? { ...a, status: 'Revision Requested' } : a
-      )
-    );
+    try {
+      await approvalService.requestRevision(selectedApp, revisionNotes);
+      setApprovals(
+        approvals.map((a) =>
+          a.id === selectedApp.id ? { ...a, status: 'Revision Requested' } : a
+        )
+      );
+    } catch (err) {
+      console.warn('Revision submit error:', err?.message);
+    }
     setRevisionModalOpen(false);
     setRevisionNotes('');
   };
@@ -167,25 +177,31 @@ export function ApprovalsPage() {
       <Modal
         isOpen={revisionModalOpen}
         onClose={() => setRevisionModalOpen(false)}
-        title={`Request Revision for ${selectedApp?.drawingNo}`}
+        title={`Request Revision for ${selectedApp?.drawingNo || 'Drawing'}`}
       >
-        <form onSubmit={handleRevisionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-          <p style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+        <form onSubmit={handleRevisionSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ fontSize: '13px', color: '#7B6F62', margin: 0 }}>
             Specify architectural markups, dimension amendments, or client change requests:
           </p>
-          <textarea
-            className="form-input"
-            style={{ height: '110px', padding: '10px', resize: 'vertical' }}
-            placeholder="Enter revision notes or requested changes..."
-            value={revisionNotes}
-            onChange={(e) => setRevisionNotes(e.target.value)}
-            required
-          />
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setRevisionModalOpen(false)} style={{ flex: 1 }}>
+          <div>
+            <label className="form-label" htmlFor="rev-notes">
+              Revision Notes / Requested Changes <span className="required-indicator">*</span>
+            </label>
+            <textarea
+              id="rev-notes"
+              className="form-input"
+              style={{ height: '110px', padding: '10px 14px', resize: 'vertical' }}
+              placeholder="Enter detailed revision notes or requested changes..."
+              value={revisionNotes}
+              onChange={(e) => setRevisionNotes(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-actions-row">
+            <Button type="button" variant="secondary" onClick={() => setRevisionModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" style={{ flex: 1 }}>
+            <Button type="submit" variant="primary">
               Submit Revision Request
             </Button>
           </div>

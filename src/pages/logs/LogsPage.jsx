@@ -16,30 +16,16 @@ import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { formatDate } from '../../utils/formatDate';
-import { apiClient } from '../../services/apiClient';
+import { logService } from '../../services/logService';
+import { projectService } from '../../services/projectService';
 import './LogsPage.css';
 
 export function LogsPage() {
   const [logs, setLogs] = useState([]);
+  const [projectsList, setProjectsList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      setLoading(true);
-      try {
-        const res = await apiClient.get('/logs');
-        const list = Array.isArray(res) ? res : res?.data || [];
-        setLogs(list);
-      } catch (err) {
-        console.warn('GET /logs API notice:', err?.response?.status || err.message);
-        setLogs([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLogs();
-  }, []);
   const [newLog, setNewLog] = useState({
     project: '',
     engineer: '',
@@ -50,22 +36,54 @@ export function LogsPage() {
     tradeBreakdown: 'Masons & Carpenters'
   });
 
-  const handleCreateSubmit = (e) => {
+  useEffect(() => {
+    const fetchLogsAndProjects = async () => {
+      setLoading(true);
+      try {
+        const [logsRes, projsRes] = await Promise.allSettled([
+          logService.getLogs(),
+          projectService.getProjects({ limit: 50 })
+        ]);
+
+        if (logsRes.status === 'fulfilled') {
+          setLogs(Array.isArray(logsRes.value) ? logsRes.value : []);
+        }
+
+        if (projsRes.status === 'fulfilled') {
+          const rawProjs = projsRes.value?.data || (Array.isArray(projsRes.value) ? projsRes.value : []);
+          const formatted = rawProjs.map((p) => ({
+            value: p.name || p.title || p.code,
+            label: p.name || p.title || p.code,
+            sublabel: `${p.site?.city || p.city || 'Site'} • ${p.category?.name || p.type || 'Project'}`
+          }));
+          setProjectsList(formatted);
+          if (formatted.length > 0) {
+            setNewLog((prev) => ({ ...prev, project: formatted[0].value }));
+          }
+        }
+      } catch (err) {
+        console.warn('Logs and projects load notice:', err?.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLogsAndProjects();
+  }, []);
+
+  const handleCreateSubmit = async (e) => {
     e.preventDefault();
     if (!newLog.summary) return;
 
-    setLogs([
-      {
-        id: `log_${Date.now()}`,
-        date: new Date().toISOString(),
-        ...newLog
-      },
-      ...logs
-    ]);
+    try {
+      const created = await logService.createLog(newLog);
+      setLogs([created, ...logs]);
+    } catch (err) {
+      console.warn('Create log notice:', err);
+    }
 
     setCreateModalOpen(false);
     setNewLog({
-      project: 'The Courtyard Residence',
+      project: 'The Courtyard Villa',
       engineer: 'Rohan Mehta',
       weather: 'Sunny (31°C)',
       laborCount: 14,
@@ -147,56 +165,59 @@ export function LogsPage() {
 
       {/* New Log Modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Log Daily Site Entry">
-        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
-          <Select
-            label="Project"
-            id="log-proj"
-            value={newLog.project}
-            onChange={(e) => setNewLog({ ...newLog, project: e.target.value })}
-            options={[
-              { value: 'The Courtyard Residence', label: 'The Courtyard Residence', sublabel: 'Bodakdev, Ahmedabad • Villa' },
-              { value: 'Skyline Penthouse 401', label: 'Skyline Penthouse 401', sublabel: 'Sindhu Bhavan • Penthouse' },
-              { value: 'Linear Workspace Center', label: 'Linear Workspace Center', sublabel: 'GIFT City • Commercial' }
-            ]}
-          />
+        <form onSubmit={handleCreateSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
+              <Select
+                label="Project *"
+                id="log-proj"
+                value={newLog.project}
+                onChange={(e) => setNewLog({ ...newLog, project: e.target.value })}
+                options={projectsList.length > 0 ? projectsList : [
+                  { value: 'Studio Project', label: 'Studio Architecture Project' }
+                ]}
+                placeholder="Select project..."
+                required
+              />
+            </div>
 
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-3)' }}>
             <Input
-              label="Site Engineer / Architect"
+              label="Site Engineer / Architect *"
               id="log-eng"
               value={newLog.engineer}
               onChange={(e) => setNewLog({ ...newLog, engineer: e.target.value })}
               required
             />
             <Input
-              label="Total Labor Count"
+              label="Total Labor Count *"
               id="log-labor"
               type="number"
               value={newLog.laborCount}
               onChange={(e) => setNewLog({ ...newLog, laborCount: e.target.value })}
               required
             />
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label className="form-label" htmlFor="log-summary">
+                Daily Inspection / Progress Summary <span className="required-indicator">*</span>
+              </label>
+              <textarea
+                id="log-summary"
+                className="form-input"
+                style={{ height: '90px', padding: '10px', resize: 'vertical' }}
+                placeholder="Enter daily site log description or inspection details..."
+                value={newLog.summary}
+                onChange={(e) => setNewLog({ ...newLog, summary: e.target.value })}
+                required
+              />
+            </div>
           </div>
 
-          <div className="form-field">
-            <label className="form-label" htmlFor="log-summary">Daily Inspection / Progress Summary</label>
-            <textarea
-              id="log-summary"
-              className="form-input"
-              style={{ height: '90px', padding: '10px', resize: 'vertical' }}
-              placeholder="Enter daily site log description or inspection details..."
-              value={newLog.summary}
-              onChange={(e) => setNewLog({ ...newLog, summary: e.target.value })}
-              required
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: 'var(--spacing-3)' }}>
-            <Button variant="secondary" onClick={() => setCreateModalOpen(false)} style={{ flex: 1 }}>
+          <div className="form-actions-row">
+            <Button type="button" variant="secondary" onClick={() => setCreateModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" style={{ flex: 1 }}>
+            <Button type="submit" variant="primary">
               Save Entry
             </Button>
           </div>

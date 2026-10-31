@@ -4,8 +4,19 @@ import { getAdminToken } from '../services/apiClient';
 
 export const AdminAuthContext = createContext(null);
 
+const getStoredAdminUser = () => {
+  try {
+    const raw = sessionStorage.getItem('mm_admin_user') || localStorage.getItem('mm_admin_user');
+    if (raw) return JSON.parse(raw);
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
 export function AdminAuthProvider({ children }) {
-  const [adminUser, setAdminUser] = useState(null);
+  const initialAdmin = getStoredAdminUser();
+  const [adminUser, setAdminUser] = useState(initialAdmin || null);
   const [loading, setLoading] = useState(true);
 
   // Page Refresh (F5): Authenticate via existing admin token or silent POST /api/v1/admin/auth/refresh
@@ -51,16 +62,39 @@ export function AdminAuthProvider({ children }) {
       if (user) {
         const role = (user.role || '').toUpperCase();
         if (role === 'SUPER_ADMIN' || role === 'SUPERADMIN') {
-          setAdminUser({ ...user, mustChangePassword: false });
+          const formatted = { ...user, mustChangePassword: !!user.mustChangePassword };
+          setAdminUser(formatted);
+          try {
+            sessionStorage.setItem('mm_admin_user', JSON.stringify(formatted));
+          } catch {}
+
+          // Proactively fire the event so the password modal opens before any API fetches
+          if (user.mustChangePassword) {
+            window.dispatchEvent(new CustomEvent('admin:password_change_required'));
+          }
         } else {
           console.warn('Authenticated user does not have SUPER_ADMIN role:', role);
           setAdminUser(null);
+          try {
+            sessionStorage.removeItem('mm_admin_user');
+            localStorage.removeItem('mm_admin_user');
+          } catch {}
         }
       } else {
-        setAdminUser(null);
+        if (!existingToken) {
+          setAdminUser(null);
+          try {
+            sessionStorage.removeItem('mm_admin_user');
+            localStorage.removeItem('mm_admin_user');
+          } catch {}
+        }
       }
     } catch {
       setAdminUser(null);
+      try {
+        sessionStorage.removeItem('mm_admin_user');
+        localStorage.removeItem('mm_admin_user');
+      } catch {}
     } finally {
       setLoading(false);
     }
@@ -79,24 +113,60 @@ export function AdminAuthProvider({ children }) {
 
   const setAuthenticatedAdmin = (user) => {
     if (user) {
-      setAdminUser({ ...user, mustChangePassword: false });
+      const formatted = { ...user, mustChangePassword: !!user.mustChangePassword };
+      setAdminUser(formatted);
+      try {
+        sessionStorage.setItem('mm_admin_user', JSON.stringify(formatted));
+      } catch {}
     } else {
       setAdminUser(null);
+      try {
+        sessionStorage.removeItem('mm_admin_user');
+        localStorage.removeItem('mm_admin_user');
+      } catch {}
     }
   };
 
   const updateAdminUser = (updatedData) => {
-    setAdminUser((prev) => (prev ? { ...prev, ...updatedData } : null));
+    setAdminUser((prev) => {
+      const updated = prev ? { ...prev, ...updatedData } : null;
+      try {
+        if (updated) {
+          sessionStorage.setItem('mm_admin_user', JSON.stringify(updated));
+        }
+      } catch {}
+      return updated;
+    });
   };
 
   const logout = async () => {
-    await adminAuthService.logout();
-    setAdminUser(null);
+    try {
+      await adminAuthService.logout();
+    } catch (err) {
+      console.warn('Admin logout notice:', err?.message);
+    } finally {
+      clearAdminToken();
+      setAdminUser(null);
+      try {
+        sessionStorage.removeItem('mm_admin_user');
+        localStorage.removeItem('mm_admin_user');
+      } catch {}
+    }
   };
 
   const logoutAll = async () => {
-    await adminAuthService.logoutAll();
-    setAdminUser(null);
+    try {
+      await adminAuthService.logoutAll();
+    } catch (err) {
+      console.warn('Admin logoutAll notice:', err?.message);
+    } finally {
+      clearAdminToken();
+      setAdminUser(null);
+      try {
+        sessionStorage.removeItem('mm_admin_user');
+        localStorage.removeItem('mm_admin_user');
+      } catch {}
+    }
   };
 
   return (

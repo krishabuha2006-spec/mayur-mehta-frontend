@@ -29,13 +29,19 @@ function unwrapListResponse(response, params = {}) {
 
   // 2. response.data is an array (Standard M1.1 envelope)
   if (Array.isArray(response.data)) {
+    const rawMeta = response.meta || response.data?.meta || response.pagination;
+    const total = rawMeta?.total ?? response.data.length;
+    const limit = rawMeta?.limit ?? (Number(params.limit) || 10);
+    const page = rawMeta?.page ?? (Number(params.page) || 1);
+    const pages = rawMeta?.totalPages ?? rawMeta?.pages ?? Math.ceil(total / limit) ?? 1;
+
     return {
       data: response.data,
-      pagination: response.pagination || {
-        total: response.data.length,
-        page: Number(params.page) || 1,
-        limit: Number(params.limit) || 10,
-        pages: Math.ceil(response.data.length / (Number(params.limit) || 10)) || 1
+      pagination: {
+        total,
+        page,
+        limit,
+        pages
       }
     };
   }
@@ -50,14 +56,19 @@ function unwrapListResponse(response, params = {}) {
     response.list;
 
   if (Array.isArray(rawList)) {
-    const rawPag = response.data?.pagination || response.pagination || response.data?.meta || response.meta;
+    const rawMeta = response.meta || response.data?.meta || response.data?.pagination || response.pagination;
+    const total = rawMeta?.total ?? rawList.length;
+    const limit = rawMeta?.limit ?? (Number(params.limit) || 10);
+    const page = rawMeta?.page ?? (Number(params.page) || 1);
+    const pages = rawMeta?.totalPages ?? rawMeta?.pages ?? Math.ceil(total / limit) ?? 1;
+
     return {
       data: rawList,
-      pagination: rawPag || {
-        total: rawList.length,
-        page: Number(params.page) || 1,
-        limit: Number(params.limit) || 10,
-        pages: Math.ceil(rawList.length / (Number(params.limit) || 10)) || 1
+      pagination: {
+        total,
+        page,
+        limit,
+        pages
       }
     };
   }
@@ -189,42 +200,72 @@ export const projectService = {
   },
 
   /**
-   * 8. PUT /projects/:id/status — Transition project status
+   * 8. PUT /projects/:id/status (or POST) — Transition project status
+   * Body: { status, reason, confirmOpenStages }
    */
-  updateProjectStatus: async (id, { status, reason }) => {
-    const response = await apiClient.put(`/projects/${id}/status`, { status, reason });
-    return unwrapSingleItem(response);
+  updateProjectStatus: async (id, { status, reason, confirmOpenStages = false }) => {
+    const payload = { status };
+    if (reason && reason.trim()) payload.reason = reason.trim();
+    if (confirmOpenStages) payload.confirmOpenStages = true;
+    try {
+      const response = await apiClient.put(`/projects/${id}/status`, payload);
+      return unwrapSingleItem(response);
+    } catch (err) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        const response = await apiClient.post(`/projects/${id}/status`, payload);
+        return unwrapSingleItem(response);
+      }
+      throw err;
+    }
   },
 
   /**
-   * 9. PUT /projects/:id/archive — Archive project
+   * 9. POST /projects/:id/archive (or PUT) — Archive project (only COMPLETED or CANCELLED)
    */
   archiveProject: async (id) => {
-    const response = await apiClient.put(`/projects/${id}/archive`);
-    return unwrapSingleItem(response);
+    try {
+      const response = await apiClient.post(`/projects/${id}/archive`);
+      return unwrapSingleItem(response);
+    } catch {
+      const response = await apiClient.put(`/projects/${id}/archive`);
+      return unwrapSingleItem(response);
+    }
   },
 
   /**
-   * 10. PUT /projects/:id/unarchive — Unarchive project
+   * 10. POST /projects/:id/unarchive (or PUT) — Unarchive project
    */
   unarchiveProject: async (id) => {
-    const response = await apiClient.put(`/projects/${id}/unarchive`);
-    return unwrapSingleItem(response);
+    try {
+      const response = await apiClient.post(`/projects/${id}/unarchive`);
+      return unwrapSingleItem(response);
+    } catch {
+      const response = await apiClient.put(`/projects/${id}/unarchive`);
+      return unwrapSingleItem(response);
+    }
   },
 
   /**
-   * 11. DELETE /projects/:id — Soft-delete project
+   * 11. DELETE /projects/:id — Soft-delete project to Trash (30-day retention)
    */
   deleteProject: async (id) => {
     return await apiClient.delete(`/projects/${id}`);
   },
 
   /**
-   * 12. PUT /projects/:id/restore — Restore soft-deleted project
+   * 12. POST /projects/:id/restore (or PUT) — Restore soft-deleted project from Trash
    */
   restoreProject: async (id) => {
-    const response = await apiClient.put(`/projects/${id}/restore`);
-    return unwrapSingleItem(response);
+    try {
+      const response = await apiClient.post(`/projects/${id}/restore`);
+      return unwrapSingleItem(response);
+    } catch (err) {
+      if (err?.response?.status === 404 || err?.response?.status === 405) {
+        const response = await apiClient.put(`/projects/${id}/restore`);
+        return unwrapSingleItem(response);
+      }
+      throw err;
+    }
   },
 
   /**
@@ -243,7 +284,9 @@ export const projectService = {
       const response = await apiClient.get(`/projects/${projectId}/members`);
       return unwrapArray(response);
     } catch (err) {
-      console.warn(`GET /projects/${projectId}/members notice:`, err?.response?.status || err?.message);
+      if (err?.response?.status !== 401) {
+        console.warn(`GET /projects/${projectId}/members notice:`, err?.response?.status || err?.message);
+      }
       return [];
     }
   },
@@ -279,7 +322,9 @@ export const projectService = {
       const response = await apiClient.get(`/projects/${projectId}/stages`);
       return unwrapArray(response);
     } catch (err) {
-      console.warn(`GET /projects/${projectId}/stages notice:`, err?.response?.status || err?.message);
+      if (err?.response?.status !== 401) {
+        console.warn(`GET /projects/${projectId}/stages notice:`, err?.response?.status || err?.message);
+      }
       return [];
     }
   },

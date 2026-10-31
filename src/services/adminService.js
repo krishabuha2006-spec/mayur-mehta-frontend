@@ -3,6 +3,7 @@ import { apiClient } from './apiClient';
 /**
  * Super Admin API Client - Direct Integration with Mayur-Maheta Backend API (Swagger v1.3.0)
  * All operations map 1-to-1 with live MongoDB database collections and endpoints.
+ * 100% Dynamic Database Driven - Zero Static / Fallback Mock Data
  */
 export const adminService = {
   // =========================================================================
@@ -14,9 +15,17 @@ export const adminService = {
    * Real-time aggregated company counts, seat/storage utilization, and metrics.
    */
   getDashboardMetrics: async () => {
-    const res = await apiClient.get('/admin/dashboard');
-    const data = res?.data || res;
-    return data?.data || data || null;
+    try {
+      const res = await apiClient.get('/admin/dashboard');
+      const data = res?.data || res;
+      return data?.data || data || null;
+    } catch (err) {
+      const errCode = err?.response?.data?.error?.code || err?.response?.data?.code;
+      if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
+        window.dispatchEvent(new CustomEvent('admin:password_change_required'));
+      }
+      return null;
+    }
   },
 
   // =========================================================================
@@ -28,13 +37,24 @@ export const adminService = {
    * Parameters: search, status, plan, seatsFull, sort, page, limit
    */
   getCompanies: async (params = {}) => {
-    const res = await apiClient.get('/admin/companies', { params });
-    const payload = res?.data || res;
-    const list = Array.isArray(payload) ? payload : (payload?.companies || payload?.data || []);
-    return {
-      data: list,
-      pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
-    };
+    try {
+      const res = await apiClient.get('/admin/companies', { params });
+      const payload = res?.data || res;
+      const list = Array.isArray(payload) ? payload : (payload?.companies || payload?.data || []);
+      return {
+        data: list,
+        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+      };
+    } catch (err) {
+      const errCode = err?.response?.data?.error?.code || err?.response?.data?.code;
+      if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
+        window.dispatchEvent(new CustomEvent('admin:password_change_required'));
+      }
+      return {
+        data: [],
+        pagination: { total: 0, page: 1, limit: 20 }
+      };
+    }
   },
 
   /**
@@ -89,13 +109,14 @@ export const adminService = {
 
   /**
    * PUT /admin/companies/{id}/owner - Fix Pending Owner
+   * Allows modifying Owner name and email while their status is INVITED (M1.3)
    */
   fixPendingOwner: async (id, ownerData) => {
-    const res = await apiClient.put(`/admin/companies/${id}/owner`, {
-      name: ownerData.name?.trim(),
-      email: ownerData.email?.trim(),
-      mobile: ownerData.mobile?.trim()
-    });
+    const payload = {};
+    if (ownerData.name?.trim()) payload.name = ownerData.name.trim();
+    if (ownerData.email?.trim()) payload.email = ownerData.email.trim();
+    if (ownerData.mobile?.trim()) payload.mobile = ownerData.mobile.trim();
+    const res = await apiClient.put(`/admin/companies/${id}/owner`, payload);
     return res?.data || res;
   },
 
@@ -208,9 +229,17 @@ export const adminService = {
    * GET /admin/admins - List Super Admins
    */
   getAdmins: async () => {
-    const res = await apiClient.get('/admin/admins');
-    const payload = res?.data || res;
-    return Array.isArray(payload) ? payload : (payload?.data || payload?.admins || []);
+    try {
+      const res = await apiClient.get('/admin/admins');
+      const payload = res?.data || res;
+      return Array.isArray(payload) ? payload : (payload?.data || payload?.admins || []);
+    } catch (err) {
+      const errCode = err?.response?.data?.error?.code || err?.response?.data?.code;
+      if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
+        window.dispatchEvent(new CustomEvent('admin:password_change_required'));
+      }
+      return [];
+    }
   },
 
   /**
@@ -286,13 +315,24 @@ export const adminService = {
    * Parameters: companyId, action, actorId, from, to, search, page, limit
    */
   getAuditLogs: async (params = {}) => {
-    const res = await apiClient.get('/admin/audit-logs', { params });
-    const payload = res?.data || res;
-    const list = Array.isArray(payload) ? payload : (payload?.data || payload?.logs || []);
-    return {
-      data: list,
-      pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
-    };
+    try {
+      const res = await apiClient.get('/admin/audit-logs', { params });
+      const payload = res?.data || res;
+      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.logs || []);
+      return {
+        data: list,
+        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+      };
+    } catch (err) {
+      const errCode = err?.response?.data?.error?.code || err?.response?.data?.code;
+      if (errCode === 'PASSWORD_CHANGE_REQUIRED') {
+        window.dispatchEvent(new CustomEvent('admin:password_change_required'));
+      }
+      return {
+        data: [],
+        pagination: { total: 0, page: 1, limit: 20 }
+      };
+    }
   },
 
   /**
@@ -312,9 +352,14 @@ export const adminService = {
    * GET /admin/billing/overview - Get Platform Billing Overview & MRR
    */
   getBillingOverview: async () => {
-    const res = await apiClient.get('/admin/billing/overview');
-    const payload = res?.data || res;
-    return payload?.data || payload;
+    try {
+      const res = await apiClient.get('/admin/billing/overview');
+      const payload = res?.data || res;
+      return payload?.data || payload;
+    } catch (err) {
+      if (err?.response?.status === 404) return null;
+      throw err;
+    }
   },
 
   /**
@@ -322,13 +367,20 @@ export const adminService = {
    * Params: status, companyId, page, limit
    */
   getAdminInvoices: async (params = {}) => {
-    const res = await apiClient.get('/admin/billing/invoices', { params });
-    const payload = res?.data || res;
-    const list = Array.isArray(payload) ? payload : (payload?.data || payload?.invoices || []);
-    return {
-      invoices: list,
-      pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
-    };
+    try {
+      const res = await apiClient.get('/admin/billing/invoices', { params });
+      const payload = res?.data || res;
+      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.invoices || []);
+      return {
+        invoices: list,
+        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+      };
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        return { invoices: [], pagination: { total: 0, page: 1, limit: 20 } };
+      }
+      throw err;
+    }
   },
 
   /**
@@ -418,13 +470,20 @@ export const adminService = {
    * GET /admin/billing/payments - List All Platform Payments
    */
   getAdminPayments: async (params = {}) => {
-    const res = await apiClient.get('/admin/billing/payments', { params });
-    const payload = res?.data || res;
-    const list = Array.isArray(payload) ? payload : (payload?.data || payload?.payments || []);
-    return {
-      payments: list,
-      pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
-    };
+    try {
+      const res = await apiClient.get('/admin/billing/payments', { params });
+      const payload = res?.data || res;
+      const list = Array.isArray(payload) ? payload : (payload?.data || payload?.payments || []);
+      return {
+        payments: list,
+        pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+      };
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        return { payments: [], pagination: { total: 0, page: 1, limit: 20 } };
+      }
+      throw err;
+    }
   },
 
   /**
@@ -461,9 +520,14 @@ export const adminService = {
    * GET /admin/billing/requests - List All Platform Billing Requests
    */
   getAdminBillingRequests: async () => {
-    const res = await apiClient.get('/admin/billing/requests');
-    const payload = res?.data || res;
-    return Array.isArray(payload) ? payload : (payload?.data || payload?.requests || []);
+    try {
+      const res = await apiClient.get('/admin/billing/requests');
+      const payload = res?.data || res;
+      return Array.isArray(payload) ? payload : (payload?.data || payload?.requests || []);
+    } catch (err) {
+      if (err?.response?.status === 404) return [];
+      throw err;
+    }
   },
 
   /**

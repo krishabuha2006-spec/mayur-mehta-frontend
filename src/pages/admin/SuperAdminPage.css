@@ -118,6 +118,21 @@
   color: #FFFFFF;
 }
 
+.nav-live-dot-pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10B981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  animation: pulseDot 1.8s infinite;
+  margin-left: auto;
+}
+
+.admin-nav-item.is-active .nav-live-dot-pulse {
+  background-color: #A7F3D0;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+}
+
 .nav-icon {
   color: #8C847A;
   flex-shrink: 0;
@@ -403,23 +418,23 @@
 }
 
 .kpi-icon-wrap.bg-taupe {
-  background-color: #F1ECE6;
-  color: var(--color-primary);
+  background-color: rgba(123, 111, 98, 0.12);
+  color: #7B6F62;
 }
 
 .kpi-icon-wrap.bg-green {
-  background-color: #EAF7EE;
-  color: #248247;
+  background-color: rgba(94, 122, 107, 0.12);
+  color: #5E7A6B;
 }
 
 .kpi-icon-wrap.bg-copper {
-  background-color: #FFF2EC;
-  color: #C05621;
+  background-color: rgba(197, 160, 89, 0.15);
+  color: #A0782C;
 }
 
 .kpi-icon-wrap.bg-blue {
-  background-color: #EBF4FF;
-  color: #2B6CB0;
+  background-color: rgba(91, 117, 142, 0.12);
+  color: #5B758E;
 }
 
 .kpi-info {
@@ -1427,18 +1442,18 @@ input[type="text"].admin-search-input:focus,
 }
 
 .health-card-icon.bg-green {
-  background: #EAF7EE;
-  color: #15803D;
+  background: rgba(94, 122, 107, 0.12);
+  color: #5E7A6B;
 }
 
 .health-card-icon.bg-taupe {
-  background: #F1ECE6;
+  background: rgba(123, 111, 98, 0.12);
   color: #7B6F62;
 }
 
 .health-card-icon.bg-blue {
-  background: #EBF4FF;
-  color: #1D4ED8;
+  background: rgba(91, 117, 142, 0.12);
+  color: #5B758E;
 }
 
 .health-status-badge {
@@ -1451,9 +1466,9 @@ input[type="text"].admin-search-input:focus,
 }
 
 .health-status-badge.healthy {
-  background: #EAF7EE;
-  color: #15803D;
-  border: 1px solid rgba(21, 128, 61, 0.2);
+  background: rgba(94, 122, 107, 0.12);
+  color: #3D5447;
+  border: 1px solid rgba(94, 122, 107, 0.3);
 }
 
 .health-status-badge.pending {

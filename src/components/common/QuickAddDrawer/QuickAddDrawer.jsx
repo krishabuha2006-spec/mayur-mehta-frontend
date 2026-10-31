@@ -15,9 +15,12 @@ import {
 import { Button } from '../Button/Button';
 import { masterService } from '../../../services/masterService';
 import { teamService } from '../../../services/teamService';
+import { projectService } from '../../../services/projectService';
+import { taskService } from '../../../services/taskService';
 import './QuickAddDrawer.css';
 
 export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
+  const [selectedProject, setSelectedProject] = useState('');
   const [taskType, setTaskType] = useState('');
   const [taskDescriptionType, setTaskDescriptionType] = useState('');
   const [descriptionContent, setDescriptionContent] = useState('');
@@ -28,36 +31,40 @@ export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
   const [additionalDetailsOpen, setAdditionalDetailsOpen] = useState(false);
   const [checklistOpen, setChecklistOpen] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState('');
-  const [checklistItems, setChecklistItems] = useState(['Review CAD floor plan', 'Confirm material specs']);
+  const [checklistItems, setChecklistItems] = useState([]);
   const [newCheckItem, setNewCheckItem] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Dynamic lists from backend APIs (M1.4 & M1.5)
-  const [taskTypes, setTaskTypes] = useState([
-    { id: 'architectural_drawing', name: 'Architectural Drawing' },
-    { id: 'interior_design', name: 'Interior Design' },
-    { id: 'site_inspection', name: 'Site Inspection' },
-    { id: 'client_revision', name: 'Client Revision' },
-    { id: 'structural_review', name: 'Structural Review' }
-  ]);
-
-  const [teamMembers, setTeamMembers] = useState([
-    { id: 'dummy_designer', name: 'Dummy Designer (Lead Architect)' },
-    { id: 'aarav_sharma', name: 'Aarav Sharma (Senior Architect)' },
-    { id: 'priya_patel', name: 'Priya Patel (3D Visualizer)' },
-    { id: 'rohan_mehta', name: 'Rohan Mehta (Site Engineer)' }
-  ]);
+  // Dynamic lists from backend APIs (M1.4 & M1.5 & M1.7)
+  const [projects, setProjects] = useState([]);
+  const [taskTypes, setTaskTypes] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   useEffect(() => {
     if (!isOpen) return;
+
+    // Load projects (M1.7 GET /projects)
+    const loadProjects = async () => {
+      try {
+        const res = await projectService.getProjects({ limit: 50 });
+        const list = Array.isArray(res) ? res : (res?.data || []);
+        setProjects(list.map((p) => ({ id: p.id || p._id, name: p.name || p.title || p.code })));
+        if (list.length > 0 && !selectedProject) {
+          setSelectedProject(list[0].id || list[0]._id);
+        }
+      } catch (err) {
+        console.warn('QuickAddDrawer projects notice:', err.message);
+      }
+    };
+    loadProjects();
 
     // Load master task types (M1.5 GET /master/TASK_TYPE)
     const loadTaskTypes = async () => {
       try {
         const types = await masterService.getItemsByType('TASK_TYPE');
         if (Array.isArray(types) && types.length > 0) {
-          setTaskTypes(types.map((t) => ({ id: t.name || t.code, name: t.name || t.code })));
+          setTaskTypes(types.map((t) => ({ id: t.id || t._id || t.name, name: t.name || t.code })));
         }
       } catch (err) {
         console.warn('QuickAddDrawer master types notice:', err.message);
@@ -73,7 +80,7 @@ export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
         if (users.length > 0) {
           setTeamMembers(
             users.map((u) => ({
-              id: u.id || u.email,
+              id: u.id || u._id || u.email,
               name: `${u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email}${u.role ? ` (${u.role})` : ''}`
             }))
           );
@@ -106,17 +113,34 @@ export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
   const handleSave = async (e) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!taskType) {
+    if (!taskType || !selectedProject) {
       return;
     }
 
     setSaving(true);
-    // Simulate save
-    setTimeout(() => {
-      setSaving(false);
+    try {
+      const selectedTypeObj = taskTypes.find((t) => t.id === taskType);
+      const title = descriptionContent.trim()
+        ? descriptionContent.split('\n')[0].slice(0, 80)
+        : `Task - ${selectedTypeObj?.name || 'Architectural Task'}`;
+
+      await taskService.createProjectTask(selectedProject, {
+        title,
+        taskTypeId: taskType,
+        assignees: assignee ? [assignee] : undefined,
+        startDate: startDate || undefined,
+        dueDate: deadline || undefined,
+        description: descriptionContent.trim() || additionalNotes || undefined,
+        checklist: checklistItems.map((item) => ({ title: item, done: false }))
+      });
+
       if (onSaveSuccess) onSaveSuccess();
       onClose();
-    }, 400);
+    } catch (err) {
+      console.warn('Direct task creation error:', err?.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addChecklistItem = () => {
@@ -136,14 +160,35 @@ export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
         </div>
 
         <form onSubmit={handleSave} className="quickadd-body">
+          {/* 0. Select Project (Required for backend task creation) */}
+          <div className="quickadd-field">
+            <select
+              className={`quickadd-select ${submitted && !selectedProject ? 'has-error' : ''}`}
+              value={selectedProject}
+              onChange={(e) => setSelectedProject(e.target.value)}
+              required
+            >
+              <option value="" disabled>Select Project *</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {submitted && !selectedProject && (
+              <span className="quickadd-required-text">Required</span>
+            )}
+          </div>
+
           {/* 1. Select Task Type */}
           <div className="quickadd-field">
             <select
               className={`quickadd-select ${submitted && !taskType ? 'has-error' : ''}`}
               value={taskType}
               onChange={(e) => setTaskType(e.target.value)}
+              required
             >
-              <option value="" disabled>Select Task Type</option>
+              <option value="" disabled>Select Task Type *</option>
               {taskTypes.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}

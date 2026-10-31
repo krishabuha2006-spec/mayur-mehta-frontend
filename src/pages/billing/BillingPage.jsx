@@ -28,11 +28,13 @@ import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { billingService } from '../../services/billingService';
+import { useConfirm } from '../../context/ConfirmationContext';
 import { formatCurrency, formatPaise } from '../../utils/formatCurrency';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import './BillingPage.css';
 
 export function BillingPage() {
+  const confirm = useConfirm();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'invoices' | 'payments' | 'requests'
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -191,10 +193,18 @@ export function BillingPage() {
 
   // 4. Cancel Open Billing Request
   const handleCancelRequest = async (requestId) => {
-    if (!window.confirm('Are you sure you want to cancel this pending billing request?')) return;
+    const ok = await confirm({
+      title: 'Cancel Billing Request?',
+      message: 'Are you sure you want to cancel this pending billing request?',
+      confirmText: 'Cancel Request',
+      cancelText: 'Keep Request',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
     try {
       await billingService.cancelBillingRequest(requestId);
-      showToast('Billing request cancelled.');
+      showToast('Billing request cancelled.', 'success');
       const reqList = await billingService.getBillingRequests().catch(() => []);
       setBillingRequests(Array.isArray(reqList) ? reqList : (reqList?.requests || []));
     } catch (err) {
@@ -866,71 +876,73 @@ export function BillingPage() {
         onClose={() => setIsRequestModalOpen(false)}
         title="Submit Commercial Billing Request"
       >
-        <form onSubmit={handleSubmitBillingRequest} className="billing-request-form">
-          <div style={{ marginBottom: '1rem', fontSize: '13px', color: '#7B6F62' }}>
+        <form onSubmit={handleSubmitBillingRequest} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ fontSize: '13px', color: '#7B6F62' }}>
             Submit your capacity requirement directly to the Super Admin team. They will generate an official
             GST invoice and record your offline payment upon transfer.
           </div>
 
-          <div className="form-group-row">
-            <Select
-              label="Request Type"
-              id="request-type"
-              value={requestForm.type}
-              onChange={(e) => setRequestForm((prev) => ({ ...prev, type: e.target.value }))}
-              options={[
-                { value: 'UPGRADE', label: 'Upgrade to Paid Pro Tier' },
-                { value: 'ADD_SEATS', label: 'Add Additional Seats' },
-                { value: 'REDUCE_SEATS', label: 'Reduce Seats (Next Period)' },
-                { value: 'RENEW', label: 'Renew Current Subscription' },
-                { value: 'CANCEL', label: 'Cancel Subscription at Period End' }
-              ]}
-              required
-            />
-          </div>
-
-          {['UPGRADE', 'ADD_SEATS', 'REDUCE_SEATS'].includes(requestForm.type) && (
-            <div className="form-group-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <Input
-                label="Desired Total Seats"
-                id="request-seats"
-                type="number"
-                min="11"
-                max="500"
-                value={requestForm.desiredSeats}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, desiredSeats: e.target.value }))}
-                required
-              />
+          <div className="form-grid-2">
+            <div style={{ gridColumn: 'span 2' }}>
               <Select
-                label="Billing Cycle"
-                id="request-cycle"
-                value={requestForm.desiredCycle}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, desiredCycle: e.target.value }))}
+                label="Request Type *"
+                id="request-type"
+                value={requestForm.type}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, type: e.target.value }))}
                 options={[
-                  { value: 'MONTHLY', label: 'Monthly' },
-                  { value: 'QUARTERLY', label: 'Quarterly' },
-                  { value: 'YEARLY', label: 'Yearly (2 Months Free)' }
+                  { value: 'UPGRADE', label: 'Upgrade to Paid Pro Tier' },
+                  { value: 'ADD_SEATS', label: 'Add Additional Seats' },
+                  { value: 'REDUCE_SEATS', label: 'Reduce Seats (Next Period)' },
+                  { value: 'RENEW', label: 'Renew Current Subscription' },
+                  { value: 'CANCEL', label: 'Cancel Subscription at Period End' }
                 ]}
                 required
               />
             </div>
-          )}
 
-          <div className="form-group-row">
-            <label className="form-label" htmlFor="request-notes">
-              Notes & Special Instructions (Optional)
-            </label>
-            <textarea
-              id="request-notes"
-              className="form-textarea"
-              rows={3}
-              placeholder="e.g. Please issue invoice under our corporate GSTIN for Gujarat jurisdiction..."
-              value={requestForm.notes}
-              onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
-            />
+            {['UPGRADE', 'ADD_SEATS', 'REDUCE_SEATS'].includes(requestForm.type) && (
+              <>
+                <Input
+                  label="Desired Total Seats *"
+                  id="request-seats"
+                  type="number"
+                  min="11"
+                  max="500"
+                  value={requestForm.desiredSeats}
+                  onChange={(e) => setRequestForm((prev) => ({ ...prev, desiredSeats: e.target.value }))}
+                  required
+                />
+                <Select
+                  label="Billing Cycle *"
+                  id="request-cycle"
+                  value={requestForm.desiredCycle}
+                  onChange={(e) => setRequestForm((prev) => ({ ...prev, desiredCycle: e.target.value }))}
+                  options={[
+                    { value: 'MONTHLY', label: 'Monthly' },
+                    { value: 'QUARTERLY', label: 'Quarterly' },
+                    { value: 'YEARLY', label: 'Yearly (2 Months Free)' }
+                  ]}
+                  required
+                />
+              </>
+            )}
+
+            <div style={{ gridColumn: 'span 2' }}>
+              <label className="form-label" htmlFor="request-notes">
+                Notes & Special Instructions (Optional)
+              </label>
+              <textarea
+                id="request-notes"
+                className="form-textarea"
+                rows={3}
+                placeholder="e.g. Please issue invoice under our corporate GSTIN for Gujarat jurisdiction..."
+                value={requestForm.notes}
+                onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
           </div>
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+          <div className="form-actions-row">
             <Button
               type="button"
               variant="secondary"

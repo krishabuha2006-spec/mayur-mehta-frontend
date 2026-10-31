@@ -24,3 +24,13 @@ export function PermissionGate({ permission, children, fallback = null }) {
 
   return <>{children}</>;
 }
+
+export function Can({ do: permission, children, fallback = null }) {
+  const { hasPermission } = useAuth();
+
+  if (!hasPermission(permission)) {
+    return fallback;
+  }
+
+  return <>{children}</>;
+}

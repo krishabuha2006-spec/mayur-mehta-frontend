@@ -3,6 +3,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
+import { ConfirmationProvider } from './context/ConfirmationContext';
 import { AppRoutes } from './routes';
 
 export function App() {
@@ -11,7 +12,9 @@ export function App() {
       <ThemeProvider>
         <AuthProvider>
           <AdminAuthProvider>
-            <AppRoutes />
+            <ConfirmationProvider>
+              <AppRoutes />
+            </ConfirmationProvider>
           </AdminAuthProvider>
         </AuthProvider>
       </ThemeProvider>

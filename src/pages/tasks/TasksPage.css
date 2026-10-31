@@ -242,3 +242,883 @@ input[type="text"].tasks-search-input,
   gap: 4px;
   color: var(--color-text-muted);
 }
+
+/* =========================================================================
+   Task Manager Kanban, Calendar & Drawer Styles
+   ========================================================================= */
+
+.tasks-view-toggle {
+  display: flex;
+  background: var(--surface-alt);
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.view-btn:hover {
+  color: var(--text);
+}
+
+.view-btn.is-active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
+/* Kanban Board */
+.task-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  width: 100%;
+  min-height: 520px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .task-kanban-board {
+    grid-template-columns: repeat(4, minmax(260px, 1fr));
+    overflow-x: auto;
+  }
+}
+
+.task-kanban-col {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 480px;
+}
+
+.task-col-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.task-col-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.task-col-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.task-col-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.task-col-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface);
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+}
+
+.task-col-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.task-empty-col {
+  padding: 2rem 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* Kanban Task Card */
+.task-kanban-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.85rem 0.95rem;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  transition: all var(--transition-fast);
+}
+
+.task-kanban-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-elevated);
+  border-color: var(--primary);
+}
+
+.task-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.task-project-chip {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.task-card-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.task-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.task-due-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.task-card-checklist-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* =========================================================================
+   Architectural Month Calendar Grid View
+   ========================================================================= */
+.task-calendar-view {
+  background: var(--surface, #FFFFFF);
+  border: 1px solid var(--border, #E8E2D9);
+  border-radius: var(--radius-card, 14px);
+  padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: var(--shadow-card, 0 4px 18px rgba(0, 0, 0, 0.04));
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.calendar-grid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border-subtle, #EFEAE3);
+  padding-bottom: 1rem;
+}
+
+.calendar-nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.calendar-month-selector {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #FAF8F5;
+  border: 1px solid #E8E2D9;
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+
+.cal-nav-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: #7B6F62;
+  transition: all 0.15s ease;
+}
+
+.cal-nav-btn:hover {
+  background: #ECE5DC;
+  color: #2E2925;
+}
+
+.calendar-month-heading {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #2E2925;
+  margin: 0;
+  min-width: 155px;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+
+.cal-today-btn {
+  background: #FAF8F5;
+  border: 1px solid #E8E2D9;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #7B6F62;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cal-today-btn:hover {
+  background: #7B6F62;
+  color: #FFFFFF;
+  border-color: #7B6F62;
+}
+
+.calendar-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.calendar-count-tag {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #8C847A;
+  background: #FAF8F5;
+  padding: 5px 12px;
+  border-radius: 6px;
+  border: 1px solid #EFEAE3;
+}
+
+/* Weekday Headers */
+.cal-weekdays-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #EFEAE3;
+  border: 1px solid #EFEAE3;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+}
+
+.cal-weekday-header {
+  background: #FAF8F5;
+  padding: 10px 8px;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #8C847A;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Calendar Month 7-Column Grid */
+.cal-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #EFEAE3;
+  border: 1px solid #EFEAE3;
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+
+.cal-day-cell {
+  background: #FFFFFF;
+  min-height: 110px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  position: relative;
+}
+
+.cal-day-cell:hover {
+  background: #FDFCFB;
+}
+
+.cal-day-cell.out-of-month {
+  background: #FAF8F5;
+  opacity: 0.45;
+  cursor: default;
+}
+
+.cal-day-cell.is-today {
+  background: rgba(123, 111, 98, 0.05);
+}
+
+.cal-day-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cal-day-number {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4A4238;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+.today-pill {
+  background: #7B6F62;
+  color: #FFFFFF;
+  font-weight: 700;
+}
+
+.cal-day-task-count {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #A39889;
+}
+
+/* Task Chips inside Day Cell */
+.cal-day-tasks-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  overflow: hidden;
+}
+
+.cal-task-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #FAF8F5;
+  border: 1px solid #E8E2D9;
+  font-size: 0.72rem;
+  color: #2E2925;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-task-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.cal-task-item.is-done {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+/* Priority Accent Colors */
+.cal-task-item.prio-urgent {
+  background: #FEF2F2;
+  border-color: #FECACA;
+  color: #991B1B;
+}
+
+.cal-task-item.prio-high {
+  background: #FFFBEB;
+  border-color: #FDE68A;
+  color: #92400E;
+}
+
+.cal-task-item.prio-medium {
+  background: #F0FDF4;
+  border-color: #BBF7D0;
+  color: #166534;
+}
+
+.cal-task-item.prio-low {
+  background: #F8FAFC;
+  border-color: #E2E8F0;
+  color: #475569;
+}
+
+.cal-prio-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot-urgent { background: #DC2626; }
+.dot-high { background: #D97706; }
+.dot-medium { background: #16A34A; }
+.dot-low { background: #94A3B8; }
+
+.cal-task-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.cal-more-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #7B6F62;
+  padding: 1px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: center;
+  background: rgba(123, 111, 98, 0.08);
+}
+
+.cal-more-badge:hover {
+  background: rgba(123, 111, 98, 0.15);
+}
+
+@media (max-width: 768px) {
+  .cal-day-cell {
+    min-height: 70px;
+    padding: 4px;
+  }
+  .cal-task-text {
+    display: none;
+  }
+  .cal-prio-dot {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* Task Detail Drawer Styles */
+.task-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.drawer-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.task-status-btn-group {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin-top: 0.35rem;
+}
+
+.status-btn {
+  padding: 0.3rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.status-btn.is-active {
+  background: var(--primary);
+  color: #FFFFFF;
+  border-color: var(--primary);
+}
+
+/* Time Widget */
+.task-time-widget {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.time-widget-left {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.time-icon {
+  color: var(--accent);
+}
+
+.time-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.time-sub {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.timer-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-xs);
+  font-size: 0.74rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.timer-btn.start {
+  background: var(--primary);
+  color: #FFFFFF;
+}
+
+.timer-btn.stop {
+  background: var(--danger);
+  color: #FFFFFF;
+}
+
+/* Checklist Section */
+.task-checklist-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.checklist-heading {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.checklist-stat {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.checklist-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.checklist-item-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--surface-alt);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.checklist-item-row:hover {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.checklist-item-row.is-done .checklist-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.check-box-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.checklist-text {
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.add-checklist-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.add-subtask-input {
+  flex: 1;
+  height: 34px !important;
+  font-size: 0.76rem !important;
+}
+
+/* Comments Section */
+.task-comments-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.comments-heading {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.comment-card {
+  background: var(--surface-alt);
+  border-radius: var(--radius-xs);
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.comment-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.comment-author {
+  font-size: 0.74rem;
+  color: var(--primary);
+}
+
+.comment-time {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.comment-text {
+  font-size: 0.76rem;
+  color: var(--text);
+  margin: 0;
+}
+
+.add-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.comment-textarea {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-family-base);
+  font-size: 0.78rem;
+  color: var(--text);
+  resize: vertical;
+  outline: none;
+}
+
+/* Checklist Item Actions & Delete */
+.checklist-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface-alt);
+  border: 1px solid rgba(232, 224, 213, 0.6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.checklist-item-row:hover {
+  background: #FFFFFF;
+}
+
+.checklist-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.checklist-delete-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.checklist-delete-btn:hover {
+  opacity: 1;
+  color: var(--danger);
+}
+
+/* Bulk Actions Floating Bar */
+.tasks-bulk-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2A241D;
+  color: #FFFFFF;
+  padding: 10px 20px;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 24px rgba(42, 36, 29, 0.25);
+  z-index: 100;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 15px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.bulk-count-label {
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.bulk-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bulk-action-btn {
+  background: rgba(255, 255, 255, 0.15);
+  border: none;
+  color: #FFFFFF;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.15s;
+}
+
+.bulk-action-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.bulk-action-btn.danger:hover {
+  background: #B5483A;
+}
+
+/* Quick Summary Facet Bar */
+.tasks-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: -4px;
+}
+
+.summary-facet-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.summary-facet-chip strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.summary-facet-chip.alert-chip {
+  border-color: rgba(181, 72, 58, 0.4);
+  background: rgba(181, 72, 58, 0.06);
+  color: #B5483A;
+}
+
+.summary-facet-chip.alert-chip strong {
+  color: #B5483A;
+}
+

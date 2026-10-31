@@ -655,31 +655,53 @@
    ========================================================================= */
 
 .billing-toast-alert {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 999999;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 18px;
-  border-radius: var(--radius-md);
+  gap: 12px;
+  min-width: 320px;
+  max-width: min(460px, 92vw);
+  padding: 14px 20px;
+  border-radius: 14px;
+  background-color: #FFFFFF;
+  color: #2E2925;
+  border: 1px solid rgba(183, 175, 166, 0.35);
+  box-shadow: 0 12px 32px -4px rgba(46, 46, 46, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.06);
   font-size: 13.5px;
   font-weight: 500;
-  animation: slideDown 0.25s ease-out;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: slideInToastRight 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-@keyframes slideDown {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
+@keyframes slideInToastRight {
+  from { opacity: 0; transform: translateX(36px) scale(0.96); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
 }
 
 .toast-success {
-  background-color: #EAF7EE;
-  border: 1px solid #C1E8CE;
-  color: #1E6B37;
+  background-color: #FFFFFF;
+  border: 1px solid #CBE8D5;
+  color: #2E2925;
+  box-shadow: 0 12px 32px -4px rgba(5, 150, 105, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.toast-success svg {
+  color: #059669;
 }
 
 .toast-error {
-  background-color: #FFF5F5;
-  border: 1px solid #FED7D7;
-  color: #9B2C2C;
+  background-color: #FFFFFF;
+  border: 1px solid #FECACA;
+  color: #2E2925;
+  box-shadow: 0 12px 32px -4px rgba(220, 38, 38, 0.12), 0 4px 10px -2px rgba(46, 46, 46, 0.05);
+}
+
+.toast-error svg {
+  color: #DC2626;
 }
 
 .billing-restricted-banner {

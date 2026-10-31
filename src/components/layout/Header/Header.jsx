@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Mail, MessageSquare, Bell, Menu, LogOut, Settings, CreditCard, Shield, Building2, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, User } from 'lucide-react';
+import { Plus, Mail, MessageSquare, Bell, Menu, LogOut, Settings, CreditCard, Shield, Building2, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, User, Search } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { IconButton } from '../../common/IconButton/IconButton';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { Dropdown } from '../../common/Dropdown/Dropdown';
 import { MayurMehtaLogo } from '../../common/MayurMehtaLogo/MayurMehtaLogo';
 import { QuickAddDrawer } from '../../common/QuickAddDrawer/QuickAddDrawer';
+import { UniversalSearchBar } from './UniversalSearchBar';
 import { Modal } from '../../common/Modal/Modal';
 import { Input } from '../../common/Input/Input';
 import { Button } from '../../common/Button/Button';
@@ -162,6 +163,9 @@ export function Header({ onOpenMobileMenu }) {
             )}
           </div>
         </div>
+
+        {/* Center: Universal Studio Search Bar with Direct Typing & Live Dropdown */}
+        <UniversalSearchBar />
 
         {/* Right: Quick-add, Mail, Chat, Bell, Avatar */}
         <div className="header-right">
@@ -349,7 +353,7 @@ export function Header({ onOpenMobileMenu }) {
           )}
 
           <Input
-            label="Current Password"
+            label="Current Password *"
             type="password"
             id="current-password"
             placeholder="Enter your current password"
@@ -360,7 +364,7 @@ export function Header({ onOpenMobileMenu }) {
 
           <div style={{ position: 'relative' }}>
             <Input
-              label="New Password"
+              label="New Password *"
               type={showPassword ? 'text' : 'password'}
               id="new-password"
               placeholder="Minimum 8 characters (letters & numbers)"
@@ -378,7 +382,7 @@ export function Header({ onOpenMobileMenu }) {
           </div>
 
           <Input
-            label="Confirm New Password"
+            label="Confirm New Password *"
             type="password"
             id="confirm-password"
             placeholder="Re-enter your new password"
@@ -387,12 +391,11 @@ export function Header({ onOpenMobileMenu }) {
             required
           />
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+          <div className="form-actions-row">
             <Button
               type="button"
               variant="secondary"
               onClick={() => setChangePasswordOpen(false)}
-              style={{ flex: 1 }}
               disabled={changeLoading}
             >
               Cancel
@@ -400,7 +403,6 @@ export function Header({ onOpenMobileMenu }) {
             <Button
               type="submit"
               variant="primary"
-              style={{ flex: 1 }}
               disabled={changeLoading}
             >
               {changeLoading ? 'Updating...' : 'Update Password'}
@@ -415,7 +417,7 @@ export function Header({ onOpenMobileMenu }) {
         onClose={() => setProfileModalOpen(false)}
         title="My Profile & Identity"
       >
-        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-4)' }}>
+        <form onSubmit={handleSaveProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {profileError && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#b91c1c', fontSize: '13px' }}>
               <AlertCircle size={16} />
@@ -443,7 +445,7 @@ export function Header({ onOpenMobileMenu }) {
           </div>
 
           <Input
-            label="Full Name"
+            label="Full Name *"
             id="profile-name"
             value={profileForm.name}
             onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
@@ -467,12 +469,11 @@ export function Header({ onOpenMobileMenu }) {
             placeholder="Enter phone number"
           />
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+          <div className="form-actions-row">
             <Button
               type="button"
               variant="secondary"
               onClick={() => setProfileModalOpen(false)}
-              style={{ flex: 1 }}
               disabled={profileLoading}
             >
               Cancel
@@ -480,7 +481,6 @@ export function Header({ onOpenMobileMenu }) {
             <Button
               type="submit"
               variant="primary"
-              style={{ flex: 1 }}
               disabled={profileLoading}
             >
               {profileLoading ? 'Saving...' : 'Save Profile'}
