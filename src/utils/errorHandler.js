@@ -161,7 +161,18 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       TASK_REASON_REQUIRED: 'A cancellation reason is required when cancelling a task.',
       BULK_ACTION_LIMIT_EXCEEDED: 'Bulk action limit exceeded: Maximum 100 tasks can be processed at once.',
       TASK_DELETED: 'This task has been moved to Trash.',
-      TASK_VERSION_CONFLICT: 'This task was modified by another team member. Please refresh the board to see the latest updates.'
+      TASK_VERSION_CONFLICT: 'This task was modified by another team member. Please refresh the board to see the latest updates.',
+
+      // M1.9 Storage Drive (Basic) - Folders, Files, Quota, Trash
+      FILE_CONTENT_MISMATCH: 'File format mismatch: The content of the file does not match its extension. Please upload an authentic, uncorrupted file (e.g. real JPEG/PNG/PDF/ZIP, not a renamed text file).',
+      STORAGE_QUOTA_EXCEEDED: 'Storage quota limit reached (5 GB free tier). Please delete unnecessary files or empty trash to reclaim space.',
+      QUOTA_EXCEEDED: 'Storage quota limit reached (5 GB free tier). Please delete unnecessary files or empty trash to reclaim space.',
+      RESTORE_VIA_FOLDER: 'Cannot restore this file directly because its parent folder is in the Trash. Please restore the parent folder instead.',
+      PROJECT_ARCHIVED: 'Cannot upload or modify files: This project is archived (read-only).',
+      IMPERSONATION_DOWNLOAD_BLOCKED: 'File downloads and previews are strictly blocked during support impersonation mode for studio security.',
+      INVALID_FILE_TYPE: 'Unsupported file extension. Allowed formats: PNG, JPG, JPEG, GIF, WebP, PDF, ZIP.',
+      FOLDER_DEPTH_EXCEEDED: 'Folder nesting limit reached: Maximum folder depth is 8 levels.',
+      FOLDER_NOT_FOUND: 'The specified folder was not found or has been moved to trash.'
     };
 
     if (code && SYSTEM_ERROR_MESSAGES[code]) {
