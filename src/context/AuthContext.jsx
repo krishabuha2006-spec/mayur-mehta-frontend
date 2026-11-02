@@ -3,7 +3,7 @@ import { authService } from '../services/authService';
 import { companyService } from '../services/companyService';
 import { permissionService } from '../services/permissionService';
 import { billingService } from '../services/billingService';
-import { getAccessToken, clearAccessToken } from '../services/apiClient';
+import { getAccessToken, clearAccessToken, isTokenExpired } from '../services/apiClient';
 
 export const AuthContext = createContext(null);
 
@@ -19,8 +19,10 @@ const getStoredTenantSession = () => {
 
 export function AuthProvider({ children }) {
   const initialSession = getStoredTenantSession();
-  const [user, setUser] = useState(initialSession?.user || null);
-  const [company, setCompany] = useState(initialSession?.company || null);
+  const initialToken = getAccessToken();
+  const hasValidInitialToken = initialToken && !isTokenExpired(initialToken);
+  const [user, setUser] = useState(hasValidInitialToken ? (initialSession?.user || null) : null);
+  const [company, setCompany] = useState(hasValidInitialToken ? (initialSession?.company || null) : null);
   const [subscription, setSubscription] = useState(null);
   const [bootstrapData, setBootstrapData] = useState(null);
   const [navigation, setNavigation] = useState([]);
@@ -61,8 +63,8 @@ export function AuthProvider({ children }) {
       let data = null;
       const existingToken = getAccessToken();
 
-      // 1. If token is present in memory/sessionStorage, verify directly with /auth/me
-      if (existingToken) {
+      // 1. If valid unexpired token is present in memory/sessionStorage, verify directly with /auth/me
+      if (existingToken && !isTokenExpired(existingToken)) {
         try {
           data = await authService.getCurrentUser();
         } catch {
@@ -70,7 +72,7 @@ export function AuthProvider({ children }) {
         }
       }
 
-      // 2. If no valid user from existing token (e.g. token expired), silently refresh via httpOnly 'rt' cookie
+      // 2. If token is missing or expired, silently refresh via httpOnly 'rt' cookie FIRST
       if (!data?.user) {
         try {
           await authService.refreshToken();

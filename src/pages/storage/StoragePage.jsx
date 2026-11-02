@@ -23,6 +23,7 @@ import { billingService } from '../../services/billingService';
 import { storageService } from '../../services/storageService';
 import { projectService } from '../../services/projectService';
 import { Button } from '../../components/common/Button/Button';
+import { useAuth } from '../../hooks/useAuth';
 import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
@@ -36,6 +37,7 @@ export function StoragePage() {
   const confirm = useConfirm();
   const [activeTier, setActiveTier] = useState('project'); // 'studio' | 'project' | 'personal'
   const [projectFolder, setProjectFolder] = useState('all');
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState([]);
   const [projectsList, setProjectsList] = useState([]);
@@ -57,6 +59,8 @@ export function StoragePage() {
 
   // Fetch live storage subscription from Backend (GET /billing), projects, and persistent files
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
     const fetchStorage = async () => {
       setLoading(true);
       try {
@@ -103,7 +107,7 @@ export function StoragePage() {
       }
     };
     fetchStorage();
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   const calculatedBytes = files.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
   const totalBytesUsed = (storageData?.usedBytes && storageData.usedBytes > 0) ? storageData.usedBytes : calculatedBytes;

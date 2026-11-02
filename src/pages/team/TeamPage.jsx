@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserPlus, Sparkles, Shield, Trash2, Mail, Info, CheckCircle2, RotateCw, Unlock, Edit2, Search, Filter, History, UserCheck, X, ShieldCheck } from 'lucide-react';
+import { UserPlus, Sparkles, Shield, Trash2, Mail, Info, CheckCircle2, RotateCw, Unlock, Edit2, Search, Filter, History, UserCheck, X, ShieldCheck, Users } from 'lucide-react';
 import { teamService } from '../../services/teamService';
 import { Button } from '../../components/common/Button/Button';
 import { Modal } from '../../components/common/Modal/Modal';
@@ -549,53 +549,30 @@ export function TeamPage() {
         </div>
       </div>
 
-      {/* Rule Callout */}
-      <div className="team-rule-banner">
-        <div className="rule-icon-wrap">
-          <Info size={16} />
-        </div>
-        <div className="rule-text">
-          <span className="rule-title">10 Users Free Forever:</span> Your studio has {seatLimit} free permanent seats ({seatsUsed} in use, {seats.available} available). Removing a member frees up their seat immediately, allowing you to invite another team member at zero cost.
-        </div>
-      </div>
-
-      {/* Seat Meter Capacity Card */}
-      <div className="seat-meter-card">
-        <div className="seat-meter-header">
-          <div className="seat-meter-header-left">
-            <span className="seat-meter-kicker">STUDIO SEAT CAPACITY</span>
-            <div className="seat-stat-row">
-              <span className="seat-stat-main">{seatsUsed}</span>
-              <span className="seat-stat-total">/ {seatLimit}</span>
-              <span className="seat-stat-sub">seats active</span>
-            </div>
+      {/* One-Line Seat Availability Strip */}
+      <div className="team-seats-oneline-bar">
+        <div className="seats-oneline-left">
+          <div className="seats-oneline-icon-wrap">
+            <Users size={15} />
           </div>
-
-          <div className="seat-meter-header-right">
-            {isAtLimit ? (
-              <Badge variant="warning">Seat Limit Reached (Upgrade Required for 11th User)</Badge>
-            ) : (
-              <span className="seats-available-badge">
-                <CheckCircle2 size={13} />
-                {seats.available} Seats Available
-              </span>
-            )}
+          <div className="seats-oneline-info">
+            <strong className="seats-oneline-title">10 Seats Available</strong>
+            <span className="seats-oneline-sep">•</span>
+            <span className="seats-oneline-desc">
+              {seats.available} seats available ({seatsUsed} of {seatLimit} currently in use)
+            </span>
           </div>
         </div>
 
-        <div className="seat-progress-bar-bg">
-          <div
-            className={`seat-progress-bar-fill ${isAtLimit ? 'fill-warning' : ''}`}
-            style={{ width: `${Math.max(usagePercentage, 2)}%` }}
-          />
-        </div>
-
-        <div className="seat-meter-footer">
-          <span>Active Members: <strong>{seatsUsed}</strong></span>
-          <span className="seat-meter-dot">•</span>
-          <span>Available Quota: <strong>{seats.available}</strong></span>
-          <span className="seat-meter-dot">•</span>
-          <span>Tier: <strong>{seats.plan === 'PAID' ? 'Studio Pro' : 'Free Permanent (10 Seats)'}</strong></span>
+        <div className="seats-oneline-right">
+          {isAtLimit ? (
+            <Badge variant="warning">Seat Limit Reached</Badge>
+          ) : (
+            <span className="seats-oneline-pill">
+              <CheckCircle2 size={13} />
+              {seats.available} Seats Available
+            </span>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { apiClient, setAccessToken, clearAccessToken, getAccessToken } from './apiClient';
+import { apiClient, setAccessToken, clearAccessToken, getAccessToken, refreshTenantToken } from './apiClient';
 import { APP_NAVIGATION } from '../constants/navigation';
 import { ROLES } from '../constants/enums';
 
@@ -78,13 +78,8 @@ export const authService = {
    */
   refreshToken: async () => {
     try {
-      const res = await apiClient.post('/auth/refresh');
-      const payload = res?.data || res;
-      const newToken = payload?.accessToken;
-      if (newToken) {
-        setAccessToken(newToken); // In-Memory
-      }
-      return payload || res;
+      const newToken = await refreshTenantToken();
+      return { accessToken: newToken };
     } catch (err) {
       clearAccessToken();
       throw err;

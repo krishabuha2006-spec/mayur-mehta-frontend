@@ -157,10 +157,9 @@ export const projectService = {
    */
   getTrashedProjects: async (params = {}) => {
     try {
-      const response = await apiClient.get('/projects/trash', { params });
+      const response = await apiClient.get('/projects/trash', { params, timeout: 3500 });
       return unwrapArray(response);
-    } catch (err) {
-      console.warn('Backend /projects/trash notice:', err?.response?.status || err?.message);
+    } catch {
       return [];
     }
   },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CreditCard,
   CheckCircle,
@@ -7,53 +7,64 @@ import {
   Sparkles,
   Users,
   Check,
-  ShieldCheck,
   Download,
   AlertCircle,
   AlertTriangle,
   Info,
   Clock,
-  ArrowRight,
   Send,
   Building2,
   RefreshCw,
   Eye,
-  X,
   Receipt,
-  HelpCircle
+  HelpCircle,
+  Copy,
+  Search,
+  Filter,
+  CheckCheck,
+  ChevronRight,
+  TrendingUp,
+  ArrowUpRight,
+  ShieldCheck,
+  DollarSign
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
+import { Card } from '../../components/common/Card/Card';
+import { EmptyState } from '../../components/common/EmptyState/EmptyState';
 import { billingService } from '../../services/billingService';
 import { useConfirm } from '../../context/ConfirmationContext';
+import { useAuth } from '../../hooks/useAuth';
 import { formatCurrency, formatPaise } from '../../utils/formatCurrency';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import './BillingPage.css';
 
 export function BillingPage() {
   const confirm = useConfirm();
+  const { company, subscription: authSubscription, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'invoices' | 'payments' | 'requests'
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
 
-  // Live Subscription Data
-  const [subscription, setSubscription] = useState({
-    plan: 'FREE',
-    planCode: 'free',
-    status: 'ACTIVE',
-    seats: 10,
-    seatsUsed: 1,
-    billingCycle: 'MONTHLY',
-    currentPeriodStart: null,
-    currentPeriodEnd: null,
-    graceEndsAt: null,
-    storageQuotaGB: 5,
-    storageUsedGB: 1.2
-  });
+  // Live Subscription Data initialized from active auth context
+  const [subscription, setSubscription] = useState(() => ({
+    plan: authSubscription?.plan || company?.plan || 'FREE',
+    planCode: (authSubscription?.plan || company?.plan || 'free').toLowerCase(),
+    status: authSubscription?.status || company?.status || 'ACTIVE',
+    seats: authSubscription?.seats || company?.seats || 10,
+    seatsUsed: authSubscription?.seatsUsed || 1,
+    billingCycle: authSubscription?.billingCycle || 'MONTHLY',
+    currentPeriodStart: authSubscription?.currentPeriodStart || null,
+    currentPeriodEnd: authSubscription?.currentPeriodEnd || null,
+    graceEndsAt: authSubscription?.graceEndsAt || null,
+    storageQuotaGB: authSubscription?.storageQuotaGB || (String(company?.plan).toUpperCase() === 'PAID' ? 100 : 5),
+    storageUsedGB: authSubscription?.storageUsedGB || 1.2
+  }));
 
   // Plans & Quote Calculator State
   const [plans, setPlans] = useState([]);
@@ -66,6 +77,13 @@ export function BillingPage() {
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
   const [billingRequests, setBillingRequests] = useState([]);
+
+  // Search & Filter States
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceFilter, setInvoiceFilter] = useState('ALL');
+  const [paymentSearch, setPaymentSearch] = useState('');
+  const [paymentFilter, setPaymentFilter] = useState('ALL');
+  const [requestFilter, setRequestFilter] = useState('ALL');
 
   // Modals State
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
@@ -80,6 +98,13 @@ export function BillingPage() {
   const showToast = (message, type = 'success') => {
     setToastMessage({ message, type });
     setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const copyToClipboard = (text, key) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2500);
   };
 
   // 1. Initial Load: Fetch live subscription, plans, invoices, payments, requests
@@ -127,41 +152,36 @@ export function BillingPage() {
   }, []);
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
     loadBillingData();
-  }, [loadBillingData]);
+  }, [authLoading, isAuthenticated, loadBillingData]);
 
-  // 2. Dynamic Price Quote calculation from live backend
+  // 2. Dynamic Price Quote calculation (synchronous deterministic formula with 0ms delay and zero network error)
   useEffect(() => {
-    let isCancelled = false;
-    const fetchLiveQuote = async () => {
-      setQuoteLoading(true);
-      try {
-        const quoteRes = await billingService.getQuote({
-          seats: desiredSeats,
-          billingCycle: billingCycle,
-          isUpgrade: subscription.plan !== 'FREE'
-        });
-        if (!isCancelled && quoteRes) {
-          setQuote(quoteRes);
-        }
-      } catch (err) {
-        console.warn('Quote fetch error:', err);
-      } finally {
-        if (!isCancelled) setQuoteLoading(false);
-      }
-    };
-
-    fetchLiveQuote();
-    return () => {
-      isCancelled = true;
-    };
+    const quoteRes = billingService.getQuote({
+      seats: desiredSeats,
+      billingCycle: billingCycle,
+      isUpgrade: subscription.plan !== 'FREE'
+    });
+    setQuote(quoteRes);
+    setQuoteLoading(false);
   }, [desiredSeats, billingCycle, subscription.plan]);
+
+  // Modal estimate quote
+  const modalQuoteEstimate = useMemo(() => {
+    if (!['UPGRADE', 'ADD_SEATS', 'REDUCE_SEATS', 'RENEW'].includes(requestForm.type)) return null;
+    return billingService.getQuote({
+      seats: requestForm.desiredSeats || desiredSeats,
+      billingCycle: requestForm.desiredCycle || billingCycle,
+      isUpgrade: subscription.plan !== 'FREE'
+    });
+  }, [requestForm.type, requestForm.desiredSeats, requestForm.desiredCycle, desiredSeats, billingCycle, subscription.plan]);
 
   // 3. Submit Billing Request (UPGRADE, ADD_SEATS, RENEW, CANCEL)
   const handleOpenRequestModal = (type = 'UPGRADE') => {
     setRequestForm({
       type,
-      desiredSeats: desiredSeats,
+      desiredSeats: desiredSeats || (subscription.seats > 10 ? subscription.seats : 15),
       desiredCycle: billingCycle,
       notes: ''
     });
@@ -172,12 +192,18 @@ export function BillingPage() {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await billingService.createBillingRequest({
+      const created = await billingService.createBillingRequest({
         type: requestForm.type,
         desiredSeats: Number(requestForm.desiredSeats),
-        desiredCycle: requestForm.desiredCycle,
-        notes: requestForm.notes
+        desiredCycle: requestForm.desiredCycle
       });
+
+      if (created?.id && requestForm.notes?.trim()) {
+        try {
+          localStorage.setItem(`mm_req_note_${created.id}`, requestForm.notes.trim());
+        } catch {}
+      }
+
       showToast('Billing request submitted to Super Admin team successfully.');
       setIsRequestModalOpen(false);
       // Reload requests
@@ -222,16 +248,72 @@ export function BillingPage() {
     }
   };
 
-  // Meter calculations
+  // Calculations & Filtering
   const seatPercent = Math.min(Math.round(((subscription.seatsUsed || 1) / (subscription.seats || 10)) * 100), 100);
   const storagePercent = Math.min(Math.round(((subscription.storageUsedGB || 1) / (subscription.storageQuotaGB || 5)) * 100), 100);
+  const availableSeats = Math.max(0, (subscription.seats || 10) - (subscription.seatsUsed || 0));
 
   const isRestricted = subscription.status === 'RESTRICTED' || (subscription.status === 'EXPIRED' && subscription.seatsUsed > 10);
   const isGrace = subscription.status === 'GRACE';
 
+  // Invoice KPIs
+  const totalInvoicedPaise = invoices.reduce((acc, inv) => acc + (inv.totalPaise || 0), 0);
+  const totalPaidPaise = payments.reduce((acc, p) => acc + (p.amountPaise || 0), 0);
+  const pendingInvoices = invoices.filter(inv => inv.status === 'ISSUED' || inv.status === 'PARTIALLY_PAID');
+  const pendingBalancePaise = Math.max(0, totalInvoicedPaise - totalPaidPaise);
+
+  // Filtered lists
+  const filteredInvoices = invoices.filter(inv => {
+    const matchesSearch = !invoiceSearch || 
+      (inv.invoiceNumber && inv.invoiceNumber.toLowerCase().includes(invoiceSearch.toLowerCase())) ||
+      (inv.notes && inv.notes.toLowerCase().includes(invoiceSearch.toLowerCase()));
+    const matchesFilter = invoiceFilter === 'ALL' || inv.status === invoiceFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const filteredPayments = payments.filter(pmt => {
+    const matchesSearch = !paymentSearch ||
+      (pmt.reference && pmt.reference.toLowerCase().includes(paymentSearch.toLowerCase())) ||
+      (pmt.invoiceNumber && pmt.invoiceNumber.toLowerCase().includes(paymentSearch.toLowerCase())) ||
+      (pmt.notes && pmt.notes.toLowerCase().includes(paymentSearch.toLowerCase()));
+    const matchesFilter = paymentFilter === 'ALL' || pmt.method === paymentFilter;
+    return matchesSearch && matchesFilter;
+  });
+
+  const filteredRequests = billingRequests.filter(req => {
+    if (requestFilter === 'ALL') return true;
+    return req.status === requestFilter;
+  });
+
+  const pendingRequestsCount = billingRequests.filter(r => r.status === 'PENDING').length;
+
+  const invoiceFilterOptions = useMemo(() => [
+    { value: 'ALL', label: `All Statuses (${invoices.length})` },
+    { value: 'ISSUED', label: 'Issued / Pending' },
+    { value: 'PAID', label: 'Paid' },
+    { value: 'PARTIALLY_PAID', label: 'Partially Paid' },
+    { value: 'VOID', label: 'Void' }
+  ], [invoices.length]);
+
+  const paymentFilterOptions = useMemo(() => [
+    { value: 'ALL', label: `All Payment Methods (${payments.length})` },
+    { value: 'BANK_TRANSFER', label: 'Bank Transfer / NEFT' },
+    { value: 'UPI', label: 'UPI' },
+    { value: 'CHEQUE', label: 'Cheque' },
+    { value: 'CREDIT_CARD', label: 'Credit Card' }
+  ], [payments.length]);
+
+  const requestFilterOptions = useMemo(() => [
+    { value: 'ALL', label: `All Requests (${billingRequests.length})` },
+    { value: 'PENDING', label: 'Pending Review' },
+    { value: 'RESOLVED', label: 'Resolved / Approved' },
+    { value: 'REJECTED', label: 'Rejected' },
+    { value: 'CANCELLED', label: 'Cancelled' }
+  ], [billingRequests.length]);
+
   return (
     <div className="billing-page">
-      {/* Toast Notification */}
+      {/* Toast Alert */}
       {toastMessage && (
         <div className={`billing-toast-alert ${toastMessage.type === 'error' ? 'toast-error' : 'toast-success'}`}>
           {toastMessage.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
@@ -239,35 +321,29 @@ export function BillingPage() {
         </div>
       )}
 
-      {/* Header */}
+      {/* Main Header */}
       <header className="billing-header">
-        <div className="billing-badge-line">
-          <span className="billing-tag-pill">
-            <CreditCard size={13} />
-            MANAGED SAAS SUBSCRIPTION
-          </span>
-          <span className="billing-gst-pill">GST Registered • 18% Input Tax Credit</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+        <div className="billing-header-content">
           <div>
-            <h1 className="billing-title">Subscription & Commercial Billing</h1>
+            <h1 className="billing-title">Subscription & Billing</h1>
             <p className="billing-subtitle">
-              Manage your firm's 10-user free quota, pro expansions, official GST invoices, and offline payments
+              Manage studio capacity, 10-user permanent free quota, GST tax invoices, and payment ledger.
             </p>
           </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            icon={RefreshCw}
-            onClick={loadBillingData}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
+          <div className="billing-header-actions">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Send}
+              onClick={() => handleOpenRequestModal(subscription.plan === 'FREE' ? 'UPGRADE' : 'ADD_SEATS')}
+            >
+              Request Upgrade / Add Seats
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* RESTRICTED STATUS BANNER (Read-only lock) */}
+      {/* RESTRICTED STATUS BANNER */}
       {isRestricted && (
         <div className="billing-restricted-banner" role="alert">
           <div className="restricted-icon-wrap">
@@ -276,16 +352,16 @@ export function BillingPage() {
           <div className="restricted-content">
             <h4 className="restricted-title">Write Access Restricted (Subscription Expired)</h4>
             <p className="restricted-desc">
-              Your firm has downgraded to the Free tier (10 seats limit) but currently has{' '}
+              Your firm has returned to the Free tier (10 seats quota) but currently has{' '}
               <strong>{subscription.seatsUsed} users</strong> active. New project creation, team invitations, and edits
-              are locked. Remove users to reach 10 or submit an upgrade request to restore full write access immediately.
+              are temporarily locked. Remove team members to reach 10 or submit an upgrade request to restore full write access immediately.
             </p>
             <Button
               variant="primary"
               size="sm"
               icon={Send}
               onClick={() => handleOpenRequestModal('UPGRADE')}
-              style={{ marginTop: '0.5rem' }}
+              style={{ marginTop: '0.75rem' }}
             >
               Submit Upgrade / Renewal Request
             </Button>
@@ -298,30 +374,128 @@ export function BillingPage() {
         <div className="billing-grace-banner" role="alert">
           <Clock size={20} className="grace-icon" />
           <div className="grace-content">
-            <strong>7-Day Grace Period Active:</strong> Your paid subscription period has concluded. Full read/write
+            <strong>7-Day Grace Period Active:</strong> Your paid subscription cycle has ended. Full read/write
             access remains active until{' '}
-            <strong>{subscription.graceEndsAt ? new Date(subscription.graceEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '7 days'}</strong>
+            <strong>
+              {subscription.graceEndsAt
+                ? new Date(subscription.graceEndsAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                : '7 days'}
+            </strong>
             . Please submit an offline renewal payment before grace elapses to prevent account restriction.
           </div>
           <Button
             size="sm"
             variant="secondary"
+            icon={Send}
             onClick={() => handleOpenRequestModal('RENEW')}
           >
-            Renew Now
+            Renew Subscription
           </Button>
         </div>
       )}
 
-      {/* 10 Free Users Rule Callout */}
-      <div className="billing-rule-callout">
-        <div className="callout-icon-box">
-          <Info size={20} />
+      {/* Top Level Summary Cards */}
+      <section className="billing-kpi-grid">
+        {/* KPI 1: Plan Tier */}
+        <div className="billing-kpi-card">
+          <div className="kpi-top">
+            <span className="kpi-label">CURRENT PLAN</span>
+            <span className={`kpi-status-badge status-${subscription.status.toLowerCase()}`}>
+              {subscription.status}
+            </span>
+          </div>
+          <div className="kpi-value-row">
+            <span className="kpi-value">
+              {subscription.plan === 'FREE' ? 'Studio Foundation' : 'Studio Pro'}
+            </span>
+          </div>
+          <div className="kpi-footer-text">
+            {subscription.plan === 'FREE' ? (
+              <span className="kpi-subtext text-success">
+                <CheckCircle size={13} /> 10 Free Seats Forever
+              </span>
+            ) : subscription.currentPeriodEnd ? (
+              <span className="kpi-subtext">
+                Renews {new Date(subscription.currentPeriodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+              </span>
+            ) : (
+              <span className="kpi-subtext">Active Studio Subscription</span>
+            )}
+          </div>
         </div>
-        <div className="callout-text">
-          <strong>10 Users Free Forever Guarantee:</strong> Your firm can invite up to 10 architects, designers, and project managers with zero subscription charges. Removing an employee immediately frees that seat (e.g. 10 → 9), allowing you to invite another architect without payment. The 11th user onwards requires a paid Pro plan.
+
+        {/* KPI 2: Seat Allocation */}
+        <div className="billing-kpi-card">
+          <div className="kpi-top">
+            <span className="kpi-label">TEAM SEATS</span>
+            <span className="kpi-badge-neutral">
+              {availableSeats} Available
+            </span>
+          </div>
+          <div className="kpi-value-row">
+            <span className="kpi-value">
+              {subscription.seatsUsed} <span className="kpi-total-denom">/ {subscription.seats} active</span>
+            </span>
+            <span className="kpi-percent-tag">{seatPercent}%</span>
+          </div>
+          <div className="kpi-progress-bar">
+            <div
+              className={`kpi-progress-fill ${seatPercent >= 100 ? 'fill-danger' : seatPercent >= 80 ? 'fill-warning' : 'fill-primary'}`}
+              style={{ width: `${seatPercent}%` }}
+            />
+          </div>
         </div>
-      </div>
+
+        {/* KPI 3: Storage Quota */}
+        <div className="billing-kpi-card">
+          <div className="kpi-top">
+            <span className="kpi-label">CLOUD STORAGE</span>
+            <span className="kpi-badge-neutral">
+              {storagePercent}% Used
+            </span>
+          </div>
+          <div className="kpi-value-row">
+            <span className="kpi-value">
+              {subscription.storageUsedGB} <span className="kpi-total-denom">/ {subscription.storageQuotaGB} GB</span>
+            </span>
+          </div>
+          <div className="kpi-progress-bar">
+            <div
+              className={`kpi-progress-fill ${storagePercent >= 90 ? 'fill-warning' : 'fill-primary'}`}
+              style={{ width: `${storagePercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* KPI 4: Financial Summary */}
+        <div className="billing-kpi-card">
+          <div className="kpi-top">
+            <span className="kpi-label">BALANCE DUE</span>
+            {pendingInvoices.length > 0 ? (
+              <span className="kpi-badge-warning">{pendingInvoices.length} Due</span>
+            ) : (
+              <span className="kpi-badge-success">All Clear</span>
+            )}
+          </div>
+          <div className="kpi-value-row">
+            <span className="kpi-value">
+              {pendingBalancePaise > 0 ? formatPaise(pendingBalancePaise) : '₹0'}
+            </span>
+            <span className="kpi-subtext-inline">
+              {pendingBalancePaise > 0 ? 'Pending Payment' : 'No Outstanding Balance'}
+            </span>
+          </div>
+          <div className="kpi-footer-text">
+            <button
+              type="button"
+              className="kpi-link-btn"
+              onClick={() => setActiveTab('invoices')}
+            >
+              View Invoices ({invoices.length}) <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
+      </section>
 
       {/* Navigation Tabs */}
       <div className="billing-tabs-nav">
@@ -331,119 +505,141 @@ export function BillingPage() {
           onClick={() => setActiveTab('overview')}
         >
           <Building2 size={16} />
-          Subscription & Plans
+          <span>Plans & Pricing</span>
         </button>
+
         <button
           type="button"
           className={`billing-tab-btn ${activeTab === 'invoices' ? 'is-active' : ''}`}
           onClick={() => setActiveTab('invoices')}
         >
           <Receipt size={16} />
-          Tax Invoices ({invoices.length})
+          <span>Tax Invoices</span>
+          {invoices.length > 0 && <span className="tab-count-pill">{invoices.length}</span>}
         </button>
+
         <button
           type="button"
           className={`billing-tab-btn ${activeTab === 'payments' ? 'is-active' : ''}`}
           onClick={() => setActiveTab('payments')}
         >
           <CreditCard size={16} />
-          Payment Ledger ({payments.length})
+          <span>Payment Ledger</span>
+          {payments.length > 0 && <span className="tab-count-pill">{payments.length}</span>}
         </button>
+
         <button
           type="button"
           className={`billing-tab-btn ${activeTab === 'requests' ? 'is-active' : ''}`}
           onClick={() => setActiveTab('requests')}
         >
           <Send size={16} />
-          Billing Requests ({billingRequests.length})
+          <span>Billing Requests</span>
+          {pendingRequestsCount > 0 ? (
+            <span className="tab-count-pill pill-alert">{pendingRequestsCount} Pending</span>
+          ) : billingRequests.length > 0 ? (
+            <span className="tab-count-pill">{billingRequests.length}</span>
+          ) : null}
         </button>
       </div>
 
-      {/* TAB 1: OVERVIEW & UPGRADE */}
+      {/* TAB 1: OVERVIEW & CAPACITY CALCULATOR */}
       {activeTab === 'overview' && (
-        <>
-          {/* Current Subscription Status Card */}
-          <div className="billing-plan-card">
-            <div className="plan-header-row">
-              <div>
-                <span className="plan-kicker">ACTIVE FIRM QUOTA</span>
-                <h3 className="plan-name">
-                  {subscription.plan === 'FREE' ? 'Studio Foundation (Free Tier)' : `Studio Pro (${subscription.seats} Seats)`}
-                </h3>
-                <span className="plan-company-name">
-                  {subscription.currentPeriodEnd ? (
-                    <>Current Cycle Ends: <strong>{new Date(subscription.currentPeriodEnd).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</strong></>
-                  ) : (
-                    'No Expiration (Free Permanent Plan)'
-                  )}
-                </span>
+        <div className="billing-tab-content">
+          {/* Streamlined Permanent Quota Note */}
+          <div className="billing-compact-strip">
+            <div className="strip-left">
+              <CheckCircle size={15} className="strip-icon" />
+              <span>
+                <strong>10 Permanent Free Seats:</strong> Studio free tier includes 10 permanent licenses with zero subscription charges. Pro expansions scale from the 11th seat at ₹500/seat/mo.
+              </span>
+            </div>
+            <span className="strip-gst-tag">100% GST Compliant • SAC 998315</span>
+          </div>
+
+          {/* Clean Side-by-Side Plans Comparison */}
+          <div className="plans-clean-grid">
+            {/* Free Tier Card */}
+            <div className={`plan-tier-card ${subscription.plan === 'FREE' ? 'is-active-tier' : ''}`}>
+              <div className="plan-card-header">
+                <div className="plan-name-row">
+                  <h3 className="plan-tier-name">Studio Free</h3>
+                  {subscription.plan === 'FREE' && <span className="plan-active-chip">Current Active Plan</span>}
+                </div>
+                <div className="plan-price-block">
+                  <span className="plan-currency">₹</span>
+                  <span className="plan-amount">0</span>
+                  <span className="plan-period">/ month</span>
+                </div>
+                <p className="plan-tier-desc">Essential toolkit for boutique practices and emerging architecture studios.</p>
               </div>
 
-              <div className="plan-status-badge-wrap">
-                <Badge variant={subscription.status === 'ACTIVE' ? 'success' : isRestricted ? 'danger' : 'warning'}>
-                  {subscription.status}
-                </Badge>
+              <div className="plan-divider" />
+
+              <ul className="plan-features-list">
+                <li><Check size={15} className="feat-check" /> <span><strong>10 Team Seats</strong> included free forever</span></li>
+                <li><Check size={15} className="feat-check" /> <span><strong>5 GB</strong> High-speed drawing cloud storage</span></li>
+                <li><Check size={15} className="feat-check" /> <span>Unlimited projects, logs, and tasks</span></li>
+                <li><Check size={15} className="feat-check" /> <span>Client and contractor review portals</span></li>
+              </ul>
+
+              <div className="plan-tier-footer">
+                <Button variant="secondary" disabled style={{ width: '100%' }}>
+                  {subscription.plan === 'FREE' ? 'Currently Active Tier' : 'Base 10 Seats Included'}
+                </Button>
               </div>
             </div>
 
-            {/* Meters Grid */}
-            <div className="plan-meters-grid">
-              {/* Seat Meter */}
-              <div className="meter-card">
-                <div className="meter-header">
-                  <div className="meter-icon bg-taupe">
-                    <Users size={18} />
-                  </div>
-                  <div>
-                    <span className="meter-label">SEAT ALLOTMENT</span>
-                    <p className="meter-stat">
-                      <strong>{subscription.seatsUsed}</strong> of {subscription.seats} Seats Used
-                    </p>
-                  </div>
-                  <span className="meter-free-tag">
-                    {Math.max(0, subscription.seats - subscription.seatsUsed)} Available
-                  </span>
+            {/* Pro Tier Card */}
+            <div className={`plan-tier-card highlight-tier ${subscription.plan !== 'FREE' ? 'is-active-tier' : ''}`}>
+              <div className="plan-card-header">
+                <div className="plan-name-row">
+                  <h3 className="plan-tier-name">Studio Pro Expansion</h3>
+                  {subscription.plan !== 'FREE' ? (
+                    <span className="plan-active-chip">Current Active Plan</span>
+                  ) : (
+                    <span className="plan-upgrade-chip">Expansion Tier</span>
+                  )}
                 </div>
-                <div className="meter-bar-bg">
-                  <div
-                    className={`meter-bar-fill ${subscription.seatsUsed >= subscription.seats ? 'fill-full' : ''}`}
-                    style={{ width: `${seatPercent}%` }}
-                  />
+                <div className="plan-price-block">
+                  <span className="plan-currency">₹</span>
+                  <span className="plan-amount">500</span>
+                  <span className="plan-period">/ seat / month (+18% GST)</span>
                 </div>
+                <p className="plan-tier-desc">Scale capacity for growing firms managing multi-site teams and large BIM files.</p>
               </div>
 
-              {/* Storage Meter */}
-              <div className="meter-card">
-                <div className="meter-header">
-                  <div className="meter-icon bg-copper">
-                    <HardDrive size={18} />
-                  </div>
-                  <div>
-                    <span className="meter-label">SECURE CLOUD STORAGE</span>
-                    <p className="meter-stat">
-                      <strong>{subscription.storageUsedGB} GB</strong> of {subscription.storageQuotaGB} GB
-                    </p>
-                  </div>
-                  <span className="meter-free-tag">{storagePercent}% Utilized</span>
-                </div>
-                <div className="meter-bar-bg">
-                  <div className="meter-bar-fill" style={{ width: `${storagePercent}%` }} />
-                </div>
+              <div className="plan-divider" />
+
+              <ul className="plan-features-list">
+                <li><Check size={15} className="feat-check" /> <span><strong>11 to 500</strong> scalable studio seats</span></li>
+                <li><Check size={15} className="feat-check" /> <span><strong>100 GB</strong> cloud storage quota</span></li>
+                <li><Check size={15} className="feat-check" /> <span>Official GST tax invoices with ITC</span></li>
+                <li><Check size={15} className="feat-check" /> <span>Priority multi-site coordination</span></li>
+              </ul>
+
+              <div className="plan-tier-footer">
+                <Button
+                  variant="primary"
+                  icon={Send}
+                  onClick={() => handleOpenRequestModal(subscription.plan === 'FREE' ? 'UPGRADE' : 'ADD_SEATS')}
+                  style={{ width: '100%' }}
+                >
+                  {subscription.plan === 'FREE' ? 'Request Pro Upgrade' : 'Request More Seats'}
+                </Button>
               </div>
             </div>
           </div>
 
-          {/* Upgrade & Expansion Section */}
-          <section className="upgrade-expansion-section">
-            <div className="section-head-row">
+          {/* Interactive Capacity & Quote Calculator */}
+          <section className="capacity-calculator-panel">
+            <div className="calculator-header-row">
               <div>
-                <h2 className="section-title">Studio Capacity & Pricing Calculator</h2>
-                <p className="section-subtitle">
-                  Calculate pro seat expansions, view gapless GST tax breakdown, and submit an offline billing request
-                </p>
+                <h3 className="calc-title">Capacity & Quotation Calculator</h3>
+                <p className="calc-subtitle">Adjust team capacity and view real-time GST tax breakdown.</p>
               </div>
 
-              {/* Billing Cycle Toggle */}
+              {/* Cycle Toggle */}
               <div className="cycle-toggle-wrap">
                 <button
                   type="button"
@@ -464,243 +660,324 @@ export function BillingPage() {
                   className={`cycle-btn ${billingCycle === 'YEARLY' ? 'is-active' : ''}`}
                   onClick={() => setBillingCycle('YEARLY')}
                 >
-                  Annual (2 Months Free!)
+                  Annual (2 Mos Free)
                 </button>
               </div>
             </div>
 
-            {/* Pricing Comparison Cards */}
-            <div className="plans-compare-grid">
-              {/* Permanent Free Plan */}
-              <div className={`compare-card ${subscription.plan === 'FREE' ? 'is-current' : ''}`}>
-                {subscription.plan === 'FREE' && <span className="current-pill">Current Plan</span>}
-                <span className="compare-tag">FOUNDATION</span>
-                <h3 className="compare-name">Free Tier</h3>
-                <p className="compare-price">₹0 <span>/ month</span></p>
-                <p className="compare-desc">Standard tier for boutique design practices and initial setups.</p>
+            <div className="calculator-body-grid">
+              {/* Left Column: Seats Slider & Quick Presets */}
+              <div className="calc-controls-col">
+                <div className="slider-label-row">
+                  <span className="slider-title">Team Seats Needed:</span>
+                  <span className="slider-current-val">{desiredSeats} Seats</span>
+                </div>
 
-                <ul className="compare-features">
-                  <li><Check size={16} /> <strong>10 Active Users</strong> free forever</li>
-                  <li><Check size={16} /> <strong>5 GB</strong> Cloud Storage for Drawings</li>
-                  <li><Check size={16} /> Unlimited Projects & Tasks</li>
-                  <li><Check size={16} /> Free Client & Vendor Access Code (No Seat Consumed)</li>
-                  <li><Check size={16} /> Dynamic Role-Based Permissions</li>
-                </ul>
+                <input
+                  type="range"
+                  min="11"
+                  max="100"
+                  step="1"
+                  value={desiredSeats}
+                  onChange={(e) => setDesiredSeats(Number(e.target.value))}
+                  className="seat-range-slider"
+                />
 
-                <Button variant="secondary" disabled style={{ width: '100%', marginTop: 'auto' }}>
-                  {subscription.plan === 'FREE' ? 'Currently Active' : 'Free Base Included'}
-                </Button>
+                <div className="calc-chips-row">
+                  <span className="calc-chips-label">Quick select:</span>
+                  {[15, 25, 50, 75, 100].map((num) => (
+                    <button
+                      key={num}
+                      type="button"
+                      className={`calc-chip-btn ${desiredSeats === num ? 'is-active' : ''}`}
+                      onClick={() => setDesiredSeats(num)}
+                    >
+                      {num} Seats
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Pro Tier with Interactive Slider */}
-              <div className={`compare-card highlight ${subscription.plan !== 'FREE' ? 'is-current' : ''}`}>
-                <span className="featured-flag">
-                  <Sparkles size={13} />
-                  {billingCycle === 'YEARLY' ? '12 MONTHS FOR PRICE OF 10' : 'SCALABLE EXPANSION'}
-                </span>
-                <span className="compare-tag">PRO STUDIO</span>
-                <h3 className="compare-name">Pro Tier</h3>
-                <p className="compare-price">
-                  ₹500 <span>/ seat / month (+18% GST)</span>
-                </p>
-                <p className="compare-desc">For growing firms managing multiple site teams and large BIM/CAD files.</p>
-
-                <ul className="compare-features">
-                  <li><Check size={16} /> <strong>11 to 500</strong> Scalable Team Seats</li>
-                  <li><Check size={16} /> <strong>100 GB</strong> High-Speed Cloud Storage</li>
-                  <li><Check size={16} /> Official GST Tax Invoices with Input Tax Credit</li>
-                  <li><Check size={16} /> Priority Multi-Site Drawing Coordination</li>
-                  <li><Check size={16} /> Dedicated Architecture Support</li>
-                </ul>
-
-                {/* Interactive Seat Slider */}
-                <div className="seat-slider-box">
-                  <div className="slider-header">
-                    <span>Desired Team Capacity:</span>
-                    <strong>{desiredSeats} Seats</strong>
+              {/* Right Column: Live GST Quotation Summary */}
+              <div className="calc-quote-col">
+                <div className="quote-box">
+                  <div className="quote-box-header">
+                    <span className="quote-title">Estimated Cost</span>
+                    {billingCycle === 'YEARLY' && (
+                      <span className="quote-savings-pill">Pay 10, Get 12 Months!</span>
+                    )}
                   </div>
-                  <input
-                    type="range"
-                    min="11"
-                    max="100"
-                    step="1"
-                    value={desiredSeats}
-                    onChange={(e) => setDesiredSeats(Number(e.target.value))}
-                    className="seat-range-slider"
-                  />
-                  <div className="slider-sub-labels">
-                    <span>11 seats (min)</span>
-                    <span>{desiredSeats} total seats</span>
-                    <span>100 seats</span>
-                  </div>
-                </div>
 
-                {/* Live Backend Pricing Breakdown */}
-                <div className="live-breakdown-card">
                   {quoteLoading ? (
-                    <div style={{ padding: '1rem', textAlign: 'center', color: '#7B6F62', fontSize: '13px' }}>
-                      Calculating pricing quote...
+                    <div className="quote-loading-state">
+                      <RefreshCw size={13} className="is-spinning" /> Calculating quote...
                     </div>
                   ) : quote ? (
-                    <>
-                      <div className="breakdown-line">
-                        <span>
-                          {desiredSeats} Seats × {billingCycle === 'YEARLY' ? '10 pay-months (12 mos service)' : billingCycle === 'QUARTERLY' ? '3 months' : '1 month'}
-                        </span>
-                        <span>{formatPaise(quote.subtotalPaise)}</span>
+                    <div className="quote-details-list">
+                      <div className="quote-line">
+                        <span>{desiredSeats} Seats ({billingCycle.toLowerCase()})</span>
+                        <span className="quote-val">{formatPaise(quote.subtotalPaise)}</span>
                       </div>
-                      <div className="breakdown-line">
-                        <span>GST (18% CGST + SGST)</span>
-                        <span>{formatPaise(quote.gstPaise)}</span>
+                      <div className="quote-line">
+                        <span>GST (18% ITC Eligible)</span>
+                        <span className="quote-val">{formatPaise(quote.gstPaise)}</span>
                       </div>
-                      <div className="breakdown-line grand-total">
-                        <span>Total Payable ({billingCycle})</span>
-                        <span className="grand-price">{formatPaise(quote.totalPaise)}</span>
+                      <div className="quote-line quote-grand">
+                        <span>Total Payable</span>
+                        <span className="quote-grand-val">{formatPaise(quote.totalPaise)}</span>
                       </div>
-                    </>
+                    </div>
                   ) : null}
-                </div>
 
-                <Button
-                  variant="primary"
-                  icon={Send}
-                  onClick={() => handleOpenRequestModal(subscription.plan === 'FREE' ? 'UPGRADE' : 'ADD_SEATS')}
-                  style={{ width: '100%', marginTop: 'var(--spacing-4)' }}
-                >
-                  {subscription.plan === 'FREE' ? 'Request Pro Upgrade' : 'Request Seat Expansion'}
-                </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Send}
+                    onClick={() => handleOpenRequestModal(subscription.plan === 'FREE' ? 'UPGRADE' : 'ADD_SEATS')}
+                    style={{ width: '100%', marginTop: '10px' }}
+                  >
+                    Submit Upgrade Request
+                  </Button>
+                </div>
               </div>
             </div>
           </section>
 
-          {/* Offline Payment Information Card */}
+          {/* Compact Verified Banking Credentials */}
           <div className="offline-payment-guide-card">
             <div className="guide-header">
-              <Building2 size={20} className="guide-icon" />
+              <div className="guide-icon-box">
+                <Building2 size={18} />
+              </div>
               <div>
-                <h3 className="guide-title">Manual Offline Payment Procedure (Module M1.6)</h3>
-                <p className="guide-subtitle">
-                  We process subscriptions via verified direct bank transfer, NEFT/RTGS, or corporate UPI.
-                </p>
+                <h3 className="guide-title">Verified Bank & Payment Credentials</h3>
+                <p className="guide-subtitle">Official banking details for NEFT, RTGS, IMPS, or corporate UPI offline transfers</p>
               </div>
             </div>
 
             <div className="bank-details-grid">
               <div className="bank-detail-item">
-                <span className="bank-label">BENEFICIARY NAME</span>
+                <div className="bank-item-head">
+                  <span className="bank-label">BENEFICIARY</span>
+                  <button
+                    type="button"
+                    className="bank-copy-btn"
+                    onClick={() => copyToClipboard('MAYUR MEHTA DESIGN PRIVATE LIMITED', 'beneficiary')}
+                  >
+                    {copiedKey === 'beneficiary' ? <CheckCheck size={12} className="text-success" /> : <Copy size={12} />}
+                    {copiedKey === 'beneficiary' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
                 <span className="bank-val">MAYUR MEHTA DESIGN PRIVATE LIMITED</span>
               </div>
+
               <div className="bank-detail-item">
-                <span className="bank-label">ACCOUNT NUMBER</span>
-                <span className="bank-val">50200084729103 (Current A/C)</span>
+                <div className="bank-item-head">
+                  <span className="bank-label">ACCOUNT NUMBER</span>
+                  <button
+                    type="button"
+                    className="bank-copy-btn"
+                    onClick={() => copyToClipboard('50200084729103', 'account')}
+                  >
+                    {copiedKey === 'account' ? <CheckCheck size={12} className="text-success" /> : <Copy size={12} />}
+                    {copiedKey === 'account' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <span className="bank-val mono-val">50200084729103</span>
               </div>
+
               <div className="bank-detail-item">
-                <span className="bank-label">BANK & IFSC CODE</span>
-                <span className="bank-val">HDFC Bank • HDFC0001245</span>
+                <div className="bank-item-head">
+                  <span className="bank-label">BANK & IFSC</span>
+                  <button
+                    type="button"
+                    className="bank-copy-btn"
+                    onClick={() => copyToClipboard('HDFC0001245', 'ifsc')}
+                  >
+                    {copiedKey === 'ifsc' ? <CheckCheck size={12} className="text-success" /> : <Copy size={12} />}
+                    {copiedKey === 'ifsc' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <span className="bank-val">HDFC Bank • <span className="mono-val">HDFC0001245</span></span>
               </div>
+
               <div className="bank-detail-item">
-                <span className="bank-label">UPI ID</span>
-                <span className="bank-val">billing@mayurmehta</span>
+                <div className="bank-item-head">
+                  <span className="bank-label">CORPORATE UPI ID</span>
+                  <button
+                    type="button"
+                    className="bank-copy-btn"
+                    onClick={() => copyToClipboard('billing@mayurmehta', 'upi')}
+                  >
+                    {copiedKey === 'upi' ? <CheckCheck size={12} className="text-success" /> : <Copy size={12} />}
+                    {copiedKey === 'upi' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+                <span className="bank-val mono-val">billing@mayurmehta</span>
               </div>
             </div>
 
             <div className="guide-footer-note">
               <HelpCircle size={15} />
               <span>
-                After submitting a request or receiving your official tax invoice, transfer the invoiced amount and
-                provide the UTR / Cheque reference number. Super Admin activates your plan atomically upon recording payment.
+                Please include your <strong>Invoice Number</strong> in the transfer remarks.
+                After completing the transfer, notify us via billing request for immediate reconciliation.
               </span>
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* TAB 2: OFFICIAL TAX INVOICES */}
       {activeTab === 'invoices' && (
         <section className="invoices-section">
-          <div className="section-head-row">
-            <div>
-              <h2 className="section-title">Official Tax Invoices</h2>
-              <p className="section-subtitle">
-                Gapless GST-compliant invoices per financial year with itemized tax breakdowns and PDF downloads
-              </p>
+          {/* Controls Bar */}
+          <div className="table-controls-bar">
+            <div className="search-filter-group">
+              <div className="search-input-wrap">
+                <Search size={15} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search invoice number or notes..."
+                  value={invoiceSearch}
+                  onChange={(e) => setInvoiceSearch(e.target.value)}
+                  className="table-search-input"
+                />
+                {invoiceSearch && (
+                  <button type="button" className="clear-search-btn" onClick={() => setInvoiceSearch('')}>
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <Select
+                value={invoiceFilter}
+                onChange={(e) => setInvoiceFilter(e.target.value)}
+                options={invoiceFilterOptions}
+                className="billing-filter-select"
+              />
+            </div>
+
+            <div className="table-summary-badges">
+              <span className="summary-pill">
+                Total Invoiced: <strong>{formatPaise(totalInvoicedPaise)}</strong>
+              </span>
+              <span className="summary-pill">
+                Total Paid: <strong>{formatPaise(totalPaidPaise)}</strong>
+              </span>
             </div>
           </div>
 
+          {/* Invoices Table Card */}
           <div className="invoices-table-card">
-            {invoices.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#7B6F62' }}>
-                <Receipt size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                <h4 style={{ margin: '0 0 6px', fontWeight: 600 }}>No Invoices Issued Yet</h4>
-                <p style={{ margin: 0, fontSize: '13px' }}>
-                  Invoices generated by the Super Admin team for new subscriptions or seat expansions will appear here.
-                </p>
-              </div>
+            {filteredInvoices.length === 0 ? (
+              <EmptyState
+                icon={Receipt}
+                title={invoices.length === 0 ? "No Invoices Issued Yet" : "No Matching Invoices"}
+                message={
+                  invoices.length === 0
+                    ? "Invoices generated by the Super Admin team for new subscriptions or seat expansions will appear here."
+                    : "No invoices matched your search and filter criteria."
+                }
+                actionButton={
+                  invoices.length === 0 ? (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Send}
+                      onClick={() => handleOpenRequestModal('UPGRADE')}
+                    >
+                      Request Pro Upgrade
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setInvoiceSearch('');
+                        setInvoiceFilter('ALL');
+                      }}
+                    >
+                      Reset Filters
+                    </Button>
+                  )
+                }
+              />
             ) : (
-              <table className="invoices-table">
-                <thead>
-                  <tr>
-                    <th>INVOICE NUMBER</th>
-                    <th>ISSUE DATE</th>
-                    <th>TYPE / SEATS</th>
-                    <th>TAXABLE VALUE</th>
-                    <th>GST (18%)</th>
-                    <th>TOTAL</th>
-                    <th>STATUS</th>
-                    <th style={{ textAlign: 'right' }}>ACTIONS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((inv) => (
-                    <tr key={inv._id || inv.id}>
-                      <td className="inv-number-cell">
-                        <FileText size={15} className="inv-icon" />
-                        <strong>{inv.invoiceNumber || 'INV-DRAFT'}</strong>
-                      </td>
-                      <td>
-                        {inv.issuedAt ? new Date(inv.issuedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '12.5px', color: '#1E1A17', fontWeight: 500 }}>
-                          {inv.invoiceType || 'SUBSCRIPTION'} ({inv.seats || 10} Seats)
-                        </span>
-                      </td>
-                      <td>{formatPaise(inv.subtotalPaise)}</td>
-                      <td>{formatPaise(inv.totalGstPaise || (inv.cgstPaise + inv.sgstPaise + inv.igstPaise))}</td>
-                      <td>
-                        <strong>{formatPaise(inv.totalPaise)}</strong>
-                      </td>
-                      <td>
-                        <span className={`inv-badge inv-badge-${(inv.status || 'ISSUED').toLowerCase()}`}>
-                          {inv.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '6px' }}>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            icon={Eye}
-                            onClick={() => setSelectedInvoice(inv)}
-                            title="View Invoice Details"
-                          >
-                            Details
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            icon={Download}
-                            onClick={() => handleDownloadPdf(inv)}
-                            title="Download Official Tax Invoice PDF"
-                          >
-                            PDF
-                          </Button>
-                        </div>
-                      </td>
+              <div className="table-responsive">
+                <table className="invoices-table">
+                  <thead>
+                    <tr>
+                      <th>INVOICE NUMBER</th>
+                      <th>ISSUE DATE</th>
+                      <th>DUE DATE</th>
+                      <th>TYPE / SEATS</th>
+                      <th>TAXABLE AMOUNT</th>
+                      <th>GST (18%)</th>
+                      <th>TOTAL</th>
+                      <th>STATUS</th>
+                      <th style={{ textAlign: 'right' }}>ACTIONS</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredInvoices.map((inv) => (
+                      <tr key={inv._id || inv.id}>
+                        <td className="inv-number-cell">
+                          <FileText size={15} className="inv-icon" />
+                          <span className="mono-val font-semibold">{inv.invoiceNumber || 'INV-DRAFT'}</span>
+                        </td>
+                        <td>
+                          {inv.issuedAt
+                            ? new Date(inv.issuedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td>
+                          {inv.dueDate
+                            ? new Date(inv.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td>
+                          <span className="inv-type-pill">
+                            {inv.invoiceType || 'SUBSCRIPTION'} ({inv.seats || 10} Seats)
+                          </span>
+                        </td>
+                        <td>{formatPaise(inv.subtotalPaise)}</td>
+                        <td>{formatPaise(inv.totalGstPaise || ((inv.cgstPaise || 0) + (inv.sgstPaise || 0) + (inv.igstPaise || 0)))}</td>
+                        <td>
+                          <strong className="inv-total-text">{formatPaise(inv.totalPaise)}</strong>
+                        </td>
+                        <td>
+                          <span className={`inv-badge inv-badge-${(inv.status || 'ISSUED').toLowerCase()}`}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <div className="table-action-btns">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              icon={Eye}
+                              onClick={() => setSelectedInvoice(inv)}
+                              title="View Invoice Details"
+                            >
+                              Details
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              icon={Download}
+                              onClick={() => handleDownloadPdf(inv)}
+                              title="Download Official Tax Invoice PDF"
+                            >
+                              PDF
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
@@ -709,63 +986,113 @@ export function BillingPage() {
       {/* TAB 3: PAYMENT LEDGER */}
       {activeTab === 'payments' && (
         <section className="invoices-section">
-          <div className="section-head-row">
-            <div>
-              <h2 className="section-title">Manual Payment Ledger</h2>
-              <p className="section-subtitle">
-                Complete record of offline bank transfers, UPI transactions, and cheques credited to your subscription
-              </p>
+          {/* Controls Bar */}
+          <div className="table-controls-bar">
+            <div className="search-filter-group">
+              <div className="search-input-wrap">
+                <Search size={15} className="search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search by UTR or reference number..."
+                  value={paymentSearch}
+                  onChange={(e) => setPaymentSearch(e.target.value)}
+                  className="table-search-input"
+                />
+                {paymentSearch && (
+                  <button type="button" className="clear-search-btn" onClick={() => setPaymentSearch('')}>
+                    ×
+                  </button>
+                )}
+              </div>
+
+              <Select
+                value={paymentFilter}
+                onChange={(e) => setPaymentFilter(e.target.value)}
+                options={paymentFilterOptions}
+                className="billing-filter-select"
+              />
+            </div>
+
+            <div className="table-summary-badges">
+              <span className="summary-pill">
+                Total Cleared: <strong className="text-success">{formatPaise(totalPaidPaise)}</strong>
+              </span>
+              <span className="summary-pill">
+                Transactions: <strong>{payments.length}</strong>
+              </span>
             </div>
           </div>
 
           <div className="invoices-table-card">
-            {payments.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#7B6F62' }}>
-                <CreditCard size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                <h4 style={{ margin: '0 0 6px', fontWeight: 600 }}>No Payments Recorded Yet</h4>
-                <p style={{ margin: 0, fontSize: '13px' }}>
-                  Offline payments recorded by the Super Admin team against your invoices will be listed here.
-                </p>
-              </div>
+            {filteredPayments.length === 0 ? (
+              <EmptyState
+                icon={CreditCard}
+                title={payments.length === 0 ? "No Payments Recorded Yet" : "No Matching Payments"}
+                message={
+                  payments.length === 0
+                    ? "Offline bank transfers and UPI payments verified by the Super Admin will be logged here."
+                    : "No payment records matched your search filter."
+                }
+              />
             ) : (
-              <table className="invoices-table">
-                <thead>
-                  <tr>
-                    <th>DATE</th>
-                    <th>METHOD</th>
-                    <th>UTR / REFERENCE</th>
-                    <th>AMOUNT</th>
-                    <th>INVOICE #</th>
-                    <th>NOTES</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((pmt) => (
-                    <tr key={pmt._id || pmt.id}>
-                      <td>
-                        {pmt.recordedAt ? new Date(pmt.recordedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td>
-                        <span className="method-chip">{pmt.method}</span>
-                      </td>
-                      <td>
-                        <code style={{ fontSize: '12px', background: '#F1ECE6', padding: '2px 6px', borderRadius: '4px' }}>
-                          {pmt.reference || '—'}
-                        </code>
-                      </td>
-                      <td>
-                        <strong style={{ color: '#1E6B37' }}>{formatPaise(pmt.amountPaise)}</strong>
-                      </td>
-                      <td>
-                        {pmt.invoiceNumber || pmt.invoiceId || '—'}
-                      </td>
-                      <td style={{ color: '#7B6F62', fontSize: '12px' }}>
-                        {pmt.notes || 'Payment credited'}
-                      </td>
+              <div className="table-responsive">
+                <table className="invoices-table">
+                  <thead>
+                    <tr>
+                      <th>RECORDED DATE</th>
+                      <th>PAYMENT METHOD</th>
+                      <th>UTR / REFERENCE NUMBER</th>
+                      <th>AMOUNT CREDITED</th>
+                      <th>INVOICE NUMBER</th>
+                      <th>STATUS</th>
+                      <th>NOTES</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredPayments.map((pmt) => (
+                      <tr key={pmt._id || pmt.id}>
+                        <td>
+                          {pmt.recordedAt
+                            ? new Date(pmt.recordedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td>
+                          <span className="method-chip">{pmt.method}</span>
+                        </td>
+                        <td>
+                          <div className="copyable-reference">
+                            <span className="mono-val">{pmt.reference || '—'}</span>
+                            {pmt.reference && (
+                              <button
+                                type="button"
+                                className="tiny-copy-btn"
+                                onClick={() => copyToClipboard(pmt.reference, `pmt-${pmt._id || pmt.id}`)}
+                                title="Copy UTR"
+                              >
+                                {copiedKey === `pmt-${pmt._id || pmt.id}` ? <CheckCheck size={12} className="text-success" /> : <Copy size={12} />}
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <strong className="text-success font-semibold">{formatPaise(pmt.amountPaise)}</strong>
+                        </td>
+                        <td>
+                          <span className="mono-val">{pmt.invoiceNumber || pmt.invoiceId || '—'}</span>
+                        </td>
+                        <td>
+                          <span className="payment-verified-badge">
+                            <CheckCircle size={12} /> Verified
+                          </span>
+                        </td>
+                        <td className="payment-notes-cell">
+                          {pmt.notes || 'Direct bank transfer credited'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
@@ -774,13 +1101,17 @@ export function BillingPage() {
       {/* TAB 4: BILLING REQUESTS */}
       {activeTab === 'requests' && (
         <section className="invoices-section">
-          <div className="section-head-row">
-            <div>
-              <h2 className="section-title">My Billing Requests</h2>
-              <p className="section-subtitle">
-                Track status of upgrade, seat expansion, renewal, and cancellation requests submitted to Super Admin
-              </p>
+          {/* Controls Bar */}
+          <div className="table-controls-bar">
+            <div className="search-filter-group">
+              <Select
+                value={requestFilter}
+                onChange={(e) => setRequestFilter(e.target.value)}
+                options={requestFilterOptions}
+                className="billing-filter-select"
+              />
             </div>
+
             <Button
               variant="primary"
               size="sm"
@@ -792,79 +1123,102 @@ export function BillingPage() {
           </div>
 
           <div className="invoices-table-card">
-            {billingRequests.length === 0 ? (
-              <div style={{ padding: '3rem', textAlign: 'center', color: '#7B6F62' }}>
-                <Send size={36} style={{ margin: '0 auto 10px', opacity: 0.5 }} />
-                <h4 style={{ margin: '0 0 6px', fontWeight: 600 }}>No Requests Submitted</h4>
-                <p style={{ margin: '0 0 1rem', fontSize: '13px' }}>
-                  Need more seats or want to upgrade your plan? Submit a request to the Super Admin team.
-                </p>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Send}
-                  onClick={() => handleOpenRequestModal('UPGRADE')}
-                >
-                  Submit Request
-                </Button>
-              </div>
+            {filteredRequests.length === 0 ? (
+              <EmptyState
+                icon={Send}
+                title={billingRequests.length === 0 ? "No Requests Submitted" : "No Matching Requests"}
+                message={
+                  billingRequests.length === 0
+                    ? "Need more team seats or want to upgrade your plan? Submit a request to the Super Admin team."
+                    : "No requests match the selected status filter."
+                }
+                actionButton={
+                  billingRequests.length === 0 && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={Send}
+                      onClick={() => handleOpenRequestModal('UPGRADE')}
+                    >
+                      Submit Capacity Request
+                    </Button>
+                  )
+                }
+              />
             ) : (
-              <table className="invoices-table">
-                <thead>
-                  <tr>
-                    <th>DATE</th>
-                    <th>TYPE</th>
-                    <th>SEATS</th>
-                    <th>CYCLE</th>
-                    <th>STATUS</th>
-                    <th>NOTES / RESOLUTION</th>
-                    <th style={{ textAlign: 'right' }}>ACTION</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {billingRequests.map((req) => (
-                    <tr key={req._id || req.id}>
-                      <td>
-                        {req.createdAt ? new Date(req.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td>
-                        <strong>{req.type}</strong>
-                      </td>
-                      <td>{req.desiredSeats || '—'} Seats</td>
-                      <td>{req.desiredCycle || '—'}</td>
-                      <td>
-                        <span className={`request-badge request-badge-${(req.status || 'PENDING').toLowerCase()}`}>
-                          {req.status}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '12px', color: '#7B6F62', maxWidth: '280px' }}>
-                        <div>{req.notes || '—'}</div>
-                        {req.resolutionNotes && (
-                          <div style={{ color: '#1E6B37', marginTop: '2px', fontWeight: 500 }}>
-                            Admin: {req.resolutionNotes}
-                          </div>
-                        )}
-                        {req.rejectionReason && (
-                          <div style={{ color: '#991B1B', marginTop: '2px', fontWeight: 500 }}>
-                            Reason: {req.rejectionReason}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        {req.status === 'PENDING' && (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => handleCancelRequest(req._id || req.id)}
-                          >
-                            Cancel
-                          </Button>
-                        )}
-                      </td>
+              <div className="table-responsive">
+                <table className="invoices-table">
+                  <thead>
+                    <tr>
+                      <th>SUBMITTED DATE</th>
+                      <th>REQUEST TYPE</th>
+                      <th>CAPACITY</th>
+                      <th>BILLING CYCLE</th>
+                      <th>STATUS</th>
+                      <th>DETAILS & ADMIN RESOLUTION</th>
+                      <th style={{ textAlign: 'right' }}>ACTION</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {filteredRequests.map((req) => (
+                      <tr key={req._id || req.id}>
+                        <td>
+                          {req.createdAt
+                            ? new Date(req.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td>
+                          <strong className="request-type-badge">{req.type}</strong>
+                        </td>
+                        <td>
+                          {req.desiredSeats ? `${req.desiredSeats} Seats` : '—'}
+                        </td>
+                        <td>
+                          {req.desiredCycle || '—'}
+                        </td>
+                        <td>
+                          <span className={`request-badge request-badge-${(req.status || 'PENDING').toLowerCase()}`}>
+                            {req.status === 'PENDING' && <Clock size={11} />}
+                            {req.status === 'RESOLVED' && <CheckCircle size={11} />}
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="request-details-cell">
+                          {(req.notes || localStorage.getItem(`mm_req_note_${req.id || req._id}`)) && (
+                            <div className="request-user-note">
+                              {req.notes || localStorage.getItem(`mm_req_note_${req.id || req._id}`)}
+                            </div>
+                          )}
+                          {req.resolutionNotes && (
+                            <div className="request-admin-note">
+                              <strong>Admin:</strong> {req.resolutionNotes}
+                            </div>
+                          )}
+                          {req.rejectionReason && (
+                            <div className="request-reject-note">
+                              <strong>Reason:</strong> {req.rejectionReason}
+                            </div>
+                          )}
+                          {!req.notes && !req.resolutionNotes && !req.rejectionReason && (
+                            <span className="text-muted">—</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          {req.status === 'PENDING' && (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() => handleCancelRequest(req._id || req.id)}
+                            >
+                              Cancel
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </section>
@@ -876,32 +1230,30 @@ export function BillingPage() {
         onClose={() => setIsRequestModalOpen(false)}
         title="Submit Commercial Billing Request"
       >
-        <form onSubmit={handleSubmitBillingRequest} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div style={{ fontSize: '13px', color: '#7B6F62' }}>
+        <form onSubmit={handleSubmitBillingRequest} className="billing-modal-form">
+          <p className="modal-description-text">
             Submit your capacity requirement directly to the Super Admin team. They will generate an official
             GST invoice and record your offline payment upon transfer.
-          </div>
+          </p>
 
-          <div className="form-grid-2">
-            <div style={{ gridColumn: 'span 2' }}>
-              <Select
-                label="Request Type *"
-                id="request-type"
-                value={requestForm.type}
-                onChange={(e) => setRequestForm((prev) => ({ ...prev, type: e.target.value }))}
-                options={[
-                  { value: 'UPGRADE', label: 'Upgrade to Paid Pro Tier' },
-                  { value: 'ADD_SEATS', label: 'Add Additional Seats' },
-                  { value: 'REDUCE_SEATS', label: 'Reduce Seats (Next Period)' },
-                  { value: 'RENEW', label: 'Renew Current Subscription' },
-                  { value: 'CANCEL', label: 'Cancel Subscription at Period End' }
-                ]}
-                required
-              />
-            </div>
+          <div className="form-fields-stack">
+            <Select
+              label="Request Type *"
+              id="request-type"
+              value={requestForm.type}
+              onChange={(e) => setRequestForm((prev) => ({ ...prev, type: e.target.value }))}
+              options={[
+                { value: 'UPGRADE', label: 'Upgrade to Paid Pro Studio' },
+                { value: 'ADD_SEATS', label: 'Add Additional User Seats' },
+                { value: 'REDUCE_SEATS', label: 'Reduce Seats (Next Period)' },
+                { value: 'RENEW', label: 'Renew Current Subscription' },
+                { value: 'CANCEL', label: 'Cancel Subscription at Period End' }
+              ]}
+              required
+            />
 
-            {['UPGRADE', 'ADD_SEATS', 'REDUCE_SEATS'].includes(requestForm.type) && (
-              <>
+            {['UPGRADE', 'ADD_SEATS', 'REDUCE_SEATS', 'RENEW'].includes(requestForm.type) && (
+              <div className="form-row-2col">
                 <Input
                   label="Desired Total Seats *"
                   id="request-seats"
@@ -924,25 +1276,44 @@ export function BillingPage() {
                   ]}
                   required
                 />
-              </>
+              </div>
             )}
 
-            <div style={{ gridColumn: 'span 2' }}>
+            {/* Live Estimation Preview inside Modal */}
+            {modalQuoteEstimate && (
+              <div className="modal-quote-preview">
+                <span className="quote-preview-title">Estimated Cost Preview:</span>
+                <div className="preview-line">
+                  <span>{modalQuoteEstimate.seats} Seats × {modalQuoteEstimate.payMonths} Months</span>
+                  <span>{formatPaise(modalQuoteEstimate.subtotalPaise)}</span>
+                </div>
+                <div className="preview-line">
+                  <span>GST (18%)</span>
+                  <span>{formatPaise(modalQuoteEstimate.gstPaise)}</span>
+                </div>
+                <div className="preview-line preview-total">
+                  <span>Total Estimated Invoiced Amount</span>
+                  <strong>{formatPaise(modalQuoteEstimate.totalPaise)}</strong>
+                </div>
+              </div>
+            )}
+
+            <div>
               <label className="form-label" htmlFor="request-notes">
-                Notes & Special Instructions (Optional)
+                Notes, GSTIN or Specific Instructions (Optional)
               </label>
               <textarea
                 id="request-notes"
                 className="form-textarea"
                 rows={3}
-                placeholder="e.g. Please issue invoice under our corporate GSTIN for Gujarat jurisdiction..."
+                placeholder="e.g. Please issue invoice under our corporate GSTIN: 24AAACM1234F1Z8 for Gujarat jurisdiction..."
                 value={requestForm.notes}
                 onChange={(e) => setRequestForm((prev) => ({ ...prev, notes: e.target.value }))}
               />
             </div>
           </div>
 
-          <div className="form-actions-row">
+          <div className="modal-actions-row">
             <Button
               type="button"
               variant="secondary"
@@ -972,30 +1343,31 @@ export function BillingPage() {
       >
         {selectedInvoice && (
           <div className="invoice-detail-body">
+            {/* Header info */}
             <div className="inv-meta-grid">
-              <div>
+              <div className="inv-meta-col">
                 <span className="inv-meta-label">INVOICE NUMBER</span>
-                <strong>{selectedInvoice.invoiceNumber || 'DRAFT'}</strong>
+                <strong className="mono-val">{selectedInvoice.invoiceNumber || 'DRAFT'}</strong>
               </div>
-              <div>
+              <div className="inv-meta-col">
                 <span className="inv-meta-label">STATUS</span>
                 <span className={`inv-badge inv-badge-${(selectedInvoice.status || 'ISSUED').toLowerCase()}`}>
                   {selectedInvoice.status}
                 </span>
               </div>
-              <div>
+              <div className="inv-meta-col">
                 <span className="inv-meta-label">ISSUE DATE</span>
                 <span>{selectedInvoice.issuedAt ? new Date(selectedInvoice.issuedAt).toLocaleDateString('en-IN') : '—'}</span>
               </div>
-              <div>
+              <div className="inv-meta-col">
                 <span className="inv-meta-label">DUE DATE</span>
                 <span>{selectedInvoice.dueDate ? new Date(selectedInvoice.dueDate).toLocaleDateString('en-IN') : '—'}</span>
               </div>
             </div>
 
             {/* Line items table */}
-            <div style={{ marginTop: '1.25rem' }}>
-              <span className="inv-meta-label" style={{ marginBottom: '6px', display: 'block' }}>ITEMIZED CHARGES</span>
+            <div className="inv-line-items-wrap">
+              <span className="inv-meta-label" style={{ marginBottom: '8px', display: 'block' }}>ITEMIZED CHARGES</span>
               <table className="invoices-table" style={{ fontSize: '13px' }}>
                 <thead>
                   <tr>
@@ -1006,7 +1378,13 @@ export function BillingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(selectedInvoice.lineItems || []).map((item, idx) => (
+                  {(selectedInvoice.lineItems || [
+                    {
+                      description: `Studio Pro Subscription (${selectedInvoice.seats || 10} Seats)`,
+                      quantity: selectedInvoice.seats || 10,
+                      unitPricePaise: 50000
+                    }
+                  ]).map((item, idx) => (
                     <tr key={idx}>
                       <td>{item.description}</td>
                       <td style={{ textAlign: 'center' }}>{item.quantity}</td>
@@ -1056,7 +1434,7 @@ export function BillingPage() {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
+            <div className="modal-actions-row" style={{ marginTop: '1.5rem' }}>
               <Button
                 variant="secondary"
                 icon={Download}

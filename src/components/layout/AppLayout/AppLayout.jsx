@@ -13,9 +13,10 @@ export function AppLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(() => {
     try {
-      return localStorage.getItem('mm_sidebar_expanded') === 'true';
+      const stored = localStorage.getItem('mm_sidebar_expanded');
+      return stored !== null ? stored === 'true' : true;
     } catch {
-      return false;
+      return true;
     }
   });
 

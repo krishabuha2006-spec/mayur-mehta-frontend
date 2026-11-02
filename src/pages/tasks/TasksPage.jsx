@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Filter,
   Search,
@@ -23,7 +24,9 @@ import {
   RotateCcw,
   Layers,
   UserCheck,
-  X
+  X,
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
@@ -38,6 +41,73 @@ import { projectService } from '../../services/projectService';
 import { teamService } from '../../services/teamService';
 import './TasksPage.css';
 
+const ARCHITECTURAL_TEMPLATES = [
+  {
+    id: 'tmpl-1',
+    title: 'Concept & Schematic Design Review',
+    category: 'Design Phase',
+    duration: '5 Days',
+    checklist: [
+      'Site topography and contour study',
+      'Client brief and space program sign-off',
+      'Massing options and sun-path analysis',
+      'Schematic architectural floor plans 1:100',
+      '3D mood boards and material palette'
+    ]
+  },
+  {
+    id: 'tmpl-2',
+    title: 'Municipal Statutory Clearances & Liaison',
+    category: 'Regulatory',
+    duration: '14 Days',
+    checklist: [
+      'Zoning & FSI / FAR calculations verification',
+      'Municipal corporation submission drawings prep',
+      'Fire & life safety egress compliance check',
+      'Environmental NOC and building line verification',
+      'Scrutiny fee receipt and liaison log update'
+    ]
+  },
+  {
+    id: 'tmpl-3',
+    title: 'GFC (Good For Construction) Package Release',
+    category: 'Working Drawings',
+    duration: '10 Days',
+    checklist: [
+      'Centerline and foundation setting out drawings',
+      'Masonry setting-out plans with door-window schedules',
+      'RCC column and beam junction coordination',
+      'Electrical switchboard and lighting conduit layout',
+      'Plumbing invert levels and drainage slope verification'
+    ]
+  },
+  {
+    id: 'tmpl-4',
+    title: 'MEP & Structural Clash Detection',
+    category: 'Engineering',
+    duration: '4 Days',
+    checklist: [
+      'HVAC duct vs structural beam clearance check',
+      'Sump tank vs plumbing riser clash review',
+      'Electrical riser room fire-seal verification',
+      'Sign-off from structural engineer on cutouts'
+    ]
+  },
+  {
+    id: 'tmpl-5',
+    title: 'Site Handover & Snag List Inspection',
+    category: 'Execution',
+    duration: '7 Days',
+    checklist: [
+      'Tile joints, levels and floor slope to drain test',
+      'Door/window hardware operation & silicone seal audit',
+      'Electrical socket phase-neutral-earth live testing',
+      'Plumbing pressure test and leak audit',
+      'As-built drawings compilation & keys handover log'
+    ]
+  }
+];
+
 const KANBAN_COLUMNS = [
   { id: 'TODO', label: 'To Do', color: 'var(--primary)', match: ['TODO', 'PENDING', 'NOT_STARTED'] },
   { id: 'IN_PROGRESS', label: 'In Progress', color: 'var(--warning)', match: ['IN_PROGRESS'] },
@@ -47,16 +117,24 @@ const KANBAN_COLUMNS = [
 ];
 
 export function TasksPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban' | 'calendar' | 'trash'
   const [tasks, setTasks] = useState([]);
   const [trashTasks, setTrashTasks] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'in_progress' | 'today' | 'completed' | 'my' | 'trash'
+  const [activeTab, setActiveTab] = useState(tabParam || 'all'); // 'all' | 'in_progress' | 'today' | 'completed' | 'my' | 'templates' | 'trash'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [taskFormErrors, setTaskFormErrors] = useState({});
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [tabParam]);
 
   // Summary Metrics from GET /tasks/summary
   const [summaryStats, setSummaryStats] = useState({
@@ -144,22 +222,40 @@ export function TasksPage() {
       if (activeTab === 'my') {
         // GET /tasks/my
         const myData = await taskService.getMyTasks();
-        const combined = [
-          ...(myData?.overdue || []),
-          ...(myData?.today || []),
-          ...(myData?.thisWeek || []),
-          ...(myData?.later || []),
-          ...(myData?.noDueDate || [])
-        ];
-        taskList = combined.length > 0 ? combined : [];
+        if (Array.isArray(myData)) {
+          taskList = myData;
+        } else if (myData && typeof myData === 'object') {
+          const toArr = (val) => {
+            if (Array.isArray(val)) return val;
+            if (val && typeof val === 'object') {
+              if (Array.isArray(val.items)) return val.items;
+              if (Array.isArray(val.tasks)) return val.tasks;
+              if (Array.isArray(val.data)) return val.data;
+            }
+            return [];
+          };
+          const combined = [
+            ...toArr(myData.overdue),
+            ...toArr(myData.today),
+            ...toArr(myData.thisWeek),
+            ...toArr(myData.later),
+            ...toArr(myData.noDueDate),
+            ...toArr(myData.tasks),
+            ...toArr(myData.data),
+            ...toArr(myData.items)
+          ];
+          taskList = combined;
+        } else {
+          taskList = [];
+        }
       } else if (selectedProjectFilter) {
         // GET /projects/{projectId}/tasks
         const res = await taskService.getProjectTasks(selectedProjectFilter);
-        taskList = Array.isArray(res) ? res : (res?.data || []);
+        taskList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.tasks) ? res.tasks : []));
       } else {
         // GET /tasks
         const res = await taskService.getTasks();
-        taskList = Array.isArray(res) ? res : (res?.data || []);
+        taskList = Array.isArray(res) ? res : (Array.isArray(res?.data) ? res.data : (Array.isArray(res?.tasks) ? res.tasks : []));
       }
 
       if (taskList.length > 0) {
@@ -677,18 +773,22 @@ export function TasksPage() {
       <div className="tasks-tabs-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div className="tasks-tabs-container">
           {[
-            { id: 'all', label: 'All Tasks', count: tasks.length },
+            { id: 'all', label: 'Team - Task (All)', count: tasks.length },
+            { id: 'my', label: 'User - Task (My)', count: tasks.filter((t) => (t.assignee || '').includes('Krisha')).length },
+            { id: 'templates', label: 'Templates', count: ARCHITECTURAL_TEMPLATES.length },
             { id: 'in_progress', label: 'In Progress', count: tasks.filter((t) => t.status === 'In Progress').length },
             { id: 'today', label: 'Actionable', count: tasks.filter((t) => t.status !== 'Completed').length },
             { id: 'completed', label: 'Completed', count: tasks.filter((t) => t.status === 'Completed').length },
-            { id: 'my', label: 'My Tasks', count: tasks.filter((t) => t.assignee.includes('Krisha')).length },
             { id: 'trash', label: 'Trash', count: trashTasks.length }
           ].map((tab) => (
             <button
               key={tab.id}
               type="button"
               className={`tasks-tab-pill ${activeTab === tab.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => {
+                setActiveTab(tab.id);
+                setSearchParams({ tab: tab.id });
+              }}
             >
               <span>{tab.label}</span>
               <span className="tab-count-badge">{tab.count}</span>
@@ -697,7 +797,7 @@ export function TasksPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {projectOptions.length > 0 && (
+          {projectOptions.length > 0 && activeTab !== 'templates' && (
             <select
               value={selectedProjectFilter}
               onChange={(e) => setSelectedProjectFilter(e.target.value)}
@@ -719,21 +819,89 @@ export function TasksPage() {
             </select>
           )}
 
-          <div className="tasks-search-pill">
-            <Search size={15} className="tasks-search-icon" />
-            <input
-              type="text"
-              placeholder="Search tasks by title, project, or assignee..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="tasks-search-input"
-            />
-          </div>
+          {activeTab !== 'templates' && (
+            <div className="tasks-search-pill">
+              <Search size={15} className="tasks-search-icon" />
+              <input
+                type="text"
+                placeholder="Search tasks by title, project, or assignee..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="tasks-search-input"
+              />
+            </div>
+          )}
         </div>
       </div>
 
+      {/* 2.5 ARCHITECTURAL TEMPLATES VIEW */}
+      {activeTab === 'templates' && (
+        <div className="tasks-templates-section">
+          <div className="templates-section-header">
+            <div>
+              <h3 className="templates-section-title">Architectural Master Task Templates</h3>
+              <p className="templates-section-subtitle">
+                Standard practice workflows for design phases, municipal approvals, GFC drawings, and site coordination.
+              </p>
+            </div>
+          </div>
+
+          <div className="tasks-templates-grid">
+            {ARCHITECTURAL_TEMPLATES.map((tmpl) => (
+              <div key={tmpl.id} className="task-template-card">
+                <div className="template-card-header">
+                  <div>
+                    <span className="template-category-tag">{tmpl.category}</span>
+                    <h4 className="template-title">{tmpl.title}</h4>
+                  </div>
+                  <span className="template-duration-badge">
+                    <Clock size={12} /> {tmpl.duration}
+                  </span>
+                </div>
+
+                <div className="template-checklist-wrap">
+                  <span className="template-checklist-title">Checklist Items ({tmpl.checklist.length}):</span>
+                  <ul className="template-checklist">
+                    {tmpl.checklist.map((item, idx) => (
+                      <li key={idx}>
+                        <CheckCircle2 size={13} className="template-check-icon" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="template-card-actions">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon={Plus}
+                    onClick={() => {
+                      setNewTask({
+                        title: tmpl.title,
+                        projectId: projectOptions[0]?.value || '',
+                        priority: 'HIGH',
+                        assignee: '',
+                        assigneeId: '',
+                        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
+                        estimatedHours: 8,
+                        description: `Generated from ${tmpl.title} architectural template.`
+                      });
+                      setCreateModalOpen(true);
+                    }}
+                    style={{ width: '100%' }}
+                  >
+                    Apply Template to Project
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 3. VIEW 1: DATA TABLE (LIST VIEW) */}
-      {viewMode === 'list' && (
+      {activeTab !== 'templates' && viewMode === 'list' && (
         <div className="tasks-table-wrapper">
           <table className="tasks-data-table">
             <thead>

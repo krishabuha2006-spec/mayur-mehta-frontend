@@ -1,4 +1,4 @@
-import { apiClient, setAdminToken, clearAdminToken, getAdminToken } from './apiClient';
+import { apiClient, setAdminToken, clearAdminToken, getAdminToken, refreshAdminToken } from './apiClient';
 
 export const adminAuthService = {
   /**
@@ -49,12 +49,8 @@ export const adminAuthService = {
    */
   refreshToken: async () => {
     try {
-      const res = await apiClient.post('/admin/auth/refresh');
-      const payload = res?.data || res;
-      if (payload?.accessToken) {
-        setAdminToken(payload.accessToken); // In-Memory
-      }
-      return payload || res;
+      const newToken = await refreshAdminToken();
+      return { accessToken: newToken };
     } catch (err) {
       clearAdminToken();
       throw err;

@@ -16,6 +16,14 @@ export const approvalService = {
 
       const list = [];
 
+      // 1.5 Load custom locally tracked approvals if any
+      try {
+        const stored = JSON.parse(localStorage.getItem('mm_custom_approvals') || '[]');
+        if (Array.isArray(stored)) {
+          list.push(...stored);
+        }
+      } catch {}
+
       // 2. Add Project Stages as architectural approval sheets
       for (const p of projects.slice(0, 10)) {
         const projId = p.id || p._id;
@@ -68,6 +76,53 @@ export const approvalService = {
     } catch (err) {
       console.warn('Approvals live resolution notice:', err?.message);
       return [];
+    }
+  },
+
+  createApprovalRequest: async (data) => {
+    try {
+      let createdTask = null;
+      if (data.projectId) {
+        try {
+          createdTask = await taskService.createTask({
+            title: data.title || 'Drawing Approval Request',
+            projectId: data.projectId,
+            priority: data.priority || 'HIGH',
+            status: 'IN_REVIEW',
+            tags: ['REVIEW', data.type || 'DRAWING_APPROVAL'],
+            dueDate: data.dueDate || null,
+            description: data.notes || `Drawing Approval Request: ${data.drawingNo || 'Sheet'} (${data.version || 'R1'})`
+          });
+        } catch (taskErr) {
+          console.warn('Backend task create for approval notice:', taskErr?.message);
+        }
+      }
+
+      const newApproval = {
+        id: createdTask?.id || createdTask?._id || `req_${Date.now()}`,
+        taskId: createdTask?.id || createdTask?._id || null,
+        projectId: data.projectId || null,
+        title: data.title || 'Architectural Drawing Sheet',
+        drawingNo: data.drawingNo || `MMD-DWG-${Date.now().toString().slice(-4)}`,
+        project: data.projectName || 'Practice Project',
+        client: data.clientName || 'Private Client',
+        version: data.version || 'R1',
+        status: data.isRevision ? 'Revision Requested' : 'Pending Client Approval',
+        submittedBy: data.submittedBy || 'Studio Lead',
+        submittedAt: new Date().toISOString(),
+        notes: data.notes || ''
+      };
+
+      try {
+        const saved = JSON.parse(localStorage.getItem('mm_custom_approvals') || '[]');
+        saved.unshift(newApproval);
+        localStorage.setItem('mm_custom_approvals', JSON.stringify(saved));
+      } catch {}
+
+      return newApproval;
+    } catch (err) {
+      console.warn('createApprovalRequest notice:', err);
+      throw err;
     }
   },
 

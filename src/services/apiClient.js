@@ -112,9 +112,121 @@ export const isAdminPath = (url = '') => {
   return url.includes('/admin/') || url.startsWith('/admin') || url.includes('/admin/auth');
 };
 
+/**
+ * Decode JWT payload safely without external dependencies
+ */
+export const decodeJwtPayload = (token) => {
+  if (!token || typeof token !== 'string') return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const jsonStr = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonStr);
+  } catch {
+    // Fallback standard atob in case of custom UTF-8 sequences
+    try {
+      const parts = token.split('.');
+      let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      return JSON.parse(atob(base64));
+    } catch {
+      return null;
+    }
+  }
+};
+
+/**
+ * Check if token is expired or within proactive refresh buffer (default 25s)
+ */
+export const isTokenExpired = (token, bufferSeconds = 25) => {
+  if (!token || typeof token !== 'string') return true;
+  const payload = decodeJwtPayload(token);
+  if (!payload || typeof payload.exp !== 'number') return true;
+  return (Date.now() / 1000) >= (payload.exp - bufferSeconds);
+};
+
+// Singleton active refresh promises for proactive & reactive deduplication
+let activeTenantRefreshPromise = null;
+let activeAdminRefreshPromise = null;
+
+export const refreshTenantToken = async () => {
+  if (activeTenantRefreshPromise) return activeTenantRefreshPromise;
+
+  activeTenantRefreshPromise = (async () => {
+    try {
+      const refreshRes = await axios.post(
+        `${API_BASE_URL}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+      const payload = refreshRes.data?.data || refreshRes.data;
+      const newToken = payload?.accessToken;
+      if (newToken) {
+        setAccessToken(newToken);
+        return newToken;
+      }
+      throw new Error('No access token returned from refresh');
+    } catch (err) {
+      clearAccessToken();
+      window.dispatchEvent(new CustomEvent('auth:logout'));
+      if (!window.location.pathname.includes('/auth') && !window.location.pathname.includes('/login')) {
+        window.location.href = '/login?expired=1';
+      }
+      throw err;
+    } finally {
+      activeTenantRefreshPromise = null;
+    }
+  })();
+
+  return activeTenantRefreshPromise;
+};
+
+export const refreshAdminToken = async () => {
+  if (activeAdminRefreshPromise) return activeAdminRefreshPromise;
+
+  activeAdminRefreshPromise = (async () => {
+    try {
+      const refreshRes = await axios.post(
+        `${API_BASE_URL}/admin/auth/refresh`,
+        {},
+        { withCredentials: true }
+      );
+      const payload = refreshRes.data?.data || refreshRes.data;
+      const newToken = payload?.accessToken;
+      if (newToken) {
+        setAdminToken(newToken);
+        return newToken;
+      }
+      throw new Error('No admin token returned from refresh');
+    } catch (err) {
+      clearAdminToken();
+      window.dispatchEvent(new CustomEvent('admin:logout'));
+      if (!window.location.pathname.includes('/admin/auth') && !window.location.pathname.includes('/admin/login')) {
+        window.location.href = '/admin/login?expired=1';
+      }
+      throw err;
+    } finally {
+      activeAdminRefreshPromise = null;
+    }
+  })();
+
+  return activeAdminRefreshPromise;
+};
+
 // Request Interceptor: Attach in-memory / persistent JWT Bearer Token based on audience isolation
 apiClient.interceptors.request.use(
-  (config) => {
+  async (config) => {
     // Inject client tracing requestId conformant with M1.1 Section 4.1 & 5.2
     if (!config.headers['X-Request-Id']) {
       const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -134,15 +246,35 @@ apiClient.interceptors.request.use(
       config.headers['Expires'] = '0';
     }
 
-    // Rely on HTTP headers and Vite proxy header stripping to prevent caching
-    // Do NOT inject _t query parameter into config.params because strict backend validation schemas reject unknown query parameters with 422 Unprocessable Entity
+    const url = config.url || '';
+    const isUnauthenticatedAuthRoute =
+      url.includes('/auth/login') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/admin/auth/login') ||
+      url.includes('/admin/auth/refresh');
 
-    const isAdmin = isAdminPath(config.url);
+    const isAuthRoute =
+      url.includes('/auth/') ||
+      url.includes('/admin/auth/') ||
+      url.startsWith('/auth') ||
+      url.startsWith('/admin/auth') ||
+      url.includes('/health');
+
+    const isAdmin = isAdminPath(url);
 
     if (isAdmin) {
-      // Super Admin World (audience: 'platform') - Admin Token
-      const token = getAdminToken();
-      if (token) {
+      // Super Admin World (audience: 'platform')
+      let token = getAdminToken();
+      if (!isAuthRoute && (!token || isTokenExpired(token))) {
+        try {
+          token = await refreshAdminToken();
+        } catch {
+          // Admin session ended - cancel request before network call to prevent 401 error cascades
+          return Promise.reject(new axios.Cancel('Super Admin session expired. Redirecting to login...'));
+        }
+      }
+
+      if (token && !isUnauthenticatedAuthRoute) {
         if (config.headers.set) {
           config.headers.set('Authorization', `Bearer ${token}`);
         } else {
@@ -150,13 +282,25 @@ apiClient.interceptors.request.use(
         }
       }
     } else {
-      // Tenant User World (audience: 'tenant') - Tenant Access Token with Admin fallback
-      const token = getAccessToken() || getAdminToken();
-      if (token) {
+      // Tenant User World (audience: 'tenant')
+      let token = getAccessToken();
+
+      // Proactive silent refresh: if token is missing or expired, attempt refresh before network call
+      if (!isAuthRoute && (!token || isTokenExpired(token))) {
+        try {
+          token = await refreshTenantToken();
+        } catch {
+          // Tenant session ended - cancel request before network call to prevent 401 error cascades
+          return Promise.reject(new axios.Cancel('Session expired or unauthorized. Redirecting to login...'));
+        }
+      }
+
+      const activeToken = token || getAccessToken() || getAdminToken();
+      if (activeToken && !isUnauthenticatedAuthRoute) {
         if (config.headers.set) {
-          config.headers.set('Authorization', `Bearer ${token}`);
+          config.headers.set('Authorization', `Bearer ${activeToken}`);
         } else {
-          config.headers.Authorization = `Bearer ${token}`;
+          config.headers.Authorization = `Bearer ${activeToken}`;
         }
       }
     }
@@ -166,28 +310,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptors: Auto-refresh with isolated admin & tenant queues
-let isTenantRefreshing = false;
-let tenantQueue = [];
 
-let isAdminRefreshing = false;
-let adminQueue = [];
-
-const processTenantQueue = (error, token = null) => {
-  tenantQueue.forEach((prom) => {
-    if (error) prom.reject(error);
-    else prom.resolve(token);
-  });
-  tenantQueue = [];
-};
-
-const processAdminQueue = (error, token = null) => {
-  adminQueue.forEach((prom) => {
-    if (error) prom.reject(error);
-    else prom.resolve(token);
-  });
-  adminQueue = [];
-};
 
 apiClient.interceptors.response.use(
   (response) => {
@@ -250,92 +373,30 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       originalRequest._retry = true;
 
-      if (isAdmin) {
-        // ==========================================
-        // SUPER ADMIN ROTATION (/api/v1/admin/auth/refresh with 'art' cookie)
-        // ==========================================
-        if (isAdminRefreshing) {
-          return new Promise((resolve, reject) => {
-            adminQueue.push({ resolve, reject });
-          })
-            .then((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              return apiClient(originalRequest);
-            })
-            .catch((err) => Promise.reject(err));
-        }
-
-        isAdminRefreshing = true;
-
-        try {
-          const refreshRes = await axios.post(
-            `${API_BASE_URL}/admin/auth/refresh`,
-            {},
-            { withCredentials: true }
-          );
-
-          const payload = refreshRes.data?.data || refreshRes.data;
-          const newAccessToken = payload?.accessToken;
-
+      try {
+        if (isAdmin) {
+          const newAccessToken = await refreshAdminToken();
           if (newAccessToken) {
-            setAdminToken(newAccessToken); // In-Memory
-            processAdminQueue(null, newAccessToken);
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            if (originalRequest.headers?.set) {
+              originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);
+            } else {
+              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            }
             return apiClient(originalRequest);
           }
-        } catch (refreshErr) {
-          processAdminQueue(refreshErr, null);
-          clearAdminToken();
-          window.dispatchEvent(new CustomEvent('admin:logout'));
-          if (!window.location.pathname.includes('/admin/auth') && !window.location.pathname.includes('/admin/login')) {
-            window.location.href = '/admin/login?expired=1';
-          }
-        } finally {
-          isAdminRefreshing = false;
-        }
-      } else {
-        // ==========================================
-        // TENANT USER ROTATION (/api/v1/auth/refresh with 'rt' cookie)
-        // ==========================================
-        if (isTenantRefreshing) {
-          return new Promise((resolve, reject) => {
-            tenantQueue.push({ resolve, reject });
-          })
-            .then((token) => {
-              originalRequest.headers.Authorization = `Bearer ${token}`;
-              return apiClient(originalRequest);
-            })
-            .catch((err) => Promise.reject(err));
-        }
-
-        isTenantRefreshing = true;
-
-        try {
-          const refreshRes = await axios.post(
-            `${API_BASE_URL}/auth/refresh`,
-            {},
-            { withCredentials: true }
-          );
-
-          const payload = refreshRes.data?.data || refreshRes.data;
-          const newAccessToken = payload?.accessToken;
-
+        } else {
+          const newAccessToken = await refreshTenantToken();
           if (newAccessToken) {
-            setAccessToken(newAccessToken); // In-Memory
-            processTenantQueue(null, newAccessToken);
-            originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            if (originalRequest.headers?.set) {
+              originalRequest.headers.set('Authorization', `Bearer ${newAccessToken}`);
+            } else {
+              originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+            }
             return apiClient(originalRequest);
           }
-        } catch (refreshErr) {
-          processTenantQueue(refreshErr, null);
-          clearAccessToken();
-          window.dispatchEvent(new CustomEvent('auth:logout'));
-          if (!window.location.pathname.includes('/auth') && !window.location.pathname.includes('/login')) {
-            window.location.href = '/login?expired=1';
-          }
-        } finally {
-          isTenantRefreshing = false;
         }
+      } catch (refreshErr) {
+        return Promise.reject(refreshErr);
       }
     }
 

@@ -15,6 +15,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { ROUTES } from '../../../constants/routes';
+import { useAuth } from '../../../hooks/useAuth';
 import { projectService } from '../../../services/projectService';
 import { taskService } from '../../../services/taskService';
 import { teamService } from '../../../services/teamService';
@@ -35,6 +36,7 @@ const QUICK_PAGES = [
 const DEFAULT_SHORTCUTS = QUICK_PAGES.slice(0, 5);
 
 export function UniversalSearchBar() {
+  const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -51,7 +53,7 @@ export function UniversalSearchBar() {
 
   // Load initial dataset on focus
   const loadDynamicSearchData = async () => {
-    if (hasLoadedData) return;
+    if (!isAuthenticated || hasLoadedData) return;
     try {
       const [projRes, taskRes, teamRes] = await Promise.allSettled([
         projectService.getProjects({ limit: 50 }),
@@ -76,7 +78,7 @@ export function UniversalSearchBar() {
 
   // Debounced live search directly against backend for real-time results
   useEffect(() => {
-    if (!query.trim()) return;
+    if (!isAuthenticated || !query.trim()) return;
 
     const timer = setTimeout(async () => {
       try {

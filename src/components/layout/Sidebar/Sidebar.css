@@ -1,6 +1,7 @@
 /* ==========================================================================
    Sidebar.css - Professional Architectural Rail Sidebar
-   Refined Icon Tiles (46x46), Active Indicator, Bottom Pinned Utilities
+   Refined Icon Tiles (46x46), Active Indicator, Bottom Pinned Utilities,
+   and Expandable Multi-Level Dropdowns with Warm Amber/Copper Accent
    ========================================================================== */
 
 .app-sidebar {
@@ -21,6 +22,9 @@
   box-shadow: 2px 0 12px rgba(46, 46, 46, 0.02);
   scrollbar-width: none;
   -ms-overflow-style: none;
+  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .app-sidebar::-webkit-scrollbar {
@@ -78,18 +82,21 @@
 
 .sidebar-brand-name {
   font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   letter-spacing: 0.12em;
-  color: #2E2925;
+  color: #2A241D;
+  text-transform: uppercase;
 }
 
 .sidebar-brand-subtitle {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-serif, "Fraunces", "Cormorant Garamond", Georgia, serif);
   font-style: italic;
-  font-size: 11.5px;
-  color: #7B6F62;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--primary, #7A6A58);
   letter-spacing: 0.05em;
+  margin-top: 1px;
 }
 
 .sidebar-mobile-close {
@@ -130,7 +137,8 @@
 .sidebar-nav-item {
   width: 100%;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
   position: relative;
 }
 
@@ -150,6 +158,7 @@
   outline: none;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   box-sizing: border-box;
+  cursor: pointer;
 }
 
 .sidebar-nav-icon {
@@ -158,7 +167,7 @@
   transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.18s ease;
 }
 
-/* Hover State: Soft Ivory background, Charcoal icon with micro spring scale */
+/* Hover State */
 .sidebar-nav-link:hover {
   background-color: #F4EFEB;
   border-color: rgba(183, 175, 166, 0.3);
@@ -170,7 +179,7 @@
   color: #2E2E2E;
 }
 
-/* Active State: Clean Soft Oatmeal / Linen Pill with subtle depth */
+/* Active State */
 .sidebar-nav-link.active {
   background-color: #E8E3DB;
   border-color: #D8D2C8;
@@ -186,12 +195,12 @@
   transform: scale(1.08);
 }
 
-/* Inline CSS Tooltip (Secondary desktop fallback) */
+/* Inline CSS Tooltip (Desktop collapsed fallback) */
 .sidebar-inline-tooltip {
   display: none;
 }
 
-/* Floating High-Z-Index Tooltip: Appears on Hover & stays as long as cursor remains on icon */
+/* Floating High-Z-Index Tooltip */
 .sidebar-floating-tooltip {
   position: fixed;
   left: 80px;
@@ -200,7 +209,7 @@
   color: #F8F6F2;
   padding: 7px 13px;
   border-radius: 8px;
-  font-family: var(--font-family-base);
+  font-family: var(--font-family-base, sans-serif);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -234,7 +243,6 @@
     opacity: 0;
     transform: translateY(-50%) translateX(-6px);
   }
-
   to {
     opacity: 1;
     transform: translateY(-50%) translateX(0);
@@ -259,13 +267,149 @@
   margin-bottom: 2px;
 }
 
-/* Navigation text label: Hidden on desktop rail, visible in mobile drawer or when expanded */
 .sidebar-nav-label {
   display: none;
 }
 
 /* ==========================================================================
-   Desktop Expanded Sidebar Mode (Toggled via rotating logo click)
+   DROPDOWN & SUBMENU STYLING (Expanded & Mobile)
+   Mayur Mehta Brand Guidelines (Taupe #7B6F62, Warm Beige #E8E3DB, Sand #FAF8F5)
+   ========================================================================== */
+
+/* Chevron & Wrapper */
+.sidebar-chevron-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.sidebar-chevron-wrap:hover {
+  background-color: rgba(122, 106, 88, 0.12);
+}
+
+.sidebar-dropdown-chevron {
+  color: #8C8073;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-dropdown-chevron.chevron-rotated {
+  transform: rotate(180deg);
+}
+
+.sidebar-has-dropdown.dropdown-open .sidebar-dropdown-chevron,
+.sidebar-nav-item.parent-active .sidebar-dropdown-chevron {
+  color: var(--primary, #7A6A58);
+}
+
+/* Parent Active / Open States - Architectural Soft Oatmeal Pill */
+.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle,
+.sidebar-nav-item.parent-active > .sidebar-nav-link {
+  color: var(--text, #2A241D);
+  background-color: var(--primary-soft, #EFE7DC);
+  border: 1px solid rgba(183, 175, 166, 0.38);
+  box-shadow: 0 1px 3px rgba(42, 36, 29, 0.04);
+}
+
+.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-icon,
+.sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-icon {
+  color: var(--primary, #7A6A58) !important;
+}
+
+.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-label,
+.sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-label {
+  color: #1A1918 !important;
+  font-weight: 600 !important;
+}
+
+/* Submenu container */
+.sidebar-submenu-list {
+  list-style: none;
+  padding: 4px 0 6px 36px;
+  margin: 3px 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  box-sizing: border-box;
+  animation: submenuSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes submenuSlideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sidebar-submenu-item {
+  width: 100%;
+}
+
+.sidebar-submenu-link {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px;
+  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-size: 13px;
+  font-weight: 500;
+  color: #635A52;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+  letter-spacing: -0.005em;
+  border: 1px solid transparent;
+}
+
+.sidebar-submenu-link::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #C2B9AF;
+  margin-right: 10px;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.sidebar-submenu-link:hover {
+  color: #1E1A17;
+  background-color: #F7F4EF;
+}
+
+.sidebar-submenu-link:hover::before {
+  background-color: #7A6A58;
+  transform: scale(1.25);
+}
+
+.sidebar-submenu-link.sub-active {
+  color: #1E1A17;
+  font-weight: 600;
+  background-color: var(--primary-soft, #EFE7DC);
+  border-color: rgba(183, 175, 166, 0.34);
+  box-shadow: 0 1px 2px rgba(42, 36, 29, 0.03);
+}
+
+.sidebar-submenu-link.sub-active::before {
+  background-color: var(--primary, #7A6A58);
+  transform: scale(1.35);
+}
+
+/* ==========================================================================
+   Desktop Expanded Sidebar Mode (Width: 240px)
    ========================================================================== */
 @media (min-width: 769px) {
   .app-sidebar.sidebar-expanded {
@@ -300,22 +444,25 @@
 
   .app-sidebar.sidebar-expanded .sidebar-nav-label {
     display: inline-block;
+    font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
     font-size: 13.5px;
-    font-weight: 550;
-    color: inherit;
+    font-weight: 500;
+    color: #4A443E;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.01em;
     animation: sidebarFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
 
   .app-sidebar.sidebar-expanded .sidebar-nav-link:hover .sidebar-nav-label {
-    color: #1A1A1A;
+    color: #1A1918;
   }
 
-  .app-sidebar.sidebar-expanded .sidebar-nav-link.active .sidebar-nav-label {
-    color: #1F1B18;
+  .app-sidebar.sidebar-expanded .sidebar-nav-link.active .sidebar-nav-label,
+  .app-sidebar.sidebar-expanded .sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-label,
+  .app-sidebar.sidebar-expanded .sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-label {
+    color: #1A1918;
     font-weight: 600;
   }
 
@@ -336,7 +483,71 @@
   }
 }
 
-/* Mobile Responsive Drawer */
+/* Floating Flyout Popover for Collapsed Rail Mode */
+.sidebar-rail-flyout {
+  position: fixed;
+  left: 84px;
+  background: #FFFFFF;
+  border: 1px solid rgba(183, 175, 166, 0.35);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px -4px rgba(46, 46, 46, 0.18), 0 3px 8px rgba(46, 46, 46, 0.08);
+  min-width: 180px;
+  z-index: 99999;
+  padding: 8px 0;
+  animation: tooltipSlideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.flyout-header {
+  padding: 6px 14px 8px;
+  border-bottom: 1px solid rgba(183, 175, 166, 0.2);
+  margin-bottom: 4px;
+}
+
+.flyout-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary, #7A6A58);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.flyout-submenu-list {
+  list-style: none;
+  margin: 0;
+  padding: 2px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.flyout-item {
+  width: 100%;
+}
+
+.flyout-link {
+  display: block;
+  padding: 7px 12px;
+  font-size: 13px;
+  color: var(--text-muted, #7B6F63);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.flyout-link:hover {
+  background-color: #F4EFEB;
+  color: var(--text, #2A241D);
+}
+
+.flyout-link.active {
+  background-color: var(--primary-soft, #EFE7DC);
+  color: var(--primary, #7A6A58);
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   Mobile Responsive Drawer
+   ========================================================================== */
 .sidebar-mobile-backdrop {
   display: none;
 }

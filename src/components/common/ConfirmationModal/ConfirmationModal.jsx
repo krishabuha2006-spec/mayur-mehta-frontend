@@ -96,7 +96,7 @@ export function ConfirmationModal({
             type="button"
             variant={variant === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
-            isLoading={isLoading}
+            loading={isLoading}
             className="confirm-btn-action"
           >
             {confirmText}

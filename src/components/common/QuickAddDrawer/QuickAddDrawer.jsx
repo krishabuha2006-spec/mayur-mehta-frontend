@@ -328,7 +328,7 @@ export function QuickAddDrawer({ isOpen, onClose, onSaveSuccess }) {
                 <ul className="checklist-items">
                   {checklistItems.map((item, idx) => (
                     <li key={idx} className="checklist-item">
-                      <span className="checklist-bullet">✓</span>
+                      <span className="checklist-bullet"><Check size={12} strokeWidth={2.5} /></span>
                       <span>{item}</span>
                     </li>
                   ))}

@@ -1122,3 +1122,135 @@ input[type="text"].tasks-search-input,
   color: #B5483A;
 }
 
+
+/* ==========================================================================
+   ARCHITECTURAL MASTER TASK TEMPLATES
+   ========================================================================== */
+
+.tasks-templates-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.templates-section-header {
+  padding-bottom: 4px;
+}
+
+.templates-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-text, #1E1A17);
+}
+
+.templates-section-subtitle {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  color: var(--color-text-muted, #7B6F62);
+}
+
+.tasks-templates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.task-template-card {
+  background-color: var(--color-card, #FFFFFF);
+  border: 1px solid var(--color-border, #E8E0D5);
+  border-radius: var(--radius-card, 14px);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 14px;
+  box-shadow: 0 1px 3px rgba(42, 36, 29, 0.04);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.task-template-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(42, 36, 29, 0.08);
+}
+
+.template-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.template-category-tag {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary, #7B6F62);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.template-title {
+  margin: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--color-text, #1E1A17);
+  line-height: 1.35;
+}
+
+.template-duration-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #7B6F62);
+  background-color: #FAF8F5;
+  border: 1px solid #EFEAE3;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.template-checklist-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.template-checklist-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted, #7B6F62);
+}
+
+.template-checklist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-checklist li {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--color-text, #2A241D);
+  line-height: 1.35;
+}
+
+.template-check-icon {
+  color: #1E6B37;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.template-card-actions {
+  margin-top: auto;
+  padding-top: 6px;
+}

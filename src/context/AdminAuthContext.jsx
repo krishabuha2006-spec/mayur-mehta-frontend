@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { adminAuthService } from '../services/adminAuthService';
-import { getAdminToken, clearAdminToken } from '../services/apiClient';
+import { getAdminToken, clearAdminToken, isTokenExpired } from '../services/apiClient';
 
 export const AdminAuthContext = createContext(null);
 
@@ -16,7 +16,9 @@ const getStoredAdminUser = () => {
 
 export function AdminAuthProvider({ children }) {
   const initialAdmin = getStoredAdminUser();
-  const [adminUser, setAdminUser] = useState(initialAdmin || null);
+  const initialToken = getAdminToken();
+  const hasValidAdminToken = initialToken && !isTokenExpired(initialToken);
+  const [adminUser, setAdminUser] = useState(hasValidAdminToken ? (initialAdmin || null) : null);
   const [loading, setLoading] = useState(true);
 
   // Page Refresh (F5): Authenticate via existing admin token or silent POST /api/v1/admin/auth/refresh
@@ -40,7 +42,7 @@ export function AdminAuthProvider({ children }) {
       let user = null;
       const existingToken = getAdminToken();
 
-      if (existingToken) {
+      if (existingToken && !isTokenExpired(existingToken)) {
         try {
           user = await adminAuthService.getProfile();
         } catch {

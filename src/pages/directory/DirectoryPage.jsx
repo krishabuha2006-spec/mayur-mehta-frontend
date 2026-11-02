@@ -25,6 +25,7 @@ import { Select } from '../../components/common/Select/Select';
 import { Drawer } from '../../components/common/Drawer/Drawer';
 import { teamService } from '../../services/teamService';
 import { projectService } from '../../services/projectService';
+import { useAuth } from '../../hooks/useAuth';
 import './DirectoryPage.css';
 
 const CRM_STAGES = [
@@ -60,11 +61,14 @@ export function DirectoryPage() {
   }, [pipelineLeads]);
 
   // Selected lead for Notes & Communication Log Drawer
+  const { isAuthenticated, loading: authLoading } = useAuth();
   const [selectedLead, setSelectedLead] = useState(null);
   const [newLogText, setNewLogText] = useState('');
   const [newLogType, setNewLogType] = useState('Call');
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
     const fetchDirectory = async () => {
       setLoading(true);
       try {
@@ -121,7 +125,7 @@ export function DirectoryPage() {
       }
     };
     fetchDirectory();
-  }, [searchTerm]);
+  }, [authLoading, isAuthenticated, searchTerm]);
 
   const [newContact, setNewContact] = useState({
     name: '',

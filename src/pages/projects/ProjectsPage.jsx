@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Filter,
   Search,
@@ -32,13 +33,22 @@ import {
   ArrowRight,
   ArrowLeft,
   User,
-  Ruler
+  Sun,
+  HardHat,
+  Wrench,
+  Ruler,
+  Camera,
+  ClipboardList,
+  FolderKanban,
+  Image as ImageIcon
 } from 'lucide-react';
 import { projectService } from '../../services/projectService';
 import { masterService } from '../../services/masterService';
 import { teamService } from '../../services/teamService';
+import { logService } from '../../services/logService';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
+import { useAuth } from '../../hooks/useAuth';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
@@ -257,6 +267,9 @@ export function ProjectsPage() {
   const [loading, setLoading] = useState(false);
   const [trashCount, setTrashCount] = useState(0);
 
+  // Authentication state check
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -267,6 +280,81 @@ export function ProjectsPage() {
 
   // Pagination
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 1 });
+
+  // Sub-navigation view: 'list' | 'visit-logs' | 'photos'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentView = searchParams.get('view') || 'list';
+
+  // Site Visit Logs State
+  const [siteLogs, setSiteLogs] = useState([]);
+  const [logFilterProject, setLogFilterProject] = useState('ALL');
+  const [logPage, setLogPage] = useState(1);
+  const LOGS_PER_PAGE = 8;
+  const [isLogModalOpen, setIsLogModalOpen] = useState(false);
+  const [newLogForm, setNewLogForm] = useState({
+    project: '',
+    engineer: 'Mayur Mehta',
+    weather: 'Sunny (32°C)',
+    laborCount: 16,
+    hoursWorked: 8,
+    summary: '',
+    tradeBreakdown: 'Civil, Masons & Structural'
+  });
+
+  // Project Photos State
+  const [projectPhotos, setProjectPhotos] = useState([
+    {
+      id: 'photo-1',
+      project: 'Aarohi Villa Residence',
+      title: 'Foundation RCC Setting & Reinforcement',
+      category: 'Foundation',
+      date: '2026-10-24',
+      imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+      photographer: 'Mayur Mehta (Lead Architect)'
+    },
+    {
+      id: 'photo-2',
+      project: 'Monolith Design Corporate Office',
+      title: 'Glass Facade & Double-Glazing Framing',
+      category: 'Facade',
+      date: '2026-10-28',
+      imageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80',
+      photographer: 'Site Project Engineer'
+    },
+    {
+      id: 'photo-3',
+      project: 'Khyati Heights Penthouse',
+      title: 'Terrace Cantilever Slab Casting Inspection',
+      category: 'Structural',
+      date: '2026-10-30',
+      imageUrl: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+      photographer: 'Structural Consultant'
+    },
+    {
+      id: 'photo-4',
+      project: 'Aarohi Villa Residence',
+      title: 'Courtyard Water Feature Level Verification',
+      category: 'Landscape',
+      date: '2026-10-31',
+      imageUrl: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
+      photographer: 'Landscape Designer'
+    }
+  ]);
+  const [photoFilterProject, setPhotoFilterProject] = useState('ALL');
+  const [photoModalOpen, setPhotoModalOpen] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
+  const [newPhotoForm, setNewPhotoForm] = useState({
+    project: '',
+    title: '',
+    category: 'Site Progress',
+    imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'
+  });
+
+  useEffect(() => {
+    logService.getLogs().then((res) => {
+      setSiteLogs(Array.isArray(res) ? res : []);
+    }).catch(() => {});
+  }, [currentView]);
 
   // Lookups: Categories, Types, and Users Directory
   const [categoryOptions, setCategoryOptions] = useState([]);
@@ -502,6 +590,8 @@ export function ProjectsPage() {
 
   // 4. Initial Master Lookups Flow
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
     const loadLookups = async () => {
       try {
         const [cats, types, dir] = await Promise.allSettled([
@@ -545,18 +635,19 @@ export function ProjectsPage() {
     };
 
     loadLookups();
-    loadProjects(1);
     loadSummary();
     loadTrashCount();
-  }, []);
+  }, [authLoading, isAuthenticated]);
 
   // Trigger search / filters reload
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return;
+
     const timer = setTimeout(() => {
       loadProjects(1);
     }, 250);
     return () => clearTimeout(timer);
-  }, [searchTerm, statusFilter, priorityFilter, categoryFilter]);
+  }, [authLoading, isAuthenticated, searchTerm, statusFilter, priorityFilter, categoryFilter]);
 
   // View Modal Flow: GET /projects/:id + GET /projects/:id/stages + GET /projects/:id/members
   const handleOpenViewModal = async (project) => {
@@ -765,8 +856,11 @@ export function ProjectsPage() {
               userId: formData.managerId.trim(),
               role: 'MANAGER'
             });
-          } catch {
-            // Handled
+          } catch (mErr) {
+            // 409 conflict is expected if backend auto-assigned manager during project creation
+            if (mErr?.response?.status !== 409) {
+              console.warn('Manager assignment note:', mErr?.message);
+            }
           }
         }
 
@@ -1148,7 +1242,11 @@ export function ProjectsPage() {
       showToast(selectedRoleToAdd === 'MANAGER' ? 'Manager assigned (previous demoted to LEAD)' : 'Member added');
       loadProjects(pagination.page);
     } catch (err) {
-      showToast(extractErrorMessage(err, 'Add member failed'));
+      if (err?.response?.status === 409) {
+        showToast('This team member is already assigned to this project.', 'warning');
+      } else {
+        showToast(extractErrorMessage(err, 'Add member failed'), 'error');
+      }
     }
   };
 
@@ -1245,8 +1343,39 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      {/* Summary Facet Cards */}
-      <div className="m17-summary-grid">
+      {/* Sub-Navigation Bar matching Sidebar Dropdown (List | Visit Log | Photos) */}
+      <div className="projects-subnav-bar">
+        <button
+          type="button"
+          className={`subnav-pill-btn ${currentView === 'list' ? 'active' : ''}`}
+          onClick={() => setSearchParams({ view: 'list' })}
+        >
+          <FolderKanban size={15} />
+          <span>Projects List</span>
+        </button>
+        <button
+          type="button"
+          className={`subnav-pill-btn ${currentView === 'visit-logs' ? 'active' : ''}`}
+          onClick={() => setSearchParams({ view: 'visit-logs' })}
+        >
+          <ClipboardList size={15} />
+          <span>Site Visit Logs ({siteLogs.length})</span>
+        </button>
+        <button
+          type="button"
+          className={`subnav-pill-btn ${currentView === 'photos' ? 'active' : ''}`}
+          onClick={() => setSearchParams({ view: 'photos' })}
+        >
+          <Camera size={15} />
+          <span>Site Photos Gallery ({projectPhotos.length})</span>
+        </button>
+      </div>
+
+      {/* VIEW 1: PROJECTS LIST VIEW */}
+      {currentView === 'list' && (
+        <>
+          {/* Summary Facet Cards */}
+          <div className="m17-summary-grid">
         <div
           className={`m17-summary-card ${statusFilter === 'IN_PROGRESS' ? 'active-filter' : ''}`}
           onClick={() => setStatusFilter(statusFilter === 'IN_PROGRESS' ? 'all' : 'IN_PROGRESS')}
@@ -1483,11 +1612,11 @@ export function ProjectsPage() {
                 />
               </th>
               <th>Project</th>
-              <th>Client & Location</th>
-              <th>Typology & Scale</th>
+              <th>Client</th>
+              <th>Typology</th>
               <th>Budget (INR)</th>
               <th>Priority</th>
-              <th>Status & Timeline</th>
+              <th>Status</th>
               <th>Progress</th>
               <th>Manager</th>
               <th className="th-action">Actions</th>
@@ -1558,84 +1687,28 @@ export function ProjectsPage() {
                     <td
                       className="td-title-cell"
                       onClick={() => handleOpenViewModal(proj)}
-                      title="Click to view project details"
+                      title={`${proj.name} (${proj.projectCode || proj.code || 'PRJ'})`}
                     >
-                      <div className="proj-title-stack">
-                        <strong className="proj-name-link">{proj.name}</strong>
-                        <div className="proj-code-tags-row">
-                          <span className="m17-project-code-tag">{proj.projectCode || proj.code || 'PRJ'}</span>
-                          {(proj.tags || []).slice(0, 2).map((tag, idx) => (
-                            <span key={idx} className="proj-tag-pill">#{tag}</span>
-                          ))}
-                        </div>
-                      </div>
+                      <strong className="proj-name-link">{proj.name}</strong>
+                    </td>
+                    <td title={locationDisplay ? `${proj.client?.name || 'Client'} • ${locationDisplay}` : (proj.client?.name || 'Client')}>
+                      <span className="client-name">{proj.client?.name || 'Private Client'}</span>
+                    </td>
+                    <td title={areaDisplay ? `${catDisplay || typeDisplay || 'Architectural'} • ${areaDisplay}` : ''}>
+                      <span className="m17-cat-pill">{catDisplay || typeDisplay || 'Architectural'}</span>
                     </td>
                     <td>
-                      <div className="client-cell-info">
-                        <strong className="client-name">{proj.client?.name || 'Private Client'}</strong>
-                        {contactDisplay && (
-                          <span className="client-contact-sub" title={contactDisplay}>
-                            <User size={11} className="cell-sub-icon" />
-                            <span>{contactDisplay}</span>
-                          </span>
-                        )}
-                        <span className="city-sub" title={locationDisplay}>
-                          <MapPin size={11} className="cell-sub-icon" />
-                          <span>{locationDisplay}</span>
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="cat-typology-cell">
-                        <div className="cat-pill-row">
-                          <span className="m17-cat-pill">{catDisplay || typeDisplay || 'Architectural'}</span>
-                          {catDisplay && typeDisplay && catDisplay !== typeDisplay && (
-                            <span className="m17-type-pill">{typeDisplay}</span>
-                          )}
-                        </div>
-                        {areaDisplay && (
-                          <span className="m17-area-tag" title="Built-up Area">
-                            <Ruler size={11} className="cell-sub-icon" />
-                            <span>{areaDisplay}</span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      {formatBudget(proj) ? (
-                        <span className="budget-cell-val">{formatBudget(proj)}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className="budget-empty-action"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenEdit(proj);
-                          }}
-                          title="Click to set project budget"
-                        >
-                          <span className="budget-empty-dash">—</span>
-                          <span className="budget-set-pill">+ Set</span>
-                        </button>
-                      )}
+                      <span className="budget-cell-val">{formatBudget(proj) || '—'}</span>
                     </td>
                     <td>
                       <Badge variant={getPriorityBadgeVariant(proj.priority)}>
                         {proj.priority || 'MEDIUM'}
                       </Badge>
                     </td>
-                    <td>
-                      <div className="status-cell-stack">
-                        <Badge variant={getStatusBadgeVariant(proj.status)}>
-                          {proj.status ? proj.status.replace('_', ' ') : 'NOT STARTED'}
-                        </Badge>
-                        {targetDate && (
-                          <span className="handover-date-sub" title="Target Handover Date">
-                            <Calendar size={11} className="cell-sub-icon" />
-                            <span>{targetDate}</span>
-                          </span>
-                        )}
-                      </div>
+                    <td title={targetDate ? `Target Handover: ${targetDate}` : ''}>
+                      <Badge variant={getStatusBadgeVariant(proj.status)}>
+                        {proj.status ? proj.status.replace('_', ' ') : 'NOT STARTED'}
+                      </Badge>
                     </td>
                     <td>
                       <div className="progress-cell-wrapper">
@@ -1722,6 +1795,469 @@ export function ProjectsPage() {
           </tbody>
         </table>
       </div>
+    </>
+  )}
+
+      {/* VIEW 2: SITE VISIT LOGS */}
+      {currentView === 'visit-logs' && (() => {
+        const filteredSiteLogs = siteLogs.filter((log) => {
+          if (logFilterProject === 'ALL') return true;
+          return (log.project || '').toLowerCase().includes(logFilterProject.toLowerCase());
+        });
+
+        const totalLogs = filteredSiteLogs.length;
+        const totalPages = Math.max(1, Math.ceil(totalLogs / LOGS_PER_PAGE));
+        const safePage = Math.min(logPage, totalPages);
+        const startIndex = (safePage - 1) * LOGS_PER_PAGE;
+        const paginatedLogs = filteredSiteLogs.slice(startIndex, startIndex + LOGS_PER_PAGE);
+
+        const totalSiteLabor = filteredSiteLogs.reduce((sum, l) => sum + (Number(l.laborCount) || 0), 0);
+        const totalSiteHours = filteredSiteLogs.reduce((sum, l) => sum + (Number(l.hoursWorked) || 0), 0);
+
+        const projectFilterOptions = [
+          { value: 'ALL', label: `All Projects (${siteLogs.length} logs)` },
+          ...projects.map((p) => ({ value: p.name, label: p.name }))
+        ];
+
+        return (
+          <div className="site-visit-logs-view">
+            {/* Minimalist Studio Toolbar */}
+            <div className="view-toolbar-row">
+              <div className="view-toolbar-left">
+                <span className="view-toolbar-label">Filter by Project:</span>
+                <Select
+                  value={logFilterProject}
+                  onChange={(e) => {
+                    setLogFilterProject(e.target.value);
+                    setLogPage(1);
+                  }}
+                  options={projectFilterOptions}
+                  className="view-project-select-theme"
+                />
+              </div>
+
+              <div className="view-toolbar-right">
+                <span className="subview-stats-pill">
+                  <strong>{totalLogs}</strong> Site Visits &nbsp;•&nbsp; <strong>{totalSiteLabor}</strong> Active Laborers &nbsp;•&nbsp; <strong>{totalSiteHours}h</strong> On-Site
+                </span>
+                <button
+                  type="button"
+                  className="btn-primary-pill"
+                  onClick={() => {
+                    setNewLogForm({
+                      project: projects[0]?.name || 'Courtyard Villa Residence',
+                      engineer: usersDirectory[0]?.name || 'Mayur Mehta (Principal Architect)',
+                      weather: 'Sunny (32°C)',
+                      laborCount: 16,
+                      hoursWorked: 8,
+                      summary: '',
+                      tradeBreakdown: 'Civil, Masons & Structural'
+                    });
+                    setIsLogModalOpen(true);
+                  }}
+                >
+                  <Plus size={16} />
+                  <span>Record Site Visit Log</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Simple, Professional Architectural Site Logs Table Listing */}
+            <div className="subview-table-wrapper">
+              <table className="subview-data-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Project</th>
+                    <th>Architect / Engineer</th>
+                    <th>Site Observation / Inspection</th>
+                    <th>Active Trades</th>
+                    <th>Weather</th>
+                    <th>Labor</th>
+                    <th>Hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSiteLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="no-data-cell">
+                        <div className="empty-subview-card">
+                          <ClipboardList size={36} className="empty-subview-icon" />
+                          <h4>No Site Visit Logs Recorded</h4>
+                          <p>Record site visit observations, labor count, weather, and contractor progress logs for projects.</p>
+                          <button
+                            type="button"
+                            className="btn-primary-pill"
+                            onClick={() => setIsLogModalOpen(true)}
+                          >
+                            <Plus size={15} /> Record First Visit Log
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedLogs.map((log) => (
+                      <tr key={log.id} className="subview-data-row">
+                        <td className="log-td-date">
+                          <span className="log-date-text">
+                            {log.date ? new Date(log.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                          </span>
+                        </td>
+                        <td className="log-td-project">
+                          <strong className="log-project-title" title={log.project}>{log.project}</strong>
+                        </td>
+                        <td className="log-td-engineer">
+                          <div className="log-engineer-inline">
+                            <User size={13} className="log-inline-icon" />
+                            <span>{log.engineer}</span>
+                          </div>
+                        </td>
+                        <td className="log-td-summary" title={log.summary}>
+                          <span className="log-summary-line">{log.summary || 'Routine architectural site progress and reinforcement checking completed.'}</span>
+                        </td>
+                        <td className="log-td-trade">
+                          <span className="log-trade-tag">{log.tradeBreakdown || 'General Civil'}</span>
+                        </td>
+                        <td className="log-td-weather">
+                          <div className="log-weather-inline">
+                            <Sun size={13} className="log-inline-icon" />
+                            <span>{log.weather}</span>
+                          </div>
+                        </td>
+                        <td className="log-td-labor">
+                          <span className="log-labor-pill">
+                            <HardHat size={12} className="log-inline-icon" />
+                            <span>{log.laborCount != null ? log.laborCount : 0}</span>
+                          </span>
+                        </td>
+                        <td className="log-td-hours">
+                          <span className="log-hours-text">{log.hoursWorked || 8}h</span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Elegant Studio Pagination Bar */}
+            {totalPages > 1 && (
+              <div className="subview-pagination-bar">
+                <div className="pagination-info">
+                  Showing <strong>{startIndex + 1}</strong>–<strong>{Math.min(startIndex + LOGS_PER_PAGE, totalLogs)}</strong> of <strong>{totalLogs}</strong> site visit logs
+                </div>
+
+                <div className="pagination-controls">
+                  <button
+                    type="button"
+                    className="subview-page-btn arrow"
+                    disabled={safePage <= 1}
+                    onClick={() => setLogPage((p) => Math.max(1, p - 1))}
+                    aria-label="Previous Page"
+                  >
+                    <ChevronLeft size={15} />
+                    <span>Previous</span>
+                  </button>
+
+                  <div className="page-numbers-group">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        className={`subview-page-num ${safePage === pageNum ? 'active' : ''}`}
+                        onClick={() => setLogPage(pageNum)}
+                      >
+                        {pageNum}
+                      </button>
+                    ))}
+                  </div>
+
+                  <button
+                    type="button"
+                    className="subview-page-btn arrow"
+                    disabled={safePage >= totalPages}
+                    onClick={() => setLogPage((p) => Math.min(totalPages, p + 1))}
+                    aria-label="Next Page"
+                  >
+                    <span>Next</span>
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* VIEW 3: SITE PHOTOS GALLERY */}
+      {currentView === 'photos' && (
+        <div className="site-photos-gallery-view">
+          <div className="view-toolbar-row">
+            <div className="view-toolbar-left">
+              <span className="view-toolbar-label">Filter by Project:</span>
+              <Select
+                value={photoFilterProject}
+                onChange={(e) => setPhotoFilterProject(e.target.value)}
+                options={[
+                  { value: 'ALL', label: `All Projects (${projectPhotos.length} photos)` },
+                  ...projects.map((p) => ({ value: p.name, label: p.name }))
+                ]}
+                className="view-project-select-theme"
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-primary-pill"
+              onClick={() => {
+                setNewPhotoForm({
+                  project: projects[0]?.name || 'Aarohi Villa Residence',
+                  title: '',
+                  category: 'Site Progress',
+                  imageUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'
+                });
+                setPhotoModalOpen(true);
+              }}
+            >
+              <Plus size={16} />
+              <span>Upload Site Photo</span>
+            </button>
+          </div>
+
+          <div className="photos-gallery-grid">
+            {projectPhotos.filter((photo) => {
+              if (photoFilterProject === 'ALL') return true;
+              return (photo.project || '').toLowerCase().includes(photoFilterProject.toLowerCase());
+            }).map((photo) => (
+              <div
+                key={photo.id}
+                className="site-photo-card"
+                onClick={() => setPreviewPhoto(photo)}
+              >
+                <div className="photo-image-wrap">
+                  <img src={photo.imageUrl} alt={photo.title} className="site-photo-img" />
+                  <span className="photo-category-pill">{photo.category}</span>
+                </div>
+                <div className="photo-card-info">
+                  <span className="photo-project-name">{photo.project}</span>
+                  <h4 className="photo-title">{photo.title}</h4>
+                  <div className="photo-footer-meta">
+                    <span className="photo-date">{photo.date}</span>
+                    <span className="photo-author">{photo.photographer}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Record Site Visit Log Modal */}
+      <Modal
+        isOpen={isLogModalOpen}
+        onClose={() => setIsLogModalOpen(false)}
+        title="Record Site Visit Log"
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const newEntry = {
+              id: `log_${Date.now()}`,
+              project: newLogForm.project || projects[0]?.name || 'Courtyard Villa Residence',
+              engineer: newLogForm.engineer || usersDirectory[0]?.name || 'Mayur Mehta (Principal Architect)',
+              weather: newLogForm.weather || 'Sunny (32°C)',
+              laborCount: Number(newLogForm.laborCount) || 16,
+              hoursWorked: Number(newLogForm.hoursWorked) || 8,
+              summary: newLogForm.summary || 'Routine architectural site progress and reinforcement checking completed.',
+              tradeBreakdown: newLogForm.tradeBreakdown || 'Civil & Masons',
+              date: new Date().toISOString()
+            };
+            await logService.createLog(newEntry);
+            setSiteLogs((prev) => [newEntry, ...prev.filter((l) => l.id !== newEntry.id)]);
+            setIsLogModalOpen(false);
+            showToast('Site visit log recorded successfully', 'success');
+          }}
+          className="subview-modal-form"
+        >
+          <div className="form-group">
+            <Select
+              label="Select Project *"
+              id="new-log-project"
+              value={newLogForm.project}
+              onChange={(e) => setNewLogForm((prev) => ({ ...prev, project: e.target.value }))}
+              options={projects.length > 0 ? projects.map((p) => ({ value: p.name, label: p.name })) : [
+                { value: 'Courtyard Villa Residence', label: 'Courtyard Villa Residence' }
+              ]}
+              required
+            />
+          </div>
+
+          <div className="form-row-2">
+            <Input
+              label="Site Engineer / Architect *"
+              value={newLogForm.engineer}
+              onChange={(e) => setNewLogForm({ ...newLogForm, engineer: e.target.value })}
+              required
+            />
+            <Input
+              label="Weather Conditions *"
+              value={newLogForm.weather}
+              onChange={(e) => setNewLogForm({ ...newLogForm, weather: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="form-row-2">
+            <Input
+              label="Labor Count on Site *"
+              type="number"
+              value={newLogForm.laborCount}
+              onChange={(e) => setNewLogForm({ ...newLogForm, laborCount: e.target.value })}
+              required
+            />
+            <Input
+              label="Hours Worked *"
+              type="number"
+              value={newLogForm.hoursWorked}
+              onChange={(e) => setNewLogForm({ ...newLogForm, hoursWorked: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Active Contractors & Trades *</label>
+            <Input
+              value={newLogForm.tradeBreakdown}
+              onChange={(e) => setNewLogForm({ ...newLogForm, tradeBreakdown: e.target.value })}
+              placeholder="e.g. Masons, Shuttering Carpenters, Plumbers"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Observations, Snags & Quality Notes *</label>
+            <textarea
+              className="form-textarea"
+              rows={3}
+              value={newLogForm.summary}
+              onChange={(e) => setNewLogForm({ ...newLogForm, summary: e.target.value })}
+              placeholder="Describe work completed, quality checks passed, or issues noted on site..."
+              required
+            />
+          </div>
+
+          <div className="modal-actions-row">
+            <Button variant="secondary" onClick={() => setIsLogModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={Plus}>
+              Save Visit Log
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Upload Site Photo Modal */}
+      <Modal
+        isOpen={photoModalOpen}
+        onClose={() => setPhotoModalOpen(false)}
+        title="Upload Site Progress Photo"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const newPhoto = {
+              id: `photo_${Date.now()}`,
+              project: newPhotoForm.project || projects[0]?.name || 'Project Site',
+              title: newPhotoForm.title || 'Site Progress Photo',
+              category: newPhotoForm.category || 'Site Progress',
+              date: new Date().toISOString().slice(0, 10),
+              imageUrl: newPhotoForm.imageUrl,
+              photographer: 'Lead Architect / Engineer'
+            };
+            setProjectPhotos([newPhoto, ...projectPhotos]);
+            setPhotoModalOpen(false);
+            showToast('Site photo uploaded to gallery', 'success');
+          }}
+          className="subview-modal-form"
+        >
+          <div className="form-group">
+            <label className="form-label">Project *</label>
+            <select
+              value={newPhotoForm.project}
+              onChange={(e) => setNewPhotoForm({ ...newPhotoForm, project: e.target.value })}
+              className="form-select"
+              required
+            >
+              {projects.map((p) => (
+                <option key={p._id || p.id} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Photo Title / Description *"
+            value={newPhotoForm.title}
+            onChange={(e) => setNewPhotoForm({ ...newPhotoForm, title: e.target.value })}
+            placeholder="e.g. 1st Floor Slab Casting in Progress"
+            required
+          />
+
+          <div className="form-row-2">
+            <Input
+              label="Stage / Category *"
+              value={newPhotoForm.category}
+              onChange={(e) => setNewPhotoForm({ ...newPhotoForm, category: e.target.value })}
+              placeholder="e.g. Foundation, Structural, Facade"
+              required
+            />
+            <Input
+              label="Image URL *"
+              value={newPhotoForm.imageUrl}
+              onChange={(e) => setNewPhotoForm({ ...newPhotoForm, imageUrl: e.target.value })}
+              placeholder="https://..."
+              required
+            />
+          </div>
+
+          <div className="modal-actions-row">
+            <Button variant="secondary" onClick={() => setPhotoModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" icon={Camera}>
+              Add to Gallery
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Photo Lightbox Preview Modal */}
+      {previewPhoto && (
+        <Modal
+          isOpen={Boolean(previewPhoto)}
+          onClose={() => setPreviewPhoto(null)}
+          title={`${previewPhoto.title} (${previewPhoto.project})`}
+          maxWidth="740px"
+        >
+          <div className="photo-lightbox-body">
+            <img src={previewPhoto.imageUrl} alt={previewPhoto.title} className="lightbox-img" />
+            <div className="lightbox-meta">
+              <div>
+                <strong>Project:</strong> {previewPhoto.project} • <strong>Category:</strong> {previewPhoto.category}
+              </div>
+              <div style={{ color: '#7B6F62', fontSize: '12px' }}>
+                Captured on {previewPhoto.date} by {previewPhoto.photographer}
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <Button variant="secondary" onClick={() => setPreviewPhoto(null)}>
+                Close Preview
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* 5. Project Dashboard View / Management Modal */}
       {viewModalProject && (
