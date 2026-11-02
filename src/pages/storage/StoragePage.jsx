@@ -255,55 +255,9 @@ export function StoragePage() {
     setSelectedUploadFiles(selected);
   };
 
-  // Helper: Verify binary magic bytes before sending to backend upload endpoint
-  const checkFileSignature = async (file) => {
-    try {
-      const slice = file.slice(0, 8);
-      const buffer = await slice.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      const name = (file.name || '').toLowerCase();
-
-      // JPEG (.jpg, .jpeg) magic bytes: FF D8 FF
-      if (name.endsWith('.jpg') || name.endsWith('.jpeg')) {
-        return bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
-      }
-      // PNG (.png) magic bytes: 89 50 4E 47
-      if (name.endsWith('.png')) {
-        return bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-      }
-      // PDF (.pdf) magic bytes: %PDF (25 50 44 46)
-      if (name.endsWith('.pdf')) {
-        return bytes.length >= 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46;
-      }
-      // GIF (.gif) magic bytes: GIF8 (47 49 46 38)
-      if (name.endsWith('.gif')) {
-        return bytes.length >= 4 && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38;
-      }
-      // ZIP (.zip) magic bytes: PK (50 4B)
-      if (name.endsWith('.zip')) {
-        return bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
-      }
-      return true;
-    } catch {
-      return true;
-    }
-  };
-
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     if (selectedUploadFiles.length === 0) return;
-
-    // Client-side magic bytes / signature pre-check
-    for (const file of selectedUploadFiles) {
-      const isValid = await checkFileSignature(file);
-      if (!isValid) {
-        showToast(
-          `Format mismatch: "${file.name}" is not an authentic image/file format. The server strictly verifies binary file signatures and rejects fake or renamed files. Please upload a real JPEG, PNG, or PDF.`,
-          'error'
-        );
-        return;
-      }
-    }
 
     setUploading(true);
     setUploadProgress(0);
@@ -1141,9 +1095,6 @@ export function StoragePage() {
             <h4 className="dropzone-title">Click or drag files to upload</h4>
             <p className="dropzone-sub">
               Supported formats: PDF, PNG, JPG, WebP, GIF, ZIP (Max 100 MB per batch)
-            </p>
-            <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#8C827A' }}>
-              Note: Files are validated by authentic binary signatures. Fake or renamed extensions (e.g. text file renamed to .jpg) will be rejected.
             </p>
             <input
               ref={fileInputRef}
