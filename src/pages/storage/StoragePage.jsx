@@ -26,7 +26,9 @@ import {
   AlertTriangle,
   FolderArchive,
   FolderInput,
-  Link2
+  Link2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { driveService } from '../../services/driveService';
 import { projectService } from '../../services/projectService';
@@ -99,6 +101,7 @@ export function StoragePage() {
   const [projectTasksList, setProjectTasksList] = useState([]);
   const [selectedTaskId, setSelectedTaskId] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(false);
+  const [showQuotaDetails, setShowQuotaDetails] = useState(false);
 
   const [toastMessage, setToastMessage] = useState(null);
 
@@ -540,16 +543,37 @@ export function StoragePage() {
         </div>
       )}
 
-      {/* 1. Header */}
+      {/* 1. Header Row */}
       <div className="storage-header-row">
-        <div>
+        <div className="storage-title-area">
           <h1 className="storage-heading">Storage Drive</h1>
           <p className="storage-subheading">
-            Module M1.9: Architectural Cloud Storage — Multi-Space Folders, Streaming Previews, Quota &amp; 30-Day Trash
+            Manage project drawings, working documents, and studio library
           </p>
         </div>
 
         <div className="storage-actions">
+          {/* Compact Quota Indicator Pill */}
+          <button
+            type="button"
+            className="storage-quota-pill-btn"
+            onClick={() => setShowQuotaDetails((prev) => !prev)}
+            title="Click to view storage breakdown"
+          >
+            <HardDrive size={15} color="#7B6F62" />
+            <span className="quota-text">
+              <strong>{formatBytes(usage.usedBytes)}</strong> / {formatBytes(usage.quotaBytes)}
+            </span>
+            <div className="quota-mini-bar">
+              <div
+                className={`quota-mini-fill ${isNearLimit ? 'warning' : ''}`}
+                style={{ width: `${Math.min(usage.quotaPercent, 100)}%` }}
+              />
+            </div>
+            <span className="quota-percent-label">{usage.quotaPercent}%</span>
+            {showQuotaDetails ? <ChevronUp size={13} color="#7B6F62" /> : <ChevronDown size={13} color="#7B6F62" />}
+          </button>
+
           {activeSpace !== 'TRASH' && (
             <>
               <Button
@@ -575,112 +599,112 @@ export function StoragePage() {
               icon={Trash2}
               onClick={handleEmptyTrash}
             >
-              Empty Trash Permanently
+              Empty Trash
             </Button>
           )}
         </div>
       </div>
 
-      {/* 2. Quota & Consumption Breakdown Widget (GET /drive/usage) */}
-      <div className="storage-quota-card">
-        <div className="storage-quota-header">
-          <div className="storage-quota-title-wrap">
-            <HardDrive size={18} color="#7B6F62" />
-            <span className="storage-quota-title">Storage Drive Quota</span>
-            <span className="storage-quota-badge">
-              {usage.quotaPercent}% Used
-            </span>
+      {/* 2. Collapsible Storage Breakdown Drawer */}
+      {showQuotaDetails && (
+        <div className="storage-quota-drawer">
+          <div className="drawer-header">
+            <span className="drawer-title">Storage Consumption &bull; {usage.quotaPercent}% Used</span>
+            <span className="drawer-close" onClick={() => setShowQuotaDetails(false)}>✕</span>
           </div>
-
-          <div className="storage-usage-stats">
-            <strong>{formatBytes(usage.usedBytes)}</strong> of {formatBytes(usage.quotaBytes)} used
-          </div>
-        </div>
-
-        <div className="storage-progress-bg">
-          <div
-            className={`storage-progress-fill ${isNearLimit ? 'warning' : ''}`}
-            style={{ width: `${Math.min(usage.quotaPercent, 100)}%` }}
-          />
-        </div>
-
-        <div className="storage-breakdown-row">
-          <div className="breakdown-item">
-            <span className="breakdown-dot" style={{ backgroundColor: '#7B6F62' }} />
-            <span>CAD &amp; Working Drawings: <strong>{formatBytes(usage.breakdown?.drawings || 0)}</strong></span>
-          </div>
-          <div className="breakdown-item">
-            <span className="breakdown-dot" style={{ backgroundColor: '#B5734C' }} />
-            <span>3D Visuals &amp; Renders: <strong>{formatBytes(usage.breakdown?.images || 0)}</strong></span>
-          </div>
-          <div className="breakdown-item">
-            <span className="breakdown-dot" style={{ backgroundColor: '#5E7A6B' }} />
-            <span>Specs &amp; Contracts: <strong>{formatBytes(usage.breakdown?.documents || 0)}</strong></span>
-          </div>
-          <div className="breakdown-item">
-            <span className="breakdown-dot" style={{ backgroundColor: '#5B758E' }} />
-            <span>Archives &amp; ZIPs: <strong>{formatBytes(usage.breakdown?.archives || 0)}</strong></span>
-          </div>
-          {usage.breakdown?.trashBytes > 0 && (
-            <div className="breakdown-item">
-              <span className="breakdown-dot" style={{ backgroundColor: '#DC2626' }} />
-              <span>Trash Quota: <strong>{formatBytes(usage.breakdown.trashBytes)}</strong></span>
+          <div className="drawer-breakdown-grid">
+            <div className="drawer-stat-item">
+              <span className="breakdown-dot" style={{ backgroundColor: '#7B6F62' }} />
+              <div>
+                <span className="stat-label">CAD & Working Drawings</span>
+                <span className="stat-val">{formatBytes(usage.breakdown?.drawings || 0)}</span>
+              </div>
             </div>
-          )}
+            <div className="drawer-stat-item">
+              <span className="breakdown-dot" style={{ backgroundColor: '#B5734C' }} />
+              <div>
+                <span className="stat-label">3D Visuals & Renders</span>
+                <span className="stat-val">{formatBytes(usage.breakdown?.images || 0)}</span>
+              </div>
+            </div>
+            <div className="drawer-stat-item">
+              <span className="breakdown-dot" style={{ backgroundColor: '#5E7A6B' }} />
+              <div>
+                <span className="stat-label">Specs & Contracts</span>
+                <span className="stat-val">{formatBytes(usage.breakdown?.documents || 0)}</span>
+              </div>
+            </div>
+            <div className="drawer-stat-item">
+              <span className="breakdown-dot" style={{ backgroundColor: '#5B758E' }} />
+              <div>
+                <span className="stat-label">Archives & ZIPs</span>
+                <span className="stat-val">{formatBytes(usage.breakdown?.archives || 0)}</span>
+              </div>
+            </div>
+            {usage.breakdown?.trashBytes > 0 && (
+              <div className="drawer-stat-item">
+                <span className="breakdown-dot" style={{ backgroundColor: '#DC2626' }} />
+                <div>
+                  <span className="stat-label">Trash Quota</span>
+                  <span className="stat-val">{formatBytes(usage.breakdown.trashBytes)}</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* 3. Multi-Space Navigation Tabs (Company Library vs Project Spaces vs Trash) */}
-      <div className="drive-tier-tabs">
-        <button
-          type="button"
-          className={`drive-tier-btn ${activeSpace === 'PROJECT' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveSpace('PROJECT');
-            setCurrentFolderId(null);
-            setSearchQuery('');
-          }}
-        >
-          <Folder size={16} />
-          <span>Project Spaces</span>
-        </button>
+      {/* 3. Unified Control Bar (Space Navigation, Project Dropdown, Search) */}
+      <div className="storage-unified-toolbar">
+        {/* Left: Spaces Tabs */}
+        <div className="storage-nav-pills">
+          <button
+            type="button"
+            className={`storage-nav-pill ${activeSpace === 'PROJECT' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveSpace('PROJECT');
+              setCurrentFolderId(null);
+              setSearchQuery('');
+            }}
+          >
+            <Folder size={15} />
+            <span>Project Drives</span>
+          </button>
 
-        <button
-          type="button"
-          className={`drive-tier-btn ${activeSpace === 'COMPANY' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveSpace('COMPANY');
-            setCurrentFolderId(null);
-            setSearchQuery('');
-          }}
-        >
-          <Shield size={16} />
-          <span>Company Library Space</span>
-        </button>
+          <button
+            type="button"
+            className={`storage-nav-pill ${activeSpace === 'COMPANY' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveSpace('COMPANY');
+              setCurrentFolderId(null);
+              setSearchQuery('');
+            }}
+          >
+            <Shield size={15} />
+            <span>Studio Library</span>
+          </button>
 
-        <button
-          type="button"
-          className={`drive-tier-btn ${activeSpace === 'TRASH' ? 'active' : ''}`}
-          onClick={() => {
-            setActiveSpace('TRASH');
-            setSearchQuery('');
-          }}
-        >
-          <Trash2 size={16} />
-          <span>Trash Bin (30-Day Retention)</span>
-        </button>
-      </div>
+          <button
+            type="button"
+            className={`storage-nav-pill ${activeSpace === 'TRASH' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveSpace('TRASH');
+              setSearchQuery('');
+            }}
+          >
+            <Trash2 size={15} />
+            <span>Trash</span>
+            {(trashData.folders.length + trashData.files.length > 0) && (
+              <span className="trash-badge-count">{trashData.folders.length + trashData.files.length}</span>
+            )}
+          </button>
+        </div>
 
-      {/* 4. Project Space Bar & Breadcrumbs */}
-      {activeSpace === 'PROJECT' && (
-        <div className="drive-space-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-              Project:
-            </span>
+        {/* Center: Project Selector when in Project space */}
+        {activeSpace === 'PROJECT' && (
+          <div className="storage-project-selector-wrap">
             <select
-              className="approval-form-select"
-              style={{ width: '280px', height: '38px', lineHeight: '36px' }}
+              className="storage-project-dropdown"
               value={selectedProjectId}
               onChange={(e) => {
                 setSelectedProjectId(e.target.value);
@@ -693,67 +717,75 @@ export function StoragePage() {
                 </option>
               ))}
             </select>
+
+            <button
+              type="button"
+              className="storage-template-btn"
+              onClick={handleApplyTemplate}
+              title="Apply standard architectural 5-phase folders"
+            >
+              <Sparkles size={13} />
+              <span>Apply Template</span>
+            </button>
           </div>
+        )}
 
-          <Button
-            size="sm"
-            variant="secondary"
-            icon={Sparkles}
-            onClick={handleApplyTemplate}
-            title="Generate standard 5-phase folder architecture for this architectural project"
-          >
-            Apply Architectural Template
-          </Button>
-        </div>
-      )}
-
-      {/* 5. Breadcrumbs Navigation (GET /drive/browse) */}
-      {activeSpace !== 'TRASH' && (
-        <div className="breadcrumbs-trail">
-          <button
-            type="button"
-            className={`breadcrumb-crumb ${!currentFolderId ? 'active' : ''}`}
-            onClick={() => setCurrentFolderId(null)}
-          >
-            <Folder size={15} />
-            <span>{activeSpace === 'PROJECT' ? (selectedProjectObj?.name || 'Project Root') : 'Company Library'}</span>
-          </button>
-
-          {breadcrumbs.map((crumb, idx) => {
-            const isLast = idx === breadcrumbs.length - 1;
-            return (
-              <React.Fragment key={crumb._id || crumb.id || idx}>
-                <span className="breadcrumb-sep">/</span>
-                <button
-                  type="button"
-                  className={`breadcrumb-crumb ${isLast ? 'active' : ''}`}
-                  onClick={() => !isLast && setCurrentFolderId(crumb._id || crumb.id)}
-                >
-                  <span>{crumb.name}</span>
-                </button>
-              </React.Fragment>
-            );
-          })}
-        </div>
-      )}
-
-      {/* 6. Search Bar */}
-      {activeSpace !== 'TRASH' && (
-        <div className="storage-filter-bar">
-          <div className="storage-search-pill">
-            <Search size={15} color="#7B6F62" style={{ marginRight: 8 }} />
+        {/* Right: Search Box */}
+        {activeSpace !== 'TRASH' && (
+          <div className="storage-search-box">
+            <Search size={14} color="#7B6F62" />
             <input
               type="text"
-              placeholder="Search files across this space..."
+              placeholder="Search files..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="storage-search-input"
+              className="storage-search-field"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                className="search-clear-btn"
+                onClick={() => setSearchQuery('')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Minimal Context Bar: Breadcrumbs Trail + Counters */}
+      {activeSpace !== 'TRASH' && (
+        <div className="storage-context-bar">
+          <div className="storage-breadcrumbs">
+            <button
+              type="button"
+              className={`crumb-link ${!currentFolderId ? 'active' : ''}`}
+              onClick={() => setCurrentFolderId(null)}
+            >
+              <span>{activeSpace === 'PROJECT' ? (selectedProjectObj?.name || 'Project Root') : 'Studio Library'}</span>
+            </button>
+
+            {breadcrumbs.map((crumb, idx) => {
+              const isLast = idx === breadcrumbs.length - 1;
+              return (
+                <React.Fragment key={crumb._id || crumb.id || idx}>
+                  <ChevronRight size={13} className="crumb-chevron" />
+                  <button
+                    type="button"
+                    className={`crumb-link ${isLast ? 'active' : ''}`}
+                    onClick={() => !isLast && setCurrentFolderId(crumb._id || crumb.id)}
+                  >
+                    <span>{crumb.name}</span>
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </div>
 
-          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-            {folders.length} Folders &bull; {files.length} Files
-          </span>
+          <div className="storage-stats-label">
+            {folders.length} {folders.length === 1 ? 'folder' : 'folders'} &bull; {files.length} {files.length === 1 ? 'file' : 'files'}
+          </div>
         </div>
       )}
 
