@@ -164,7 +164,7 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       TASK_VERSION_CONFLICT: 'This task was modified by another team member. Please refresh the board to see the latest updates.',
 
       // M1.9 Storage Drive (Basic) - Folders, Files, Quota, Trash
-      FILE_CONTENT_MISMATCH: 'File format mismatch: The content of the file does not match its extension. Please upload an authentic, uncorrupted file (e.g. real JPEG/PNG/PDF/ZIP, not a renamed text file).',
+      FILE_CONTENT_MISMATCH: 'Upload rejected: This file\'s actual format does not match its extension. This commonly happens when images are downloaded from websites (e.g. a WebP image saved as .jpg). Try: (1) Open the image in any photo editor and re-save/export it as a proper JPEG or PNG, or (2) Rename the file to its true format (.webp).',
       STORAGE_QUOTA_EXCEEDED: 'Storage quota limit reached (5 GB free tier). Please delete unnecessary files or empty trash to reclaim space.',
       QUOTA_EXCEEDED: 'Storage quota limit reached (5 GB free tier). Please delete unnecessary files or empty trash to reclaim space.',
       RESTORE_VIA_FOLDER: 'Cannot restore this file directly because its parent folder is in the Trash. Please restore the parent folder instead.',
