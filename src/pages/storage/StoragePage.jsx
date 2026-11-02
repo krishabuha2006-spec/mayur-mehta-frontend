@@ -42,6 +42,7 @@ import { formatBytes } from '../../utils/formatBytes';
 import { formatDate } from '../../utils/formatDate';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { useConfirm } from '../../context/ConfirmationContext';
+import { Toast } from '../../components/common/Toast/Toast';
 import './StoragePage.css';
 
 export function StoragePage() {
@@ -105,9 +106,9 @@ export function StoragePage() {
 
   const [toastMessage, setToastMessage] = useState(null);
 
-  const showToast = (message, type = 'success') => {
-    setToastMessage({ message, type });
-    setTimeout(() => setToastMessage(null), 3500);
+  const showToast = (message, type = 'success', title = null) => {
+    setToastMessage({ message, type, title });
+    setTimeout(() => setToastMessage(null), 4500);
   };
 
   // 1. Initial Load: Projects List & Live Storage Usage
@@ -536,10 +537,13 @@ export function StoragePage() {
     <div className="storage-page-container">
       {/* Toast Notification */}
       {toastMessage && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 1100 }}>
-          <div className={`toast toast-${toastMessage.type}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>{toastMessage.message}</span>
-          </div>
+        <div className="toast-container">
+          <Toast
+            type={toastMessage.type || 'info'}
+            title={toastMessage.title}
+            message={toastMessage.message}
+            onClose={() => setToastMessage(null)}
+          />
         </div>
       )}
 
