@@ -221,6 +221,15 @@ export const adminService = {
     return payload?.data || payload;
   },
 
+  /**
+   * POST /admin/companies/{id}/reconcile-storage - Super Admin: Recompute and reconcile company storage quota usage from disk (M1.9)
+   */
+  reconcileStorage: async (id) => {
+    const res = await apiClient.post(`/admin/companies/${id}/reconcile-storage`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
   // =========================================================================
   // 3. SUPER ADMIN - TEAM MANAGEMENT (ADMINS)
   // =========================================================================

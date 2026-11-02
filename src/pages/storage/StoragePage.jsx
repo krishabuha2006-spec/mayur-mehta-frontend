@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   UploadCloud,
   File,
   HardDrive,
   Folder,
-  FolderOpen,
-  CheckCircle2,
+  FolderPlus,
+  ChevronRight,
   Download,
   Eye,
   Trash2,
@@ -14,20 +14,28 @@ import {
   FileText,
   Layers,
   Image as ImageIcon,
-  Sparkles,
   Shield,
   Clock,
-  Check
+  RotateCcw,
+  Sparkles,
+  Archive,
+  ArrowLeft,
+  X,
+  FileArchive,
+  FileCode,
+  AlertTriangle,
+  FolderArchive,
+  FolderInput,
+  Link2
 } from 'lucide-react';
-import { billingService } from '../../services/billingService';
-import { storageService } from '../../services/storageService';
+import { driveService } from '../../services/driveService';
 import { projectService } from '../../services/projectService';
+import { taskService } from '../../services/taskService';
 import { Button } from '../../components/common/Button/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { Badge } from '../../components/common/Badge/Badge';
 import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
-import { Select } from '../../components/common/Select/Select';
 import { formatBytes } from '../../utils/formatBytes';
 import { formatDate } from '../../utils/formatDate';
 import { useConfirm } from '../../context/ConfirmationContext';
@@ -35,488 +43,1297 @@ import './StoragePage.css';
 
 export function StoragePage() {
   const confirm = useConfirm();
-  const [activeTier, setActiveTier] = useState('project'); // 'studio' | 'project' | 'personal'
-  const [projectFolder, setProjectFolder] = useState('all');
   const { isAuthenticated, loading: authLoading } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [files, setFiles] = useState([]);
-  const [projectsList, setProjectsList] = useState([]);
-  const [storageData, setStorageData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [previewFile, setPreviewFile] = useState(null);
-  const [copiedId, setCopiedId] = useState(null);
+  const fileInputRef = useRef(null);
 
-  // New file upload form
-  const [newFile, setNewFile] = useState({
-    name: '',
-    project: '',
-    category: 'Drawings',
-    revision: 'R0',
-    tier: 'project',
-    sizeMb: 5.0
+  // Space state: 'COMPANY' (Studio Master) | 'PROJECT' (Project Drives) | 'TRASH' (30-Day Soft Delete)
+  const [activeSpace, setActiveSpace] = useState('PROJECT');
+  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [projectsList, setProjectsList] = useState([]);
+
+  // Folder & Browse state
+  const [currentFolderId, setCurrentFolderId] = useState(null);
+  const [breadcrumbs, setBreadcrumbs] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [files, setFiles] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Usage & Quota state
+  const [usage, setUsage] = useState({
+    usedBytes: 0,
+    quotaBytes: 5 * 1024 * 1024 * 1024,
+    quotaPercent: 0,
+    breakdown: { drawings: 0, documents: 0, images: 0, archives: 0, trashBytes: 0 }
   });
 
-  // Fetch live storage subscription from Backend (GET /billing), projects, and persistent files
+  // Trash state
+  const [trashData, setTrashData] = useState({ folders: [], files: [], total: 0 });
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Modals state
+  const [newFolderModalOpen, setNewFolderModalOpen] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedUploadFiles, setSelectedUploadFiles] = useState([]);
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [itemToRename, setItemToRename] = useState(null); // { id, name, type: 'FOLDER' | 'FILE' }
+  const [renameNewName, setRenameNewName] = useState('');
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewFileMeta, setPreviewFileMeta] = useState(null);
+
+  // Move item state (PUT /drive/folders/:id/move & PUT /drive/files/:id/move)
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [itemToMove, setItemToMove] = useState(null); // { id, name, type: 'FOLDER' | 'FILE' }
+  const [targetMoveFolderId, setTargetMoveFolderId] = useState('');
+
+  // Task linking state (PUT /drive/files/:id/task & GET /drive/tasks/:taskId/files)
+  const [linkTaskModalOpen, setLinkTaskModalOpen] = useState(false);
+  const [fileToLink, setFileToLink] = useState(null);
+  const [projectTasksList, setProjectTasksList] = useState([]);
+  const [selectedTaskId, setSelectedTaskId] = useState('');
+  const [loadingTasks, setLoadingTasks] = useState(false);
+
+  const [toastMessage, setToastMessage] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToastMessage({ message, type });
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // 1. Initial Load: Projects List & Live Storage Usage
   useEffect(() => {
     if (authLoading || !isAuthenticated) return;
 
-    const fetchStorage = async () => {
-      setLoading(true);
+    const loadInitialMeta = async () => {
       try {
-        const [sub, persistentFiles, projs] = await Promise.allSettled([
-          billingService.getSubscription(),
-          storageService.getFiles(),
-          projectService.getProjects({ limit: 50 })
+        const [projRes, usageData] = await Promise.allSettled([
+          projectService.getProjects({ limit: 50 }),
+          driveService.getUsage()
         ]);
 
-        if (persistentFiles.status === 'fulfilled' && Array.isArray(persistentFiles.value)) {
-          setFiles(persistentFiles.value);
+        if (projRes.status === 'fulfilled') {
+          const list = Array.isArray(projRes.value) ? projRes.value : (projRes.value?.data || []);
+          setProjectsList(list);
+          if (list.length > 0 && !selectedProjectId) {
+            setSelectedProjectId(list[0]._id || list[0].id);
+          }
         }
 
-        if (projs.status === 'fulfilled') {
-          const list = Array.isArray(projs.value) ? projs.value : (projs.value?.data || []);
-          const names = list.map((p) => p.name || p.title).filter(Boolean);
-          setProjectsList(names);
-        }
-
-        const subData = sub.status === 'fulfilled' ? sub.value : null;
-        if (subData && subData.storage) {
-          setStorageData(subData.storage);
-        } else if (subData) {
-          const limitGB = subData.storageQuotaGB || (subData.plan === 'PAID' ? 100 : 5);
-          const usedGB = subData.storageUsedGB || 0;
-          setStorageData({
-            usedBytes: Math.round(usedGB * 1024 * 1024 * 1024),
-            limitBytes: Math.round(limitGB * 1024 * 1024 * 1024)
-          });
-        } else {
-          setStorageData({
-            usedBytes: 0,
-            limitBytes: 5 * 1024 * 1024 * 1024
-          });
+        if (usageData.status === 'fulfilled' && usageData.value) {
+          setUsage(usageData.value);
         }
       } catch (err) {
-        console.warn('Backend storage subscription notice:', err);
-        setStorageData({
-          usedBytes: 0,
-          limitBytes: 5 * 1024 * 1024 * 1024
-        });
+        console.warn('Initial storage load notice:', err);
+      }
+    };
+
+    loadInitialMeta();
+  }, [authLoading, isAuthenticated]);
+
+  // 2. Fetch Drive Browse Data (Folders, Files, Breadcrumbs)
+  const fetchBrowseData = useCallback(async () => {
+    if (authLoading || !isAuthenticated) return;
+
+    if (activeSpace === 'TRASH') {
+      setLoading(true);
+      try {
+        const trashRes = await driveService.getTrash();
+        setTrashData(trashRes);
+      } catch (err) {
+        console.warn('Trash load notice:', err);
       } finally {
         setLoading(false);
       }
-    };
-    fetchStorage();
-  }, [authLoading, isAuthenticated]);
+      return;
+    }
 
-  const calculatedBytes = files.reduce((acc, curr) => acc + (curr.sizeBytes || 0), 0);
-  const totalBytesUsed = (storageData?.usedBytes && storageData.usedBytes > 0) ? storageData.usedBytes : calculatedBytes;
-  const totalBytesLimit = storageData?.limitBytes || (5 * 1024 * 1024 * 1024);
-  const usagePercent = Math.min(Math.round((totalBytesUsed / totalBytesLimit) * 100), 100);
-  const isNearLimit = usagePercent >= 85;
+    setLoading(true);
+    try {
+      const pId = activeSpace === 'PROJECT' ? selectedProjectId : null;
+      if (activeSpace === 'PROJECT' && !pId) {
+        setLoading(false);
+        return;
+      }
 
-  // Filter files by active tier, project folder, and search query
-  const filteredFiles = files.filter((f) => {
-    const matchesTier = f.tier === activeTier;
-    const matchesProject = projectFolder === 'all' || f.project === projectFolder;
-    const matchesSearch =
-      (f.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.project || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.category || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (f.uploadedBy || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const browseResult = await driveService.browse({
+        projectId: pId,
+        folderId: currentFolderId
+      });
 
-    return matchesTier && matchesProject && matchesSearch;
-  });
+      setFolders(browseResult.folders || []);
+      setFiles(browseResult.files || []);
+      setBreadcrumbs(browseResult.breadcrumbs || []);
+    } catch (err) {
+      console.warn('Drive browse notice:', err);
+      setFolders([]);
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [activeSpace, selectedProjectId, currentFolderId, authLoading, isAuthenticated]);
 
-  // Upload handler
-  const handleUploadSubmit = async (e) => {
+  useEffect(() => {
+    fetchBrowseData();
+  }, [fetchBrowseData]);
+
+  // 3. Search Flow (GET /drive/search)
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const pId = activeSpace === 'PROJECT' ? selectedProjectId : undefined;
+        const res = await driveService.search({
+          q: searchQuery.trim(),
+          projectId: pId
+        });
+        setFiles(res.files || []);
+      } catch (err) {
+        console.warn('Search notice:', err);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, activeSpace, selectedProjectId]);
+
+  // 4. Create Folder Flow (POST /drive/folders)
+  const handleCreateFolder = async (e) => {
     e.preventDefault();
-    if (!newFile.name) return;
-
-    const filePayload = {
-      tier: activeTier,
-      name: newFile.name.endsWith('.pdf') || newFile.name.endsWith('.dwg') ? newFile.name : `${newFile.name}.pdf`,
-      project: activeTier === 'project' ? newFile.project : activeTier === 'studio' ? 'Studio Master Library' : 'Personal Drafts',
-      category: newFile.category,
-      revision: newFile.revision,
-      gfcStatus: newFile.category.includes('GFC') ? 'GFC Released' : 'Approved',
-      sizeBytes: Math.round(Number(newFile.sizeMb) * 1024 * 1024) || 4500000,
-      uploadedBy: 'Ar. Mayur Mehta'
-    };
+    if (!newFolderName.trim()) return;
 
     try {
-      const created = await storageService.saveFile(filePayload);
-      setFiles([created, ...files]);
+      const pId = activeSpace === 'PROJECT' ? selectedProjectId : null;
+      await driveService.createFolder({
+        name: newFolderName.trim(),
+        parentId: currentFolderId,
+        projectId: pId
+      });
+      showToast(`Folder "${newFolderName.trim()}" created successfully`);
+      setNewFolderModalOpen(false);
+      setNewFolderName('');
+      fetchBrowseData();
     } catch (err) {
-      console.warn('Save file notice:', err);
+      showToast(err?.response?.data?.message || 'Failed to create folder', 'error');
     }
-    setUploadModalOpen(false);
-    setNewFile({
-      name: '',
-      project: 'The Courtyard Villa',
-      category: 'Structural GFC',
-      revision: 'R0',
-      tier: 'project',
-      sizeMb: 5.4
-    });
   };
 
-  const handleDeleteFile = async (id) => {
+  // 5. Apply Architectural Project Template (POST /drive/projects/:id/apply-template)
+  const handleApplyTemplate = async () => {
+    if (!selectedProjectId) return;
     const ok = await confirm({
-      title: 'Delete Drawing File?',
-      message: 'Are you sure you want to delete this drawing from the cloud storage drive?',
-      confirmText: 'Delete File',
+      title: 'Apply Architectural Template?',
+      message: 'This will automatically generate standard folders: 01 Concept & Schematics, 02 Working Drawings, 03 3D Visualizations, 04 Approvals, and 05 Site Inspection Photos.',
+      confirmText: 'Apply Template',
+      cancelText: 'Cancel',
+      variant: 'primary'
+    });
+    if (!ok) return;
+
+    try {
+      await driveService.applyProjectTemplate(selectedProjectId);
+      showToast('Standard architectural project folder template applied');
+      fetchBrowseData();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to apply template', 'error');
+    }
+  };
+
+  // 6. Upload Files Flow (POST /drive/files multipart/form-data)
+  const handleFileSelect = (e) => {
+    const selected = Array.from(e.target.files || []);
+    setSelectedUploadFiles(selected);
+  };
+
+  const handleUploadSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedUploadFiles.length === 0) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    selectedUploadFiles.forEach((file) => {
+      formData.append('files', file);
+    });
+
+    if (currentFolderId) {
+      formData.append('folderId', currentFolderId);
+    }
+    if (activeSpace === 'PROJECT' && selectedProjectId) {
+      formData.append('projectId', selectedProjectId);
+    }
+
+    try {
+      await driveService.uploadFiles(formData, (percent) => {
+        setUploadProgress(percent);
+      });
+      showToast(`${selectedUploadFiles.length} file(s) uploaded successfully`);
+      setUploadModalOpen(false);
+      setSelectedUploadFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      fetchBrowseData();
+      // Refresh storage usage
+      const freshUsage = await driveService.getUsage().catch(() => null);
+      if (freshUsage) setUsage(freshUsage);
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Upload failed: Check quota or file extension', 'error');
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // 7. Delete Folder or File to Trash (Soft Delete)
+  const handleDeleteFolder = async (folder, e) => {
+    e?.stopPropagation();
+    const ok = await confirm({
+      title: 'Move Folder to Trash?',
+      message: `Are you sure you want to move "${folder.name}" and all its subfolders/files to trash? They will be retained for 30 days.`,
+      confirmText: 'Move to Trash',
       cancelText: 'Cancel',
       variant: 'danger'
     });
     if (!ok) return;
 
     try {
-      await storageService.deleteFile(id);
+      await driveService.deleteFolder(folder._id || folder.id);
+      showToast(`Folder "${folder.name}" moved to trash`);
+      fetchBrowseData();
     } catch (err) {
-      console.warn('Delete file notice:', err);
+      showToast(err?.response?.data?.message || 'Failed to delete folder', 'error');
     }
-    setFiles(files.filter((f) => f.id !== id));
   };
 
-  const handleCopyLink = (id, fileName) => {
-    navigator.clipboard.writeText(`${window.location.origin}/storage/preview/${id}`);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2500);
+  const handleDeleteFile = async (file, e) => {
+    e?.stopPropagation();
+    const ok = await confirm({
+      title: 'Move File to Trash?',
+      message: `Are you sure you want to move "${file.name}" to trash? Quota will be released once trash is permanently purged.`,
+      confirmText: 'Move to Trash',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await driveService.deleteFile(file._id || file.id);
+      showToast(`File "${file.name}" moved to trash`);
+      fetchBrowseData();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to delete file', 'error');
+    }
   };
+
+  // 8. Rename Flow (PATCH /drive/folders/:id OR PATCH /drive/files/:id)
+  const handleOpenRename = (item, type, e) => {
+    e?.stopPropagation();
+    setItemToRename({ id: item._id || item.id, name: item.name, type });
+    setRenameNewName(item.name || '');
+    setRenameModalOpen(true);
+  };
+
+  const handleRenameSubmit = async (e) => {
+    e.preventDefault();
+    if (!itemToRename || !renameNewName.trim()) return;
+
+    try {
+      if (itemToRename.type === 'FOLDER') {
+        await driveService.renameFolder(itemToRename.id, renameNewName.trim());
+      } else {
+        await driveService.renameFile(itemToRename.id, renameNewName.trim());
+      }
+      showToast(`Renamed to "${renameNewName.trim()}"`);
+      setRenameModalOpen(false);
+      setItemToRename(null);
+      setRenameNewName('');
+      fetchBrowseData();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to rename item', 'error');
+    }
+  };
+
+  // 9. Download Folder as ZIP
+  const handleDownloadFolderZip = async (folder, e) => {
+    e?.stopPropagation();
+    try {
+      showToast(`Preparing ZIP for "${folder.name}"...`, 'info');
+      await driveService.downloadFolderZip(folder._id || folder.id, folder.name);
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Download ZIP failed', 'error');
+    }
+  };
+
+  // 10. File Download & Safe Preview
+  const handleDownloadFile = async (file, e) => {
+    e?.stopPropagation();
+    try {
+      await driveService.downloadFile(file._id || file.id, file.name);
+    } catch (err) {
+      showToast('Download failed', 'error');
+    }
+  };
+
+  const handleOpenFilePreview = async (file, e) => {
+    e?.stopPropagation();
+    setPreviewFileMeta(file);
+    try {
+      const url = await driveService.getPreviewUrl(file._id || file.id);
+      setPreviewUrl(url);
+      setPreviewModalOpen(true);
+    } catch (err) {
+      // Fallback: download if inline preview not permitted
+      handleDownloadFile(file);
+    }
+  };
+
+  // 11. Trash Operations: Restore & Empty Trash
+  const handleRestoreItem = async (item, type) => {
+    try {
+      if (type === 'FOLDER') {
+        await driveService.restoreFolder(item._id || item.id);
+      } else {
+        await driveService.restoreFile(item._id || item.id);
+      }
+      showToast(`Restored "${item.name}"`);
+      fetchBrowseData();
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        showToast('Parent folder is also in trash. Please restore the parent folder first.', 'warning');
+      } else {
+        showToast(err?.response?.data?.message || 'Restore failed', 'error');
+      }
+    }
+  };
+
+  const handleEmptyTrash = async () => {
+    const ok = await confirm({
+      title: 'Empty Trash Permanently?',
+      message: 'All items in the trash will be permanently deleted and cannot be recovered. Quota will be freed immediately.',
+      confirmText: 'Empty Trash Now',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
+    try {
+      await driveService.emptyTrash();
+      showToast('Trash permanently emptied and storage quota reclaimed');
+      fetchBrowseData();
+      const freshUsage = await driveService.getUsage().catch(() => null);
+      if (freshUsage) setUsage(freshUsage);
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to empty trash', 'error');
+    }
+  };
+
+  // 12. Move Item (PUT /drive/folders/:id/move & PUT /drive/files/:id/move)
+  const handleOpenMove = (item, type, e) => {
+    e?.stopPropagation();
+    setItemToMove({ id: item._id || item.id, name: item.name, type });
+    setTargetMoveFolderId('');
+    setMoveModalOpen(true);
+  };
+
+  const handleMoveSubmit = async (e) => {
+    e.preventDefault();
+    if (!itemToMove) return;
+
+    try {
+      const destinationFolderId = targetMoveFolderId === 'ROOT' || !targetMoveFolderId ? null : targetMoveFolderId;
+      if (itemToMove.type === 'FOLDER') {
+        await driveService.moveFolder(itemToMove.id, destinationFolderId);
+      } else {
+        await driveService.moveFile(itemToMove.id, destinationFolderId);
+      }
+      showToast(`Moved "${itemToMove.name}" successfully`);
+      setMoveModalOpen(false);
+      setItemToMove(null);
+      fetchBrowseData();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Failed to move item', 'error');
+    }
+  };
+
+  // 13. Task Attachment Flow (PUT /drive/files/:id/task & GET /drive/tasks/:taskId/files)
+  const handleOpenLinkTask = async (file, e) => {
+    e?.stopPropagation();
+    if (!selectedProjectId) {
+      showToast('Select an architectural project first', 'warning');
+      return;
+    }
+    setFileToLink(file);
+    setSelectedTaskId(file.taskId || '');
+    setLinkTaskModalOpen(true);
+    setLoadingTasks(true);
+
+    try {
+      const res = await taskService.getProjectTasks(selectedProjectId, { limit: 100 });
+      const taskList = Array.isArray(res) ? res : (res?.data || []);
+      setProjectTasksList(taskList);
+      if (taskList.length > 0 && !file.taskId) {
+        setSelectedTaskId(taskList[0]._id || taskList[0].id);
+      }
+    } catch (err) {
+      console.warn('Load project tasks error:', err);
+    } finally {
+      setLoadingTasks(false);
+    }
+  };
+
+  const handleLinkTaskSubmit = async (e) => {
+    e.preventDefault();
+    if (!fileToLink) return;
+
+    try {
+      const isDetaching = !selectedTaskId || selectedTaskId === 'DETACH';
+      const action = isDetaching ? 'DETACH' : 'ATTACH';
+      const tId = isDetaching ? (fileToLink.taskId || null) : selectedTaskId;
+
+      if (!tId && action === 'DETACH') {
+        setLinkTaskModalOpen(false);
+        return;
+      }
+
+      await driveService.linkTask(fileToLink._id || fileToLink.id, tId, action);
+      showToast(action === 'ATTACH' ? 'File linked to task successfully' : 'File detached from task');
+      setLinkTaskModalOpen(false);
+      setFileToLink(null);
+      fetchBrowseData();
+    } catch (err) {
+      showToast(err?.response?.data?.message || 'Task link operation failed', 'error');
+    }
+  };
+
+  // Helper: File Icon based on extension / mime
+  const getFileIcon = (file) => {
+    const name = (file.name || '').toLowerCase();
+    if (name.endsWith('.pdf')) return <FileText size={20} color="#DC2626" />;
+    if (name.endsWith('.dwg') || name.endsWith('.dxf')) return <FileCode size={20} color="#2563EB" />;
+    if (name.match(/\.(png|jpe?g|webp|gif|svg)$/)) return <ImageIcon size={20} color="#16A34A" />;
+    if (name.match(/\.(zip|rar|7z|tar)$/)) return <FileArchive size={20} color="#D97706" />;
+    return <File size={20} color="#7B6F62" />;
+  };
+
+  const selectedProjectObj = projectsList.find((p) => (p._id || p.id) === selectedProjectId);
+  const isNearLimit = usage.quotaPercent >= 85;
 
   return (
     <div className="storage-page-container">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 1100 }}>
+          <div className={`toast toast-${toastMessage.type}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span>{toastMessage.message}</span>
+          </div>
+        </div>
+      )}
+
       {/* 1. Header */}
       <div className="storage-header-row">
         <div>
           <h1 className="storage-heading">Storage Drive</h1>
           <p className="storage-subheading">
-            3-Tier Architectural Cloud: Studio Master Library, Project-wise GFC Drawings, and Personal Workspaces
+            Module M1.9: Architectural Cloud Storage — Multi-Space Folders, Streaming Previews, Quota &amp; 30-Day Trash
           </p>
         </div>
 
         <div className="storage-actions">
-          <Button
-            variant="primary"
-            icon={UploadCloud}
-            onClick={() => setUploadModalOpen(true)}
-          >
-            Upload Drawings
-          </Button>
+          {activeSpace !== 'TRASH' && (
+            <>
+              <Button
+                variant="secondary"
+                icon={FolderPlus}
+                onClick={() => setNewFolderModalOpen(true)}
+              >
+                New Folder
+              </Button>
+              <Button
+                variant="primary"
+                icon={UploadCloud}
+                onClick={() => setUploadModalOpen(true)}
+              >
+                Upload Files
+              </Button>
+            </>
+          )}
+
+          {activeSpace === 'TRASH' && (trashData.folders.length > 0 || trashData.files.length > 0) && (
+            <Button
+              variant="danger"
+              icon={Trash2}
+              onClick={handleEmptyTrash}
+            >
+              Empty Trash Permanently
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* 2. Quota & Consumption Breakdown Widget */}
+      {/* 2. Quota & Consumption Breakdown Widget (GET /drive/usage) */}
       <div className="storage-quota-card">
         <div className="storage-quota-header">
           <div className="storage-quota-title-wrap">
             <HardDrive size={18} color="#7B6F62" />
-            <span className="storage-quota-title">Studio Storage Quota</span>
-            <span className="storage-quota-badge">5 GB Free Forever Tier</span>
+            <span className="storage-quota-title">Storage Drive Quota</span>
+            <span className="storage-quota-badge">
+              {usage.quotaPercent}% Used
+            </span>
           </div>
 
           <div className="storage-usage-stats">
-            <strong>{formatBytes(totalBytesUsed)}</strong> used of {formatBytes(totalBytesLimit)} ({usagePercent}%)
+            <strong>{formatBytes(usage.usedBytes)}</strong> of {formatBytes(usage.quotaBytes)} used
           </div>
         </div>
 
         <div className="storage-progress-bg">
           <div
             className={`storage-progress-fill ${isNearLimit ? 'warning' : ''}`}
-            style={{ width: `${usagePercent}%` }}
+            style={{ width: `${Math.min(usage.quotaPercent, 100)}%` }}
           />
         </div>
 
         <div className="storage-breakdown-row">
           <div className="breakdown-item">
             <span className="breakdown-dot" style={{ backgroundColor: '#7B6F62' }} />
-            <span>CAD & BIM Drawings: <strong>780 MB</strong></span>
+            <span>CAD &amp; Working Drawings: <strong>{formatBytes(usage.breakdown?.drawings || 0)}</strong></span>
           </div>
           <div className="breakdown-item">
             <span className="breakdown-dot" style={{ backgroundColor: '#B5734C' }} />
-            <span>3D High-Res Renders: <strong>320 MB</strong></span>
+            <span>3D Visuals &amp; Renders: <strong>{formatBytes(usage.breakdown?.images || 0)}</strong></span>
           </div>
           <div className="breakdown-item">
             <span className="breakdown-dot" style={{ backgroundColor: '#5E7A6B' }} />
-            <span>Site Inspection Photos: <strong>140 MB</strong></span>
+            <span>Specs &amp; Contracts: <strong>{formatBytes(usage.breakdown?.documents || 0)}</strong></span>
           </div>
           <div className="breakdown-item">
             <span className="breakdown-dot" style={{ backgroundColor: '#5B758E' }} />
-            <span>Contracts & BOQ Sheets: <strong>48 MB</strong></span>
+            <span>Archives &amp; ZIPs: <strong>{formatBytes(usage.breakdown?.archives || 0)}</strong></span>
           </div>
+          {usage.breakdown?.trashBytes > 0 && (
+            <div className="breakdown-item">
+              <span className="breakdown-dot" style={{ backgroundColor: '#DC2626' }} />
+              <span>Trash Quota: <strong>{formatBytes(usage.breakdown.trashBytes)}</strong></span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 3. 3-Tier Drive Navigation Tabs */}
+      {/* 3. Multi-Space Navigation Tabs (Company Library vs Project Spaces vs Trash) */}
       <div className="drive-tier-tabs">
         <button
           type="button"
-          className={`drive-tier-btn ${activeTier === 'project' ? 'active' : ''}`}
+          className={`drive-tier-btn ${activeSpace === 'PROJECT' ? 'active' : ''}`}
           onClick={() => {
-            setActiveTier('project');
-            setProjectFolder('all');
+            setActiveSpace('PROJECT');
+            setCurrentFolderId(null);
+            setSearchQuery('');
           }}
         >
           <Folder size={16} />
-          <span>Project Drive (GFC & Renders)</span>
-          <span className="tier-count">{files.filter((f) => f.tier === 'project').length}</span>
+          <span>Project Spaces</span>
         </button>
 
         <button
           type="button"
-          className={`drive-tier-btn ${activeTier === 'studio' ? 'active' : ''}`}
+          className={`drive-tier-btn ${activeSpace === 'COMPANY' ? 'active' : ''}`}
           onClick={() => {
-            setActiveTier('studio');
-            setProjectFolder('all');
+            setActiveSpace('COMPANY');
+            setCurrentFolderId(null);
+            setSearchQuery('');
           }}
         >
           <Shield size={16} />
-          <span>Studio Admin Drive (Standards & Contracts)</span>
-          <span className="tier-count">{files.filter((f) => f.tier === 'studio').length}</span>
+          <span>Company Library Space</span>
         </button>
 
         <button
           type="button"
-          className={`drive-tier-btn ${activeTier === 'personal' ? 'active' : ''}`}
+          className={`drive-tier-btn ${activeSpace === 'TRASH' ? 'active' : ''}`}
           onClick={() => {
-            setActiveTier('personal');
-            setProjectFolder('all');
+            setActiveSpace('TRASH');
+            setSearchQuery('');
           }}
         >
-          <Layers size={16} />
-          <span>Personal Drive (Architect Drafts)</span>
-          <span className="tier-count">{files.filter((f) => f.tier === 'personal').length}</span>
+          <Trash2 size={16} />
+          <span>Trash Bin (30-Day Retention)</span>
         </button>
       </div>
 
-      {/* 4. Sub-folder Selector for Project Drive */}
-      {activeTier === 'project' && (
-        <div className="project-folder-bar">
-          <span className="folder-label">Filter Project Folder:</span>
-          {['all', ...projectsList].map((p) => (
-            <button
-              key={p}
-              type="button"
-              className={`folder-chip ${projectFolder === p ? 'active' : ''}`}
-              onClick={() => setProjectFolder(p)}
+      {/* 4. Project Space Bar & Breadcrumbs */}
+      {activeSpace === 'PROJECT' && (
+        <div className="drive-space-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)' }}>
+              Project:
+            </span>
+            <select
+              className="approval-form-select"
+              style={{ width: '280px', height: '38px', lineHeight: '36px' }}
+              value={selectedProjectId}
+              onChange={(e) => {
+                setSelectedProjectId(e.target.value);
+                setCurrentFolderId(null);
+              }}
             >
-              {p === 'all' ? 'All Projects' : p}
-            </button>
-          ))}
+              {projectsList.map((p) => (
+                <option key={p._id || p.id} value={p._id || p.id}>
+                  {p.name || p.title} ({p.code || 'PRJ'})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button
+            size="sm"
+            variant="secondary"
+            icon={Sparkles}
+            onClick={handleApplyTemplate}
+            title="Generate standard 5-phase folder architecture for this architectural project"
+          >
+            Apply Architectural Template
+          </Button>
         </div>
       )}
 
-      {/* 5. Filter & Search Controls */}
-      <div className="storage-filter-bar">
-        <div className="storage-search-pill">
-          <Search size={15} color="#7B6F62" style={{ marginRight: 8 }} />
-          <input
-            type="text"
-            placeholder="Search files by name, revision, or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="storage-search-input"
-          />
+      {/* 5. Breadcrumbs Navigation (GET /drive/browse) */}
+      {activeSpace !== 'TRASH' && (
+        <div className="breadcrumbs-trail">
+          <button
+            type="button"
+            className={`breadcrumb-crumb ${!currentFolderId ? 'active' : ''}`}
+            onClick={() => setCurrentFolderId(null)}
+          >
+            <Folder size={15} />
+            <span>{activeSpace === 'PROJECT' ? (selectedProjectObj?.name || 'Project Root') : 'Company Library'}</span>
+          </button>
+
+          {breadcrumbs.map((crumb, idx) => {
+            const isLast = idx === breadcrumbs.length - 1;
+            return (
+              <React.Fragment key={crumb._id || crumb.id || idx}>
+                <span className="breadcrumb-sep">/</span>
+                <button
+                  type="button"
+                  className={`breadcrumb-crumb ${isLast ? 'active' : ''}`}
+                  onClick={() => !isLast && setCurrentFolderId(crumb._id || crumb.id)}
+                >
+                  <span>{crumb.name}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
         </div>
+      )}
 
-        <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
-          Showing <strong>{filteredFiles.length}</strong> items in {activeTier.toUpperCase()} DRIVE
-        </span>
-      </div>
+      {/* 6. Search Bar */}
+      {activeSpace !== 'TRASH' && (
+        <div className="storage-filter-bar">
+          <div className="storage-search-pill">
+            <Search size={15} color="#7B6F62" style={{ marginRight: 8 }} />
+            <input
+              type="text"
+              placeholder="Search files across this space..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="storage-search-input"
+            />
+          </div>
 
-      {/* 6. Files Data Table */}
-      <div className="storage-table-card">
-        <table className="storage-table">
-          <thead>
-            <tr>
-              <th>File / Sheet Name</th>
-              <th>Project Workspace</th>
-              <th>Category</th>
-              <th>Revision</th>
-              <th>Status</th>
-              <th>Size</th>
-              <th>Uploaded By</th>
-              <th>Date</th>
-              <th style={{ textAlign: 'right' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredFiles.length === 0 ? (
+          <span style={{ fontSize: 'var(--font-size-xs)', color: 'var(--color-text-muted)' }}>
+            {folders.length} Folders &bull; {files.length} Files
+          </span>
+        </div>
+      )}
+
+      {/* 7. Content Views: Browsing View vs Trash View */}
+      {loading ? (
+        <div className="approvals-empty-wrap">
+          <div className="approvals-loading-skeleton">
+            <span className="btn-spinner" style={{ width: '28px', height: '28px', borderWidth: '3px' }} />
+            <span>Loading drive contents from cloud storage...</span>
+          </div>
+        </div>
+      ) : activeSpace === 'TRASH' ? (
+        /* TRASH VIEW */
+        <div className="storage-table-card">
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0, fontSize: '15px', color: '#1E1A17' }}>
+              Soft-Deleted Items (Automatic 30-Day Purge Pipeline)
+            </h3>
+            <span className="trash-retention-pill">
+              <Clock size={12} /> Items purged after 30 days
+            </span>
+          </div>
+
+          <table className="storage-table">
+            <thead>
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)' }}>
-                  No files found in this drive folder. Click "Upload Drawings" to add.
-                </td>
+                <th>Item Name</th>
+                <th>Type</th>
+                <th>Size</th>
+                <th>Deleted Date</th>
+                <th>Retention Days</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
-            ) : (
-              filteredFiles.map((f) => (
-                <tr key={f.id}>
-                  <td>
-                    <div className="file-name-cell">
-                      <div className="file-icon-box">
-                        {f.fileType === 'image' ? (
-                          <ImageIcon size={18} />
-                        ) : f.fileType === 'dwg' ? (
-                          <Layers size={18} />
-                        ) : (
-                          <FileText size={18} />
-                        )}
+            </thead>
+            <tbody>
+              {trashData.folders.length === 0 && trashData.files.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)' }}>
+                    Trash is empty. No soft-deleted folders or drawings found.
+                  </td>
+                </tr>
+              ) : (
+                <>
+                  {trashData.folders.map((f) => (
+                    <tr key={f._id || f.id}>
+                      <td>
+                        <div className="file-name-cell">
+                          <Folder size={18} color="#D97706" />
+                          <span style={{ fontWeight: 600 }}>{f.name} (Subtree)</span>
+                        </div>
+                      </td>
+                      <td>Folder</td>
+                      <td>—</td>
+                      <td>{formatDate(f.deletedAt)}</td>
+                      <td>
+                        <span className="trash-retention-pill">
+                          {Math.max(1, 30 - Math.floor((Date.now() - new Date(f.deletedAt).getTime()) / (1000 * 60 * 60 * 24)))} days left
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={RotateCcw}
+                          onClick={() => handleRestoreItem(f, 'FOLDER')}
+                        >
+                          Restore
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+
+                  {trashData.files.map((file) => (
+                    <tr key={file._id || file.id}>
+                      <td>
+                        <div className="file-name-cell">
+                          {getFileIcon(file)}
+                          <span>{file.name}</span>
+                        </div>
+                      </td>
+                      <td>File</td>
+                      <td>{formatBytes(file.sizeBytes || file.size)}</td>
+                      <td>{formatDate(file.deletedAt)}</td>
+                      <td>
+                        <span className="trash-retention-pill">
+                          {Math.max(1, 30 - Math.floor((Date.now() - new Date(file.deletedAt).getTime()) / (1000 * 60 * 60 * 24)))} days left
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          icon={RotateCcw}
+                          onClick={() => handleRestoreItem(file, 'FILE')}
+                        >
+                          Restore
+                        </Button>
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        /* BROWSING VIEW */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Folders Section */}
+          {folders.length > 0 && (
+            <div className="drive-folders-section">
+              <h4 className="drive-section-title">
+                <Folder size={15} /> Folders ({folders.length})
+              </h4>
+              <div className="folders-grid">
+                {folders.map((folder) => (
+                  <div
+                    key={folder._id || folder.id}
+                    className="folder-card"
+                    onClick={() => setCurrentFolderId(folder._id || folder.id)}
+                  >
+                    <div className="folder-card-left">
+                      <div className="folder-icon-wrap">
+                        <Folder size={20} />
                       </div>
-                      <div className="file-title-wrap">
-                        <strong>{f.name}</strong>
-                        <span>{f.fileType.toUpperCase()} File</span>
+                      <div className="folder-card-meta">
+                        <span className="folder-card-name" title={folder.name}>
+                          {folder.name}
+                        </span>
+                        <span className="folder-card-count">
+                          {folder.fileCount !== undefined ? `${folder.fileCount} items` : 'Open folder'}
+                        </span>
                       </div>
                     </div>
-                  </td>
 
-                  <td>{f.project}</td>
-                  <td>{f.category}</td>
-                  <td>
-                    <span className="rev-badge">{f.revision}</span>
-                  </td>
-                  <td>
-                    <Badge variant={f.gfcStatus.includes('Released') || f.gfcStatus.includes('Standard') ? 'success' : 'warning'}>
-                      {f.gfcStatus}
-                    </Badge>
-                  </td>
-                  <td>{formatBytes(f.sizeBytes)}</td>
-                  <td>{f.uploadedBy}</td>
-                  <td>{formatDate(f.uploadedAt)}</td>
-                  <td style={{ textAlign: 'right' }}>
-                    <div className="action-icon-group">
+                    <div className="folder-card-actions">
                       <button
                         type="button"
-                        className="file-action-btn"
-                        title="Download Drawing"
-                        onClick={() => storageService.downloadFile(f)}
+                        className="folder-mini-btn"
+                        title="Download Folder as ZIP"
+                        onClick={(e) => handleDownloadFolderZip(folder, e)}
                       >
-                        <Download size={14} />
+                        <Archive size={14} />
                       </button>
-
                       <button
                         type="button"
-                        className="file-action-btn"
-                        title="Copy Shareable Link"
-                        onClick={() => handleCopyLink(f.id, f.name)}
+                        className="folder-mini-btn"
+                        title="Move Folder"
+                        onClick={(e) => handleOpenMove(folder, 'FOLDER', e)}
                       >
-                        {copiedId === f.id ? <Check size={14} color="#5E7A6B" /> : <Share2 size={14} />}
+                        <FolderInput size={14} />
                       </button>
-
                       <button
                         type="button"
-                        className="file-action-btn btn-del"
-                        title="Delete File"
-                        onClick={() => handleDeleteFile(f.id)}
+                        className="folder-mini-btn"
+                        title="Rename Folder"
+                        onClick={(e) => handleOpenRename(folder, 'FOLDER', e)}
+                      >
+                        <FileText size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        className="folder-mini-btn danger"
+                        title="Move to Trash"
+                        onClick={(e) => handleDeleteFolder(folder, e)}
                       >
                         <Trash2 size={14} />
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* 7. Upload Drawings Modal */}
-      <Modal
-        isOpen={uploadModalOpen}
-        onClose={() => setUploadModalOpen(false)}
-        title="Upload Drawing or File to Cloud Drive"
-      >
-        <form onSubmit={handleUploadSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="dropzone-box" onClick={() => document.getElementById('file-picker-input')?.click()}>
-            <UploadCloud size={36} color="#7B6F62" />
-            <div className="dropzone-title">Click to browse or drop architectural drawings here</div>
-            <div className="dropzone-sub">Supported formats: .DWG, .DXF, .PDF, .RVT, .JPG, .PNG (Max 100MB per file)</div>
-            <input
-              id="file-picker-input"
-              type="file"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const picked = e.target.files?.[0];
-                if (picked) {
-                  setNewFile((prev) => ({
-                    ...prev,
-                    name: picked.name,
-                    sizeMb: (picked.size / (1024 * 1024)).toFixed(1)
-                  }));
-                }
-              }}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <div style={{ gridColumn: 'span 2' }}>
-              <Input
-                label="Drawing / Document Title *"
-                id="modal-file-name"
-                placeholder="Enter document or drawing title"
-                value={newFile.name}
-                onChange={(e) => setNewFile({ ...newFile, name: e.target.value })}
-                required
-              />
+          {/* Files Section */}
+          <div className="storage-table-card">
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--color-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Files &amp; Working Drawings ({files.length})
+              </h4>
+              {currentFolderId && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={ArrowLeft}
+                  onClick={() => {
+                    if (breadcrumbs.length > 1) {
+                      setCurrentFolderId(breadcrumbs[breadcrumbs.length - 2]._id || breadcrumbs[breadcrumbs.length - 2].id);
+                    } else {
+                      setCurrentFolderId(null);
+                    }
+                  }}
+                >
+                  Back up
+                </Button>
+              )}
             </div>
 
-            <Select
-              label="Destination Drive *"
-              id="modal-tier"
-              value={newFile.tier}
-              onChange={(e) => setNewFile({ ...newFile, tier: e.target.value })}
-              options={[
-                { value: 'project', label: 'Project Drive', sublabel: 'Associated with client project' },
-                { value: 'studio', label: 'Studio Admin Drive', sublabel: 'Firm-wide master template' },
-                { value: 'personal', label: 'Personal Drive', sublabel: 'Private architect workspace' }
-              ]}
-              required
-            />
+            <table className="storage-table">
+              <thead>
+                <tr>
+                  <th>File Name</th>
+                  <th>Size</th>
+                  <th>Uploaded By</th>
+                  <th>Date</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {files.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--color-text-muted)' }}>
+                      No files in this folder. Click "Upload Files" to add drawing packages, PDFs, or 3D renders.
+                    </td>
+                  </tr>
+                ) : (
+                  files.map((file) => (
+                    <tr key={file._id || file.id}>
+                      <td>
+                        <div className="file-name-cell" onClick={(e) => handleOpenFilePreview(file, e)} style={{ cursor: 'pointer' }}>
+                          {getFileIcon(file)}
+                          <span style={{ fontWeight: 600, color: '#1E1A17' }}>{file.name}</span>
+                        </div>
+                      </td>
+                      <td>{formatBytes(file.sizeBytes || file.size)}</td>
+                      <td>{file.uploadedBy?.name || file.uploadedBy || 'Studio Team'}</td>
+                      <td>{formatDate(file.uploadedAt || file.createdAt)}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div className="action-icon-group">
+                          <button
+                            type="button"
+                            className="file-action-btn"
+                            title="Preview File"
+                            onClick={(e) => handleOpenFilePreview(file, e)}
+                          >
+                            <Eye size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="file-action-btn"
+                            title="Download Byte-Exact Stream"
+                            onClick={(e) => handleDownloadFile(file, e)}
+                          >
+                            <Download size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="file-action-btn"
+                            title="Move File"
+                            onClick={(e) => handleOpenMove(file, 'FILE', e)}
+                          >
+                            <FolderInput size={14} />
+                          </button>
+                          {activeSpace === 'PROJECT' && (
+                            <button
+                              type="button"
+                              className="file-action-btn"
+                              title={file.taskId ? 'Manage Linked Task' : 'Attach to Task'}
+                              onClick={(e) => handleOpenLinkTask(file, e)}
+                            >
+                              <Link2 size={14} color={file.taskId ? '#DFC38D' : undefined} />
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="file-action-btn"
+                            title="Rename File"
+                            onClick={(e) => handleOpenRename(file, 'FILE', e)}
+                          >
+                            <FileText size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="file-action-btn btn-del"
+                            title="Move to Trash"
+                            onClick={(e) => handleDeleteFile(file, e)}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-            <Select
-              label="Drawing Category *"
-              id="modal-category"
-              value={newFile.category}
-              onChange={(e) => setNewFile({ ...newFile, category: e.target.value })}
-              options={[
-                { value: 'Structural GFC', label: 'Structural GFC Drawing' },
-                { value: 'Architectural GFC', label: 'Architectural GFC Drawing' },
-                { value: 'Interior Detailing', label: 'Interior Detailing Sheet' },
-                { value: 'MEP Clearance', label: 'Electrical & Plumbing Layout' },
-                { value: '3D Render', label: 'Photorealistic 3D Render' },
-                { value: 'Contracts & Legal', label: 'Client Contract / BOQ' }
-              ]}
-              required
-            />
-
-            <Select
-              label="Revision Index"
-              id="modal-rev"
-              value={newFile.revision}
-              onChange={(e) => setNewFile({ ...newFile, revision: e.target.value })}
-              options={[
-                { value: 'R0', label: 'R0 (Initial Concept Draft)' },
-                { value: 'R1', label: 'R1 (Client Feedback Revision)' },
-                { value: 'R2', label: 'R2 (Municipal / Structural Clearance)' },
-                { value: 'R3', label: 'R3 (Good For Construction - GFC)' }
-              ]}
-            />
-
+      {/* MODAL 1: Create Folder Modal */}
+      <Modal
+        isOpen={newFolderModalOpen}
+        onClose={() => setNewFolderModalOpen(false)}
+        title="Create New Storage Folder"
+        maxWidth="460px"
+      >
+        <form onSubmit={handleCreateFolder} className="approval-modal-form">
+          <p style={{ fontSize: '13px', color: '#7B6F62', margin: 0 }}>
+            Folders can nest up to 8 levels deep. Name collisions will be automatically disambiguated (e.g. "Drawings (1)").
+          </p>
+          <div className="approval-form-group">
+            <label className="approval-form-label" htmlFor="new-folder-name">
+              Folder Name <span className="required">*</span>
+            </label>
             <Input
-              label="File Size (MB)"
-              id="modal-size"
-              type="number"
-              step="0.1"
-              value={newFile.sizeMb}
-              onChange={(e) => setNewFile({ ...newFile, sizeMb: e.target.value })}
+              id="new-folder-name"
+              placeholder="e.g. 02 Working Drawings"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              required
             />
           </div>
-
-          <div className="form-actions-row">
-            <Button type="button" variant="secondary" onClick={() => setUploadModalOpen(false)}>
+          <div className="approval-modal-actions">
+            <Button type="button" variant="secondary" onClick={() => setNewFolderModalOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" variant="primary">
-              Upload Drawing
+              Create Folder
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 2: Upload Files Modal */}
+      <Modal
+        isOpen={uploadModalOpen}
+        onClose={() => !uploading && setUploadModalOpen(false)}
+        title="Upload Drawings &amp; Documents"
+        maxWidth="540px"
+      >
+        <form onSubmit={handleUploadSubmit} className="storage-upload-form">
+          <div
+            className="dropzone-box"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <UploadCloud size={36} color="#7B6F62" style={{ margin: '0 auto' }} />
+            <h4 className="dropzone-title">Click or drag files to upload</h4>
+            <p className="dropzone-sub">
+              Supported formats: PDF, PNG, JPG, WebP, GIF, ZIP, DWG (Max 100 MB per batch)
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={handleFileSelect}
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.gif,.zip,.dwg"
+            />
+          </div>
+
+          {selectedUploadFiles.length > 0 && (
+            <div style={{ background: '#F8F5F0', padding: '12px 14px', borderRadius: '8px', fontSize: '12.5px' }}>
+              <strong>Selected Files ({selectedUploadFiles.length}):</strong>
+              <ul style={{ margin: '6px 0 0 16px', padding: 0 }}>
+                {selectedUploadFiles.map((f, idx) => (
+                  <li key={idx}>
+                    {f.name} ({formatBytes(f.size)})
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {uploading && (
+            <div className="upload-progress-container">
+              <div className="upload-progress-label">
+                <span>Uploading to Cloud Storage...</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="upload-progress-track">
+                <div
+                  className="upload-progress-fill-bar"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="approval-modal-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={uploading}
+              onClick={() => setUploadModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={uploading}
+              disabled={selectedUploadFiles.length === 0}
+            >
+              Upload to Drive
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 3: Rename Item Modal */}
+      <Modal
+        isOpen={renameModalOpen}
+        onClose={() => setRenameModalOpen(false)}
+        title={`Rename ${itemToRename?.type === 'FOLDER' ? 'Folder' : 'File'}`}
+        maxWidth="460px"
+      >
+        <form onSubmit={handleRenameSubmit} className="approval-modal-form">
+          <div className="approval-form-group">
+            <label className="approval-form-label" htmlFor="rename-input">
+              New Name <span className="required">*</span>
+            </label>
+            <Input
+              id="rename-input"
+              value={renameNewName}
+              onChange={(e) => setRenameNewName(e.target.value)}
+              required
+            />
+          </div>
+          <div className="approval-modal-actions">
+            <Button type="button" variant="secondary" onClick={() => setRenameModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Save Name
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 4: Safe Inline File Preview Modal */}
+      <Modal
+        isOpen={previewModalOpen}
+        onClose={() => {
+          setPreviewModalOpen(false);
+          setPreviewUrl(null);
+          setPreviewFileMeta(null);
+        }}
+        title={previewFileMeta?.name || 'File Preview'}
+        maxWidth="820px"
+      >
+        <div className="file-preview-container">
+          {previewUrl && (previewFileMeta?.name?.match(/\.(png|jpe?g|webp|gif|svg)$/i)) ? (
+            <img src={previewUrl} alt={previewFileMeta.name} className="file-preview-image" />
+          ) : previewUrl && (previewFileMeta?.name?.endsWith('.pdf')) ? (
+            <iframe src={previewUrl} title={previewFileMeta.name} className="file-preview-iframe" />
+          ) : (
+            <div style={{ textAlign: 'center', padding: '30px' }}>
+              <File size={48} color="#7B6F62" style={{ margin: '0 auto 12px' }} />
+              <p style={{ margin: '0 0 16px 0', color: '#1E1A17', fontWeight: 600 }}>
+                {previewFileMeta?.name}
+              </p>
+              <p style={{ margin: 0, color: '#7B6F62', fontSize: '13px' }}>
+                Preview is not available for this file type. Please download to view.
+              </p>
+              <div style={{ marginTop: '20px' }}>
+                <Button
+                  variant="primary"
+                  icon={Download}
+                  onClick={() => handleDownloadFile(previewFileMeta)}
+                >
+                  Download File ({formatBytes(previewFileMeta?.sizeBytes || previewFileMeta?.size || 0)})
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* MODAL 5: Move Item Modal */}
+      <Modal
+        isOpen={moveModalOpen}
+        onClose={() => {
+          setMoveModalOpen(false);
+          setItemToMove(null);
+        }}
+        title={`Move ${itemToMove?.type === 'FOLDER' ? 'Folder' : 'File'} within Space`}
+        maxWidth="480px"
+      >
+        <form onSubmit={handleMoveSubmit} className="approval-modal-form">
+          <p style={{ fontSize: '13px', color: '#7B6F62', margin: 0 }}>
+            Select destination folder for <strong>"{itemToMove?.name}"</strong>:
+          </p>
+          <div className="approval-form-group">
+            <label className="approval-form-label" htmlFor="move-destination">
+              Target Folder Destination
+            </label>
+            <select
+              id="move-destination"
+              className="approval-form-select"
+              value={targetMoveFolderId}
+              onChange={(e) => setTargetMoveFolderId(e.target.value)}
+            >
+              <option value="ROOT">/ [Root of Space]</option>
+              {folders
+                .filter((f) => (f._id || f.id) !== itemToMove?.id)
+                .map((f) => (
+                  <option key={f._id || f.id} value={f._id || f.id}>
+                    📁 {f.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+          <div className="approval-modal-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setMoveModalOpen(false);
+                setItemToMove(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary">
+              Move Now
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* MODAL 6: Attach / Detach Task Modal */}
+      <Modal
+        isOpen={linkTaskModalOpen}
+        onClose={() => {
+          setLinkTaskModalOpen(false);
+          setFileToLink(null);
+        }}
+        title="Link Drawing to Project Task"
+        maxWidth="500px"
+      >
+        <form onSubmit={handleLinkTaskSubmit} className="approval-modal-form">
+          <p style={{ fontSize: '13px', color: '#7B6F62', margin: 0 }}>
+            Link file <strong>"{fileToLink?.name}"</strong> directly to a project task for execution and review:
+          </p>
+          <div className="approval-form-group">
+            <label className="approval-form-label" htmlFor="task-select">
+              Select Project Task
+            </label>
+            {loadingTasks ? (
+              <div style={{ padding: '10px 0', fontSize: '13px', color: '#7B6F62' }}>
+                Loading tasks for {selectedProjectObj?.name || 'project'}...
+              </div>
+            ) : (
+              <select
+                id="task-select"
+                className="approval-form-select"
+                value={selectedTaskId}
+                onChange={(e) => setSelectedTaskId(e.target.value)}
+              >
+                {fileToLink?.taskId && (
+                  <option value="DETACH" style={{ color: '#DC2626' }}>
+                    -- Detach / Unlink from current Task --
+                  </option>
+                )}
+                <option value="">-- Choose a Task --</option>
+                {projectTasksList.map((t) => (
+                  <option key={t._id || t.id} value={t._id || t.id}>
+                    #{t.taskNo || ''} {t.title} [{t.status || 'TODO'}]
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="approval-modal-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setLinkTaskModalOpen(false);
+                setFileToLink(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={loadingTasks || (!selectedTaskId && !fileToLink?.taskId)}
+            >
+              {selectedTaskId === 'DETACH' ? 'Detach Task' : 'Save Task Link'}
             </Button>
           </div>
         </form>

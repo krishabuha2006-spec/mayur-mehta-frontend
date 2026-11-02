@@ -985,6 +985,20 @@ export function SuperAdminPage() {
     }
   };
 
+  // Reconcile Company Storage Quota (Module M1.9: Storage Drive)
+  const handleReconcileStorage = async (company) => {
+    try {
+      const compId = company.id || company._id;
+      const res = await adminService.reconcileStorage(compId);
+      await fetchAdminData(true);
+      const data = res?.data || res;
+      const usedMb = (Number(data?.usedBytes || 0) / (1024 * 1024)).toFixed(2);
+      showNotification(`Storage reconciled for "${company.name}". Recomputed disk usage: ${usedMb} MB.`);
+    } catch (err) {
+      showNotification(extractErrorMessage(err), 'error');
+    }
+  };
+
   // Section 6.3 Option B: Manual Seat Adjustment (PUT /admin/companies/:id/plan)
   const handleAdjustSeats = async (e) => {
     e.preventDefault();
@@ -1966,6 +1980,16 @@ export function SuperAdminPage() {
                               >
                                 <RotateCw size={15} className="dropdown-item-icon" />
                                 <span>Reconcile Seat Counter</span>
+                              </button>
+
+                              {/* Reconcile Storage Quota (Module M1.9) */}
+                              <button
+                                type="button"
+                                className="dropdown-item"
+                                onClick={() => handleReconcileStorage(c)}
+                              >
+                                <HardDrive size={15} className="dropdown-item-icon" />
+                                <span>Reconcile Storage Quota</span>
                               </button>
 
                               <div className="dropdown-divider" />

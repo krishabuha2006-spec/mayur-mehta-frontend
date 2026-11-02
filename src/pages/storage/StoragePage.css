@@ -393,3 +393,272 @@
   color: var(--color-text-muted);
   margin-top: 4px;
 }
+
+/* Module M1.9: Architectural Drive Styles */
+.drive-space-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--color-card);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.breadcrumbs-trail {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.breadcrumb-crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.breadcrumb-crumb:hover {
+  color: var(--color-primary);
+  background: var(--color-surface-alt);
+}
+
+.breadcrumb-crumb.active {
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: default;
+}
+
+.breadcrumb-sep {
+  color: #BDB7AE;
+  font-size: 12px;
+}
+
+.drive-space-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Folders Grid */
+.drive-folders-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.drive-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.folders-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+}
+
+.folder-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.folder-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 12px rgba(123, 111, 98, 0.08);
+  transform: translateY(-1px);
+}
+
+.folder-card-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+}
+
+.folder-icon-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #F3EFEA;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.folder-card-meta {
+  overflow: hidden;
+}
+
+.folder-card-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.folder-card-count {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.folder-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.folder-mini-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.folder-mini-btn:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-primary);
+}
+
+.folder-mini-btn.danger:hover {
+  background: #FEE2E2;
+  color: #DC2626;
+}
+
+/* Template Banner */
+.template-banner {
+  background: #F8F5F0;
+  border: 1px dashed #D5CFC7;
+  border-radius: var(--radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.template-banner-text h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin: 0 0 2px 0;
+}
+
+.template-banner-text p {
+  font-size: 12.5px;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+/* Trash Retention Pill */
+.trash-retention-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+/* Upload Progress */
+.upload-progress-container {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.upload-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--color-text);
+  font-weight: 500;
+}
+
+.upload-progress-track {
+  width: 100%;
+  height: 6px;
+  background: #E5E7EB;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.upload-progress-fill-bar {
+  height: 100%;
+  background: var(--color-primary);
+  transition: width 0.2s ease;
+}
+
+/* Inline File Preview Body */
+.file-preview-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  max-height: 70vh;
+  overflow: auto;
+  padding: 8px;
+}
+
+.file-preview-image {
+  max-width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.file-preview-iframe {
+  width: 100%;
+  height: 65vh;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+}
