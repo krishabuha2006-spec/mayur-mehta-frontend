@@ -123,8 +123,16 @@ export const taskService = {
 
   // 6. DELETE /tasks/{id} - Soft delete a task to trash
   deleteTask: async (id) => {
-    const res = await apiClient.delete(`/tasks/${id}`);
-    return res?.data?.data || res?.data || res;
+    try {
+      const res = await apiClient.delete(`/tasks/${id}`);
+      return res?.data?.data || res?.data || res;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        // If task is not found on server or already soft-deleted, resolve gracefully
+        return { ok: true, alreadyDeleted: true };
+      }
+      throw err;
+    }
   },
 
   // 7. PUT /tasks/{id}/status - Update task status with transition validation

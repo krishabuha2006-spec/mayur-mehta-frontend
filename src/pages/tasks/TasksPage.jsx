@@ -35,6 +35,8 @@ import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { Drawer } from '../../components/common/Drawer/Drawer';
 import { Toast } from '../../components/common/Toast/Toast';
+import { useConfirm } from '../../context/ConfirmationContext';
+import { extractErrorMessage } from '../../utils/errorHandler';
 import { formatDate } from '../../utils/formatDate';
 import { taskService } from '../../services/taskService';
 import { projectService } from '../../services/projectService';
@@ -117,6 +119,7 @@ const KANBAN_COLUMNS = [
 ];
 
 export function TasksPage() {
+  const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'kanban' | 'calendar' | 'trash'
@@ -182,8 +185,8 @@ export function TasksPage() {
     return `${yr}-${mo}-${da}`;
   };
 
-  const showToast = (message, type = 'success') => {
-    setToast({ message, type });
+  const showToast = (message, type = 'success', title = null) => {
+    setToast({ message, type, title });
     setTimeout(() => setToast(null), 4000);
   };
 
@@ -471,16 +474,37 @@ export function TasksPage() {
 
   // 6. Delete Task to Trash (DELETE /tasks/{id})
   const handleDeleteTask = async (taskId) => {
+    const targetTask = tasks.find((t) => t.id === taskId);
+    const taskTitle = targetTask?.title ? `"${targetTask.title}"` : 'this task';
+
+    const ok = await confirm({
+      title: 'Move Task to Trash?',
+      message: `Are you sure you want to move ${taskTitle} to trash? Tasks can be restored from the Trash tab within 30 days.`,
+      confirmText: 'Move to Trash',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+
+    const previousTasks = [...tasks];
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
     if (selectedTask?.id === taskId) {
       setSelectedTask(null);
     }
 
     try {
-      await taskService.deleteTask(taskId);
-      showToast('Task moved to trash', 'warning');
+      const res = await taskService.deleteTask(taskId);
+      if (res?.alreadyDeleted) {
+        showToast('Task was already moved to trash', 'info');
+      } else {
+        showToast('Task moved to trash', 'warning');
+      }
+      fetchTaskSummary();
     } catch (err) {
-      console.warn('DELETE /tasks/{id} notice:', err.message);
+      setTasks(previousTasks);
+      const errMsg = extractErrorMessage(err) || 'Failed to delete task';
+      showToast(errMsg, 'error');
+      fetchTasks();
     }
   };
 
@@ -491,14 +515,27 @@ export function TasksPage() {
       setTrashTasks((prev) => prev.filter((t) => t.id !== taskId));
       showToast('Task restored successfully', 'success');
       fetchTasks();
+      fetchTaskSummary();
     } catch (err) {
-      console.warn('POST /tasks/{id}/restore notice:', err.message);
+      const errMsg = extractErrorMessage(err) || 'Failed to restore task';
+      showToast(errMsg, 'error');
     }
   };
 
   // 8. Bulk Operations (POST /tasks/bulk)
   const handleBulkAction = async (action, value = null) => {
     if (selectedTasks.length === 0) return;
+
+    if (action === 'delete') {
+      const ok = await confirm({
+        title: `Move ${selectedTasks.length} Tasks to Trash?`,
+        message: `Are you sure you want to move ${selectedTasks.length} selected tasks to trash? They can be restored from the Trash tab within 30 days.`,
+        confirmText: 'Move to Trash',
+        cancelText: 'Cancel',
+        variant: 'danger'
+      });
+      if (!ok) return;
+    }
 
     let normAction = action;
     let normValue = value;
@@ -516,9 +553,18 @@ export function TasksPage() {
 
     try {
       await taskService.bulkTasks({ ids: selectedTasks, action: normAction, value: normValue });
-      showToast(`Bulk updated ${selectedTasks.length} tasks`, 'success');
+      showToast(
+        action === 'delete'
+          ? `Moved ${selectedTasks.length} tasks to trash`
+          : `Bulk updated ${selectedTasks.length} tasks`,
+        'success'
+      );
+      fetchTasks();
+      fetchTaskSummary();
     } catch (err) {
-      console.warn('POST /tasks/bulk notice:', err.message);
+      const errMsg = extractErrorMessage(err) || 'Bulk operation failed';
+      showToast(errMsg, 'error');
+      fetchTasks();
     } finally {
       setSelectedTasks([]);
     }
@@ -723,8 +769,13 @@ export function TasksPage() {
     <div className="tasks-page-container">
       {/* Toast Notification */}
       {toast && (
-        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 1000 }}>
-          <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
+        <div style={{ position: 'fixed', top: '24px', right: '24px', zIndex: 999999 }}>
+          <Toast
+            type={toast.type || 'info'}
+            title={toast.title}
+            message={toast.message}
+            onClose={() => setToast(null)}
+          />
         </div>
       )}
 
