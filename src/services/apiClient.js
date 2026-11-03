@@ -246,6 +246,16 @@ apiClient.interceptors.request.use(
       config.headers['Expires'] = '0';
     }
 
+    // Automatic multipart FormData header handling:
+    // Remove explicit 'Content-Type' so Axios and the browser automatically compute 'multipart/form-data; boundary=...'
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      if (config.headers?.delete) {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    }
+
     const url = config.url || '';
     const isUnauthenticatedAuthRoute =
       url.includes('/auth/login') ||
@@ -331,6 +341,11 @@ apiClient.interceptors.response.use(
       console.error(
         `[422 Validation Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n`,
         JSON.stringify(respData, null, 2)
+      );
+    } else if (error.response?.status >= 400) {
+      console.error(
+        `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:`,
+        error.response?.data || error.message
       );
     }
 

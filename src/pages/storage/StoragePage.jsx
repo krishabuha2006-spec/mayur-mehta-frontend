@@ -263,6 +263,11 @@ export function StoragePage() {
     e.preventDefault();
     if (selectedUploadFiles.length === 0) return;
 
+    if (activeSpace === 'PROJECT' && !selectedProjectId) {
+      showToast('Please select a project before uploading files', 'warning');
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 

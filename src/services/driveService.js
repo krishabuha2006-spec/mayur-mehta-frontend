@@ -184,7 +184,7 @@ export const driveService = {
   uploadFiles: async (formData, onProgress = null) => {
     const res = await apiClient.post('/drive/files', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': undefined
       },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {

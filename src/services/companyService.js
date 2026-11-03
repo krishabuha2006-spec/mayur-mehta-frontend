@@ -57,7 +57,7 @@ export const companyService = {
     formData.append('logo', file);
     const res = await apiClient.put('/company/logo', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data'
+        'Content-Type': undefined
       }
     });
     const payload = res?.data || res;
