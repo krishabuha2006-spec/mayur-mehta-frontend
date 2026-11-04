@@ -1,12 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Mail, MessageSquare, Bell, Menu, LogOut, Settings, CreditCard, Shield, Building2, KeyRound, Eye, EyeOff, AlertCircle, CheckCircle2, User, Search } from 'lucide-react';
+import {
+  Plus,
+  Mail,
+  MessageSquare,
+  Bell,
+  Menu,
+  LogOut,
+  Settings,
+  CreditCard,
+  Shield,
+  Building2,
+  KeyRound,
+  Eye,
+  EyeOff,
+  AlertCircle,
+  CheckCircle2,
+  User,
+  Search,
+  CheckSquare,
+  FolderPlus,
+  ClipboardList,
+  UserPlus,
+  Building,
+  UploadCloud
+} from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { IconButton } from '../../common/IconButton/IconButton';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { Dropdown } from '../../common/Dropdown/Dropdown';
-import { MayurMehtaLogo } from '../../common/MayurMehtaLogo/MayurMehtaLogo';
-import { QuickAddDrawer } from '../../common/QuickAddDrawer/QuickAddDrawer';
+import { MayurMehtaLogo, MayurMehtaSymbol } from '../../common/MayurMehtaLogo/MayurMehtaLogo';
+import { TaskModal } from '../../tasks/TaskModal/TaskModal';
+import { ProjectModal } from '../../projects/ProjectModal/ProjectModal';
+import { NotificationDropdown } from '../../common/NotificationDropdown/NotificationDropdown';
+import { ChatDropdown } from '../../common/ChatDropdown/ChatDropdown';
+import { MailDropdown } from '../../common/MailDropdown/MailDropdown';
 import { UniversalSearchBar } from './UniversalSearchBar';
 import { Modal } from '../../common/Modal/Modal';
 import { Input } from '../../common/Input/Input';
@@ -19,9 +47,10 @@ import { ROUTES } from '../../../constants/routes';
 import { ROLES } from '../../../constants/enums';
 import './Header.css';
 
-export function Header({ onOpenMobileMenu }) {
+export function Header({ onOpenMobileMenu, onToggleSidebar, sidebarExpanded }) {
   const { user, company, headerBadges, logout, refreshUser } = useAuth();
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickTaskOpen, setQuickTaskOpen] = useState(false);
+  const [quickProjectOpen, setQuickProjectOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -144,7 +173,7 @@ export function Header({ onOpenMobileMenu }) {
 
   return (
     <>
-      <header className="app-header">
+      <header className={`app-header ${sidebarExpanded ? 'sidebar-is-expanded' : 'sidebar-is-collapsed'}`}>
         {/* Left: Mobile hamburger trigger + Mayur Mehta Brand Logo */}
         <div className="header-left">
           <button
@@ -156,7 +185,17 @@ export function Header({ onOpenMobileMenu }) {
             <Menu size={24} />
           </button>
 
-          <div className="header-company-brand" onClick={() => navigate(ROUTES.DASHBOARD)} style={{ cursor: 'pointer' }}>
+          <div
+            className="header-company-brand"
+            onClick={() => {
+              if (onToggleSidebar) onToggleSidebar();
+              else navigate(ROUTES.DASHBOARD);
+            }}
+            role="button"
+            tabIndex={0}
+            title={sidebarExpanded ? 'Click logo to collapse sidebar (icons only)' : 'Click logo to expand sidebar (icons + names)'}
+            style={{ cursor: 'pointer' }}
+          >
             {hasCustomLogo ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <img
@@ -165,12 +204,19 @@ export function Header({ onOpenMobileMenu }) {
                   style={{ maxHeight: '32px', maxWidth: '140px', objectFit: 'contain' }}
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
-                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.04em' }}>
+                <span className="header-company-title-text" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)', letterSpacing: '0.04em' }}>
                   {company?.name}
                 </span>
               </div>
             ) : (
-              <MayurMehtaLogo size="sm" showTagline={true} />
+              <>
+                <div className="header-logo-full">
+                  <MayurMehtaLogo size="sm" showTagline={true} color="charcoal" />
+                </div>
+                <div className="header-logo-symbol">
+                  <MayurMehtaSymbol size={34} color="charcoal" strokeWidth={2.8} />
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -180,41 +226,67 @@ export function Header({ onOpenMobileMenu }) {
 
         {/* Right: Quick-add, Mail, Chat, Bell, Avatar */}
         <div className="header-right">
-          {/* Quick-add '+' button in Taupe */}
-          <IconButton
-            icon={Plus}
-            variant="primary"
-            title="Create new task / project"
-            ariaLabel="Quick add"
-            onClick={() => setQuickAddOpen(true)}
-          />
+          {/* Quick Create Dropdown Menu */}
+          <Dropdown
+            align="right"
+            trigger={
+              <IconButton
+                icon={Plus}
+                variant="primary"
+                title="Create new task or project"
+                ariaLabel="Quick add"
+              />
+            }
+          >
+            <div className="quick-create-menu-header">
+              <span className="quick-create-menu-title">Create New</span>
+            </div>
+            <button
+              type="button"
+              className="dropdown-item"
+              onClick={() => setQuickTaskOpen(true)}
+            >
+              <CheckSquare size={16} className="dropdown-item-icon" />
+              <span>New Task</span>
+            </button>
+            <button
+              type="button"
+              className="dropdown-item"
+              onClick={() => setQuickProjectOpen(true)}
+            >
+              <FolderPlus size={16} className="dropdown-item-icon" />
+              <span>New Project</span>
+            </button>
+            <button
+              type="button"
+              className="dropdown-item"
+              onClick={() => navigate(ROUTES.TEAM)}
+            >
+              <UserPlus size={16} className="dropdown-item-icon" />
+              <span>Invite Member</span>
+            </button>
+            <button
+              type="button"
+              className="dropdown-item"
+              onClick={() => navigate(ROUTES.DIRECTORY)}
+            >
+              <Building size={16} className="dropdown-item-icon" />
+              <span>Directory Contact</span>
+            </button>
+          </Dropdown>
 
-          {/* Mail Icon */}
-          <IconButton
-            icon={Mail}
-            badgeCount={headerBadges?.mailCount}
-            title="Messages / Mail"
-            ariaLabel="Mail messages"
-            onClick={() => {}}
-          />
+          {/* Mail Dropdown with Live Dispatches & Outbox */}
+          <div className="header-desktop-icon">
+            <MailDropdown />
+          </div>
 
-          {/* Chat Icon with pill count */}
-          <IconButton
-            icon={MessageSquare}
-            badgeCount={headerBadges?.chatCount}
-            title="Team Chat"
-            ariaLabel="Team chat"
-            onClick={() => {}}
-          />
+          {/* Chat Dropdown with Live Task & Project Threads */}
+          <div className="header-desktop-icon">
+            <ChatDropdown />
+          </div>
 
-          {/* Bell Notification Icon with pill count */}
-          <IconButton
-            icon={Bell}
-            badgeCount={headerBadges?.notificationCount}
-            title="Notifications"
-            ariaLabel="Notifications"
-            onClick={() => {}}
-          />
+          {/* Bell Notification Dropdown with Live Swagger API Integration */}
+          <NotificationDropdown />
 
           {/* User Avatar with Profile Dropdown */}
           <Dropdown
@@ -326,19 +398,30 @@ export function Header({ onOpenMobileMenu }) {
         </div>
       </header>
 
-      {/* Quick Add Slide-out Drawer */}
-      <QuickAddDrawer
-        isOpen={quickAddOpen}
-        onClose={() => setQuickAddOpen(false)}
-        onSaveSuccess={() => {
-          // notification or refresh
+      {/* Real Task Modal - Opens in the Middle (Same as TasksPage) */}
+      <TaskModal
+        isOpen={quickTaskOpen}
+        onClose={() => setQuickTaskOpen(false)}
+        onSaved={() => {
+          window.dispatchEvent(new CustomEvent('mm:entity-created', { detail: { type: 'task' } }));
+        }}
+      />
+
+      {/* Real Project Modal (Module M1.7) */}
+      <ProjectModal
+        isOpen={quickProjectOpen}
+        onClose={() => setQuickProjectOpen(false)}
+        onSaved={() => {
+          window.dispatchEvent(new CustomEvent('mm:entity-created', { detail: { type: 'project' } }));
         }}
       />
 
       {/* Change Password Modal (Module M1.2 Section 4.1.9) */}
       <Modal
         isOpen={changePasswordOpen}
-        onClose={() => setChangePasswordOpen(false)}
+        onClose={() => {
+          if (!user?.mustChangePassword) setChangePasswordOpen(false);
+        }}
         title="Change Account Password"
       >
         <form onSubmit={handleChangePasswordSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -403,14 +486,16 @@ export function Header({ onOpenMobileMenu }) {
           />
 
           <div className="form-actions-row">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => setChangePasswordOpen(false)}
-              disabled={changeLoading}
-            >
-              Cancel
-            </Button>
+            {!user?.mustChangePassword && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setChangePasswordOpen(false)}
+                disabled={changeLoading}
+              >
+                Cancel
+              </Button>
+            )}
             <Button
               type="submit"
               variant="primary"

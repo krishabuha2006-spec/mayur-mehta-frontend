@@ -4,7 +4,7 @@ export const APP_NAVIGATION = [
   {
     id: 'nav-1',
     label: 'Dashboard',
-    iconKey: 'LayoutDashboard',
+    iconKey: 'LayoutGrid',
     route: ROUTES.DASHBOARD,
     order: 1,
     permission: null
@@ -12,7 +12,7 @@ export const APP_NAVIGATION = [
   {
     id: 'nav-2',
     label: 'Projects',
-    iconKey: 'Building2',
+    iconKey: 'Package',
     route: ROUTES.PROJECTS,
     order: 2,
     permission: null,
@@ -25,7 +25,7 @@ export const APP_NAVIGATION = [
   {
     id: 'nav-3',
     label: 'Master Task',
-    iconKey: 'ListTodo',
+    iconKey: 'CheckSquare',
     route: ROUTES.TASKS,
     order: 3,
     permission: null,
@@ -74,7 +74,7 @@ export const APP_NAVIGATION = [
   {
     id: 'nav-8',
     label: 'Directory',
-    iconKey: 'Contact',
+    iconKey: 'BookUser',
     route: ROUTES.DIRECTORY,
     order: 8,
     permission: null
@@ -98,7 +98,7 @@ export const APP_NAVIGATION = [
   {
     id: 'nav-11',
     label: 'Reports',
-    iconKey: 'BarChart3',
+    iconKey: 'TrendingUp',
     route: ROUTES.REPORTS,
     order: 11,
     permission: null

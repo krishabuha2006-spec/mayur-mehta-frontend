@@ -1,4 +1,6 @@
 import { apiClient } from './apiClient';
+import { taskTemplateService } from './taskTemplateService';
+import { taskAdvancedService } from './taskAdvancedService';
 
 /**
  * Task Service - Fully aligned with Swagger v1.6.0 Spec
@@ -72,18 +74,28 @@ export const taskService = {
     if (data.dueDate && !isNaN(new Date(data.dueDate).getTime())) {
       payload.dueDate = new Date(data.dueDate).toISOString();
     }
-    if (data.estimatedMinutes) payload.estimatedMinutes = Number(data.estimatedMinutes);
-    if (Array.isArray(data.assignees)) payload.assignees = data.assignees;
-    if (Array.isArray(data.tags)) payload.tags = data.tags;
-    if (Array.isArray(data.checklist)) payload.checklist = data.checklist;
+    if (data.estimatedHours && !data.estimatedMinutes) {
+      payload.estimatedMinutes = Math.round(Number(data.estimatedHours) * 60);
+    } else if (data.estimatedMinutes) {
+      payload.estimatedMinutes = Number(data.estimatedMinutes);
+    }
+    if (Array.isArray(data.assignees)) {
+      const cleanAssignees = data.assignees.filter(Boolean);
+      if (cleanAssignees.length > 0) payload.assignees = cleanAssignees;
+    }
+    if (Array.isArray(data.tags)) payload.tags = data.tags.filter(Boolean);
+    if (Array.isArray(data.checklist)) payload.checklist = data.checklist.filter(Boolean);
 
     const res = await apiClient.post(`/projects/${projectId}/tasks`, payload);
     return res?.data?.data || res?.data || res;
   },
 
-  // General Create Task helper: dispatches to project endpoint if projectId provided, else /tasks
+  // General Create Task helper: dispatches to project endpoint if projectId provided, else throws
   createTask: async (data) => {
     const projectId = data.projectId;
+    if (!projectId) {
+      throw new Error('Project ID is required to create a task in backend');
+    }
     const payload = {
       title: data.title?.trim(),
       priority: String(data.priority || 'MEDIUM').toUpperCase()
@@ -97,16 +109,20 @@ export const taskService = {
     if (data.dueDate && !isNaN(new Date(data.dueDate).getTime())) {
       payload.dueDate = new Date(data.dueDate).toISOString();
     }
-    if (data.estimatedMinutes) payload.estimatedMinutes = Number(data.estimatedMinutes);
-    if (Array.isArray(data.assignees)) payload.assignees = data.assignees;
-    if (Array.isArray(data.tags)) payload.tags = data.tags;
-    if (Array.isArray(data.checklist)) payload.checklist = data.checklist;
-
-    if (projectId) {
-      const res = await apiClient.post(`/projects/${projectId}/tasks`, payload);
-      return res?.data?.data || res?.data || res;
+    if (data.estimatedHours && !data.estimatedMinutes) {
+      payload.estimatedMinutes = Math.round(Number(data.estimatedHours) * 60);
+    } else if (data.estimatedMinutes) {
+      payload.estimatedMinutes = Number(data.estimatedMinutes);
     }
-    throw new Error('Project ID is required to create a task in backend');
+    if (Array.isArray(data.assignees)) {
+      const cleanAssignees = data.assignees.filter(Boolean);
+      if (cleanAssignees.length > 0) payload.assignees = cleanAssignees;
+    }
+    if (Array.isArray(data.tags)) payload.tags = data.tags.filter(Boolean);
+    if (Array.isArray(data.checklist)) payload.checklist = data.checklist.filter(Boolean);
+
+    const res = await apiClient.post(`/projects/${projectId}/tasks`, payload);
+    return res?.data?.data || res?.data || res;
   },
 
   // 4. GET /tasks/{id} - Get single task by ID
@@ -135,19 +151,38 @@ export const taskService = {
     }
   },
 
+  // Helper to normalize any status string to official Swagger enum
+  normalizeStatus: (rawStatus) => {
+    if (!rawStatus) return 'TODO';
+    const upper = String(rawStatus).toUpperCase().trim();
+    if (upper === 'DONE' || upper === 'COMPLETED') return 'DONE';
+    if (upper === 'IN_PROGRESS' || upper === 'IN PROGRESS') return 'IN_PROGRESS';
+    if (upper === 'IN_REVIEW' || upper === 'REVIEW') return 'IN_REVIEW';
+    if (upper === 'CANCELLED' || upper === 'CANCELED') return 'CANCELLED';
+    return 'TODO';
+  },
+
   // 7. PUT /tasks/{id}/status - Update task status with transition validation
   updateTaskStatus: async (id, statusOrPayload, maybeReason = null) => {
-    const payload = typeof statusOrPayload === 'object'
-      ? statusOrPayload
-      : { status: statusOrPayload };
-    if (maybeReason && !payload.reason) payload.reason = maybeReason;
+    const rawStatus = typeof statusOrPayload === 'object' ? statusOrPayload.status : statusOrPayload;
+    const normStatus = taskService.normalizeStatus(rawStatus);
+    const payload = { status: normStatus };
+    const reason = typeof statusOrPayload === 'object' ? statusOrPayload.reason : maybeReason;
+    if (reason) payload.reason = reason;
     const res = await apiClient.put(`/tasks/${id}/status`, payload);
     return res?.data?.data || res?.data || res;
   },
 
   // 8. PUT /tasks/{id}/move - Move task in Kanban board or reorder between neighbours
   moveTask: async (id, movePayload) => {
-    const res = await apiClient.put(`/tasks/${id}/move`, movePayload);
+    const normStatus = taskService.normalizeStatus(movePayload?.status);
+    const payload = {
+      status: normStatus
+    };
+    if (movePayload?.beforeTaskId) payload.beforeTaskId = movePayload.beforeTaskId;
+    if (movePayload?.afterTaskId) payload.afterTaskId = movePayload.afterTaskId;
+    if (movePayload?.reason) payload.reason = movePayload.reason;
+    const res = await apiClient.put(`/tasks/${id}/move`, payload);
     return res?.data?.data || res?.data || res;
   },
 
@@ -172,7 +207,25 @@ export const taskService = {
   getTasksSummary: async () => {
     try {
       const res = await apiClient.get('/tasks/summary');
-      return res?.data?.data || res?.data || res;
+      const payload = res?.data?.totalTasks !== undefined ? res.data : (res?.totalTasks !== undefined ? res : (res?.data || res));
+      if (payload && payload.totalTasks !== undefined) {
+        const rawStatus = payload.byStatus || {};
+        payload.byStatus = {
+          ...rawStatus,
+          TODO: rawStatus.TODO ?? rawStatus.todo ?? 0,
+          todo: rawStatus.todo ?? rawStatus.TODO ?? 0,
+          IN_PROGRESS: rawStatus.IN_PROGRESS ?? rawStatus.inProgress ?? 0,
+          inProgress: rawStatus.inProgress ?? rawStatus.IN_PROGRESS ?? 0,
+          IN_REVIEW: rawStatus.IN_REVIEW ?? rawStatus.inReview ?? 0,
+          inReview: rawStatus.inReview ?? rawStatus.IN_REVIEW ?? 0,
+          COMPLETED: rawStatus.COMPLETED ?? rawStatus.completed ?? 0,
+          completed: rawStatus.completed ?? rawStatus.COMPLETED ?? 0,
+          CANCELLED: rawStatus.CANCELLED ?? rawStatus.cancelled ?? 0,
+          cancelled: rawStatus.cancelled ?? rawStatus.CANCELLED ?? 0
+        };
+        return payload;
+      }
+      return payload;
     } catch (err) {
       console.warn('GET /tasks/summary API notice:', err?.response?.status || err.message);
       return null;
@@ -183,7 +236,25 @@ export const taskService = {
   getProjectTasksSummary: async (projectId) => {
     try {
       const res = await apiClient.get(`/projects/${projectId}/tasks/summary`);
-      return res?.data?.data || res?.data || res;
+      const payload = res?.data?.totalTasks !== undefined ? res.data : (res?.totalTasks !== undefined ? res : (res?.data || res));
+      if (payload && payload.totalTasks !== undefined) {
+        const rawStatus = payload.byStatus || {};
+        payload.byStatus = {
+          ...rawStatus,
+          TODO: rawStatus.TODO ?? rawStatus.todo ?? 0,
+          todo: rawStatus.todo ?? rawStatus.TODO ?? 0,
+          IN_PROGRESS: rawStatus.IN_PROGRESS ?? rawStatus.inProgress ?? 0,
+          inProgress: rawStatus.inProgress ?? rawStatus.IN_PROGRESS ?? 0,
+          IN_REVIEW: rawStatus.IN_REVIEW ?? rawStatus.inReview ?? 0,
+          inReview: rawStatus.inReview ?? rawStatus.IN_REVIEW ?? 0,
+          COMPLETED: rawStatus.COMPLETED ?? rawStatus.completed ?? 0,
+          completed: rawStatus.completed ?? rawStatus.COMPLETED ?? 0,
+          CANCELLED: rawStatus.CANCELLED ?? rawStatus.cancelled ?? 0,
+          cancelled: rawStatus.cancelled ?? rawStatus.CANCELLED ?? 0
+        };
+        return payload;
+      }
+      return payload;
     } catch (err) {
       console.warn(`GET /projects/${projectId}/tasks/summary API notice:`, err?.response?.status || err.message);
       return null;
@@ -192,10 +263,14 @@ export const taskService = {
 
   // 13. POST /tasks/bulk - Execute a bulk operation across up to 100 tasks
   bulkTasks: async (bulkPayload) => {
+    let normValue = bulkPayload.value !== undefined ? bulkPayload.value : null;
+    if (bulkPayload.action === 'SET_STATUS' && normValue) {
+      normValue = taskService.normalizeStatus(normValue);
+    }
     const payload = {
       ids: bulkPayload.ids || bulkPayload.taskIds || [],
       action: bulkPayload.action,
-      value: bulkPayload.value !== undefined ? bulkPayload.value : null
+      value: normValue
     };
     if (bulkPayload.reason) payload.reason = bulkPayload.reason;
     const res = await apiClient.post('/tasks/bulk', payload);
@@ -245,7 +320,47 @@ export const taskService = {
   deleteChecklistItem: async (id, itemId) => {
     const res = await apiClient.delete(`/tasks/${id}/checklist/${itemId}`);
     return res?.data?.data || res?.data || res;
-  }
+  },
+
+  // =========================================================================
+  // Module M2.2: Task Templates (Swagger v1.6.0)
+  // =========================================================================
+  getTemplates: (params) => taskTemplateService.getTemplates(params),
+  getTemplateById: (id) => taskTemplateService.getTemplateById(id),
+  createTemplate: (data) => taskTemplateService.createTemplate(data),
+  updateTemplate: (id, data) => taskTemplateService.updateTemplate(id, data),
+  deleteTemplate: (id) => taskTemplateService.deleteTemplate(id),
+  createTemplateFromProject: (data) => taskTemplateService.createFromProject(data),
+  applyTemplateToProject: (projectId, data) => taskTemplateService.applyTemplateToProject(projectId, data),
+
+  // =========================================================================
+  // Module M2.2: Task Advanced (Dependencies, Gantt, Reminders, Review, Time)
+  // =========================================================================
+  getDependencies: (taskId) => taskAdvancedService.getDependencies(taskId),
+  setDependencies: (taskId, dependsOn) => taskAdvancedService.setDependencies(taskId, dependsOn),
+  shiftTaskDates: (taskId, options) => taskAdvancedService.shiftTaskDates(taskId, options),
+  getProjectGantt: (projectId) => taskAdvancedService.getProjectGantt(projectId),
+  getReminders: (taskId) => taskAdvancedService.getReminders(taskId),
+  createReminder: (taskId, payload) => taskAdvancedService.createReminder(taskId, payload),
+  deleteReminder: (taskId, reminderId) => taskAdvancedService.deleteReminder(taskId, reminderId),
+  reassignTask: (taskId, payload) => taskAdvancedService.reassignTask(taskId, payload),
+  bulkReassignTasks: (payload) => taskAdvancedService.bulkReassignTasks(payload),
+  submitForReview: (taskId, note) => taskAdvancedService.submitForReview(taskId, note),
+  approveReview: (taskId, note) => taskAdvancedService.approveReview(taskId, note),
+  rejectReview: (taskId, reason) => taskAdvancedService.rejectReview(taskId, reason),
+  getReviewHistory: (taskId) => taskAdvancedService.getReviewHistory(taskId),
+  getPendingReviewCount: () => taskAdvancedService.getPendingReviewCount(),
+  logManualTime: (taskId, payload) => taskAdvancedService.logManualTime(taskId, payload),
+  getTaskTimeLogs: (taskId) => taskAdvancedService.getTaskTimeLogs(taskId),
+  updateTimeLog: (logId, payload) => taskAdvancedService.updateTimeLog(logId, payload),
+  deleteTimeLog: (logId) => taskAdvancedService.deleteTimeLog(logId),
+  startTimer: (payload) => taskAdvancedService.startTimer(payload),
+  stopTimer: (payload) => taskAdvancedService.stopTimer(payload),
+  getActiveTimer: () => taskAdvancedService.getActiveTimer(),
+  getTimeSummary: () => taskAdvancedService.getTimeSummary(),
+  getMyTimeReport: (params) => taskAdvancedService.getMyTimeReport(params),
+  getProjectTimeReport: (projectId, params) => taskAdvancedService.getProjectTimeReport(projectId, params)
 };
 
+export { taskTemplateService, taskAdvancedService };
 export default taskService;

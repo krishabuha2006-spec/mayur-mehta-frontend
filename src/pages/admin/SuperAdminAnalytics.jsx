@@ -124,22 +124,38 @@ export function SuperAdminAnalytics({
     ];
   }, [companies]);
 
-  // D. Growth & Adoption Timeline
+  // D. Growth & Adoption Timeline dynamically derived from registered firms
   const growthTrendData = useMemo(() => {
-    const base = [
-      { date: '18 Oct', firms: 1, seats: 10, mrr: 0 },
-      { date: '21 Oct', firms: 1, seats: 10, mrr: 0 },
-      { date: '24 Oct', firms: 2, seats: 21, mrr: 7500 },
-      { date: '26 Oct', firms: 3, seats: 31, mrr: 7500 },
-      { date: '28 Oct', firms: companies.length || 3, seats: 31, mrr: 7500 }
-    ];
+    if (!companies || companies.length === 0) return [];
 
-    if (timeRange === '7D') return base.slice(-3);
-    if (timeRange === '30D') return base.slice(-4);
-    return base;
-  }, [companies.length, timeRange]);
+    const sorted = [...companies].sort((a, b) => {
+      const da = new Date(a.createdAt || 0);
+      const db = new Date(b.createdAt || 0);
+      return da - db;
+    });
 
-  // E. Security Activity Breakdown
+    let cumulativeFirms = 0;
+    let cumulativeSeats = 0;
+    let cumulativeMrr = 0;
+
+    return sorted.map((c) => {
+      cumulativeFirms++;
+      const sLimit = c.seatLimit || c.seats?.limit || 10;
+      cumulativeSeats += sLimit;
+      const isPaid = (c.plan || '').toUpperCase().includes('PAID') || (c.plan || '').toUpperCase().includes('PRO');
+      if (isPaid) cumulativeMrr += 7500;
+      const d = new Date(c.createdAt || Date.now());
+      const label = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+      return {
+        date: label,
+        firms: cumulativeFirms,
+        seats: cumulativeSeats,
+        mrr: cumulativeMrr
+      };
+    });
+  }, [companies]);
+
+  // E. Security Activity Breakdown from Real Audit Logs
   const auditActivityData = useMemo(() => {
     let logins = 0;
     let tenantOps = 0;
@@ -155,10 +171,10 @@ export function SuperAdminAnalytics({
     });
 
     return [
-      { category: 'Logins & Auth', count: Math.max(logins, 7), fill: THEME.info },
-      { category: 'Firm Operations', count: Math.max(tenantOps, 5), fill: THEME.primary },
-      { category: 'Security & Access', count: Math.max(security, 5), fill: THEME.danger },
-      { category: 'Billing & Plans', count: Math.max(billing, 3), fill: THEME.accent }
+      { category: 'Logins & Auth', count: logins, fill: THEME.info },
+      { category: 'Firm Operations', count: tenantOps, fill: THEME.primary },
+      { category: 'Security & Access', count: security, fill: THEME.danger },
+      { category: 'Billing & Plans', count: billing, fill: THEME.accent }
     ];
   }, [filteredAuditLogs]);
 
@@ -294,42 +310,50 @@ export function SuperAdminAnalytics({
           </div>
 
           <div className="chart-canvas-wrap">
-            <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={growthTrendData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="themeTaupeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={THEME.primary} stopOpacity={0.35} />
-                    <stop offset="95%" stopColor={THEME.primary} stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="themeGoldGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={THEME.accent} stopOpacity={0.45} />
-                    <stop offset="95%" stopColor={THEME.accent} stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(232, 224, 213, 0.6)" />
-                <XAxis dataKey="date" stroke="#7B6F63" fontSize={11} tickLine={false} axisLine={{ stroke: '#E8E0D5' }} />
-                <YAxis stroke="#7B6F63" fontSize={11} tickLine={false} axisLine={{ stroke: '#E8E0D5' }} />
-                <Tooltip content={<CustomChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="seats"
-                  name="Seat Capacity"
-                  stroke={THEME.primary}
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#themeTaupeGrad)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="firms"
-                  name="Active Firms"
-                  stroke={THEME.accent}
-                  strokeWidth={2.5}
-                  fillOpacity={1}
-                  fill="url(#themeGoldGrad)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {growthTrendData.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '230px', color: '#8C847A', textAlign: 'center' }}>
+                <Building2 size={28} style={{ color: '#B89A74', opacity: 0.6, marginBottom: '8px' }} />
+                <span style={{ fontSize: '13px', fontWeight: 500, color: '#4A443E' }}>No firm onboarding history yet</span>
+                <span style={{ fontSize: '11.5px', marginTop: '2px' }}>Firms will plot here as studios onboard</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={growthTrendData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="themeTaupeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={THEME.primary} stopOpacity={0.35} />
+                      <stop offset="95%" stopColor={THEME.primary} stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="themeGoldGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={THEME.accent} stopOpacity={0.45} />
+                      <stop offset="95%" stopColor={THEME.accent} stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(232, 224, 213, 0.6)" />
+                  <XAxis dataKey="date" stroke="#7B6F63" fontSize={11} tickLine={false} axisLine={{ stroke: '#E8E0D5' }} />
+                  <YAxis stroke="#7B6F63" fontSize={11} tickLine={false} axisLine={{ stroke: '#E8E0D5' }} />
+                  <Tooltip content={<CustomChartTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="seats"
+                    name="Seat Capacity"
+                    stroke={THEME.primary}
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#themeTaupeGrad)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="firms"
+                    name="Active Firms"
+                    stroke={THEME.accent}
+                    strokeWidth={2.5}
+                    fillOpacity={1}
+                    fill="url(#themeGoldGrad)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="chart-panel-footer">

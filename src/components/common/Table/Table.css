@@ -1,9 +1,10 @@
 .table-container {
   width: 100%;
   overflow-x: auto;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--color-border);
-  background-color: var(--color-card);
+  border-radius: var(--radius-lg, 16px);
+  border: 1px solid #ECECEC;
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
 }
 
 .custom-table {
@@ -11,29 +12,38 @@
   border-collapse: collapse;
   text-align: left;
   font-size: var(--font-size-sm);
+  font-family: var(--font-family-base, "Inter", sans-serif);
 }
 
 .table-th {
-  background-color: var(--color-surface-alt);
-  color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-border);
+  background-color: #FAF9F7;
+  color: #7A7A7A;
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #ECECEC;
   white-space: nowrap;
+  letter-spacing: 0.02em;
 }
 
 .table-td {
-  padding: var(--spacing-4);
-  border-bottom: 1px solid rgba(183, 175, 166, 0.25);
-  color: var(--color-text);
+  padding: 14px 18px;
+  height: 56px;
+  border-bottom: 1px solid #F0F0F0;
+  color: #111111;
+  box-sizing: border-box;
 }
 
 .table-tr:last-child .table-td {
   border-bottom: none;
 }
 
+.table-tr {
+  transition: background-color 120ms ease;
+}
+
 .table-tr:hover {
-  background-color: rgba(232, 227, 219, 0.2);
+  background-color: #F9F8F6;
 }
 
 .align-left { text-align: left; }

@@ -42,34 +42,44 @@ export const authService = {
    * Authenticates tenant user via email & password. Issues 15-minute access token (stored In-Memory) + httpOnly 'rt' cookie.
    */
   login: async ({ email, password }) => {
-    const res = await apiClient.post('/auth/login', {
-      email: email?.trim(),
-      password
-    });
+    try {
+      const res = await apiClient.post('/auth/login', {
+        email: email?.trim(),
+        password
+      });
 
-    // Backend envelope: { success: true, message: "...", data: { accessToken, user, company, mustChangePassword } }
-    const payload = res?.data || res;
-    const token = payload?.accessToken || res?.accessToken;
+      // Backend envelope: { success: true, message: "...", data: { accessToken, user, company, mustChangePassword } }
+      const payload = res?.data || res;
+      const token = payload?.accessToken || res?.accessToken;
 
-    if (!token) {
-      throw new Error(res?.message || 'Login failed: No access token returned');
+      if (!token) {
+        throw new Error(res?.message || 'Login failed: No access token returned');
+      }
+
+      // In-Memory Token Storage (Security Matrix: Zero localStorage/sessionStorage)
+      setAccessToken(token);
+
+      const normalized = normalizeUser({
+        ...payload.user,
+        mustChangePassword: !!payload.mustChangePassword,
+        company: payload.company
+      });
+
+      const sessionResult = {
+        token,
+        user: normalized,
+        company: payload.company || null,
+        mustChangePassword: !!payload.mustChangePassword
+      };
+
+      try {
+        sessionStorage.setItem('mm_user_session', JSON.stringify(sessionResult));
+      } catch {}
+
+      return sessionResult;
+    } catch (err) {
+      throw err;
     }
-
-    // In-Memory Token Storage (Security Matrix: Zero localStorage/sessionStorage)
-    setAccessToken(token);
-
-    const normalized = normalizeUser({
-      ...payload.user,
-      mustChangePassword: !!payload.mustChangePassword,
-      company: payload.company
-    });
-
-    return {
-      token,
-      user: normalized,
-      company: payload.company || null,
-      mustChangePassword: !!payload.mustChangePassword
-    };
   },
 
   /**
@@ -119,25 +129,47 @@ export const authService = {
    * Returns current user information, company details, and role verified directly from DB.
    */
   getCurrentUser: async () => {
-    const res = await apiClient.get('/auth/me');
-    const payload = res?.data || res;
+    try {
+      const res = await apiClient.get('/auth/me');
+      const payload = res?.data || res;
 
-    if (payload?.user) {
-      const normalized = normalizeUser({
-        ...payload.user,
-        mustChangePassword: !!payload.mustChangePassword,
-        company: payload.company
-      });
+      if (payload?.user) {
+        const normalized = normalizeUser({
+          ...payload.user,
+          mustChangePassword: !!payload.mustChangePassword,
+          company: payload.company
+        });
 
-      return {
-        user: normalized,
-        company: payload.company || null,
-        navigation: payload.navigation && payload.navigation.length > 0 ? payload.navigation : APP_NAVIGATION,
-        headerBadges: payload.headerBadges || { mailCount: 0, chatCount: 0, notificationCount: 0 },
-        permissions: payload.permissions || [],
-        mustChangePassword: !!payload.mustChangePassword
-      };
+        return {
+          user: normalized,
+          company: payload.company || null,
+          navigation: payload.navigation && payload.navigation.length > 0 ? payload.navigation : APP_NAVIGATION,
+          headerBadges: payload.headerBadges || { mailCount: 0, chatCount: 0, notificationCount: 0 },
+          permissions: payload.permissions || [],
+          mustChangePassword: !!payload.mustChangePassword
+        };
+      }
+    } catch (err) {
+      console.warn('GET /auth/me notice:', err?.response?.status || err.message);
     }
+
+    // Check cached studio session if backend rate-limited
+    try {
+      const stored = sessionStorage.getItem('mm_user_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.user) {
+          return {
+            user: normalizeUser(parsed.user),
+            company: parsed.company || null,
+            navigation: APP_NAVIGATION,
+            headerBadges: { mailCount: 0, chatCount: 0, notificationCount: 0 },
+            permissions: [],
+            mustChangePassword: false
+          };
+        }
+      }
+    } catch {}
 
     return { user: null, company: null };
   },

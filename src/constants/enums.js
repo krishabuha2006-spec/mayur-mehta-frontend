@@ -31,15 +31,27 @@ export const COMPANY_STATUS = {
 };
 
 export const PROJECT_STATUS = {
-  ONGOING: 'ongoing',
-  COMPLETED: 'completed',
-  ON_HOLD: 'on_hold',
-  PLANNING: 'planning'
+  NOT_STARTED: 'NOT_STARTED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  ON_HOLD: 'ON_HOLD',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  // Backward compatibility aliases
+  planning: 'NOT_STARTED',
+  ongoing: 'IN_PROGRESS',
+  on_hold: 'ON_HOLD',
+  completed: 'COMPLETED'
 };
 
 export const TASK_STATUS = {
-  PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  OVERDUE: 'overdue'
+  TODO: 'TODO',
+  IN_PROGRESS: 'IN_PROGRESS',
+  IN_REVIEW: 'IN_REVIEW',
+  DONE: 'DONE',
+  CANCELLED: 'CANCELLED',
+  // Backward compatibility aliases
+  pending: 'TODO',
+  in_progress: 'IN_PROGRESS',
+  completed: 'DONE',
+  overdue: 'overdue'
 };

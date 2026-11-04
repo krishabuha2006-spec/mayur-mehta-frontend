@@ -206,7 +206,7 @@
 }
 
 .vital-number {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: var(--font-family-base);
   font-size: 1.85rem;
   font-weight: 800;
   color: #1E1A17;
@@ -418,7 +418,7 @@
 }
 
 .donut-center-val {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+  font-family: var(--font-family-base);
   font-size: 1.75rem;
   font-weight: 800;
   color: #1E1A17;

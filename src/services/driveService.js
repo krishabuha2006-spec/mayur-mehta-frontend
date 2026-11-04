@@ -178,11 +178,13 @@ export const driveService = {
 
   /**
    * POST /drive/files - Upload one or more files (multipart/form-data)
-   * @param {FormData} formData - Contains files, folderId, projectId
+   * @param {FormData} formData - Contains projectId, folderId, files
    * @param {Function} onProgress - Upload progress callback
+   * @param {Object} queryParams - Optional query params e.g. { projectId, folderId }
    */
-  uploadFiles: async (formData, onProgress = null) => {
+  uploadFiles: async (formData, onProgress = null, queryParams = {}) => {
     const res = await apiClient.post('/drive/files', formData, {
+      params: queryParams,
       headers: {
         'Content-Type': undefined
       },

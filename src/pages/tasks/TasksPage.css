@@ -35,6 +35,14 @@
 .tasks-tabs-row {
   display: flex;
   align-items: center;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.tasks-tabs-row::-webkit-scrollbar {
+  display: none;
 }
 
 .tasks-tabs-container {
@@ -44,6 +52,15 @@
   border-radius: var(--radius-pill);
   padding: 3px;
   gap: 2px;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  white-space: nowrap;
+}
+
+.tasks-tabs-container::-webkit-scrollbar {
+  display: none;
 }
 
 .tasks-tab-pill {
@@ -58,6 +75,8 @@
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .tasks-tab-pill.active {

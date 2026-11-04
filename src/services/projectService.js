@@ -132,8 +132,26 @@ export const projectService = {
   getProjectSummary: async () => {
     try {
       const response = await apiClient.get('/projects/summary');
-      if (response && response.total !== undefined) return response;
-      if (response?.data && response.data.total !== undefined) return response.data;
+      const payload = (response && response.total !== undefined) ? response : (response?.data?.total !== undefined ? response.data : response);
+      if (payload && payload.total !== undefined) {
+        const rawStatus = payload.byStatus || {};
+        const normalizedByStatus = {
+          NOT_STARTED: rawStatus.NOT_STARTED ?? rawStatus.notStarted ?? 0,
+          notStarted: rawStatus.notStarted ?? rawStatus.NOT_STARTED ?? 0,
+          IN_PROGRESS: rawStatus.IN_PROGRESS ?? rawStatus.inProgress ?? 0,
+          inProgress: rawStatus.inProgress ?? rawStatus.IN_PROGRESS ?? 0,
+          ON_HOLD: rawStatus.ON_HOLD ?? rawStatus.onHold ?? 0,
+          onHold: rawStatus.onHold ?? rawStatus.ON_HOLD ?? 0,
+          COMPLETED: rawStatus.COMPLETED ?? rawStatus.completed ?? 0,
+          completed: rawStatus.completed ?? rawStatus.COMPLETED ?? 0,
+          CANCELLED: rawStatus.CANCELLED ?? rawStatus.cancelled ?? 0,
+          cancelled: rawStatus.cancelled ?? rawStatus.CANCELLED ?? 0
+        };
+        return {
+          ...payload,
+          byStatus: normalizedByStatus
+        };
+      }
     } catch (err) {
       console.warn('Backend /projects/summary notice:', err?.response?.status || err?.message);
     }
@@ -142,10 +160,15 @@ export const projectService = {
       total: 0,
       byStatus: {
         NOT_STARTED: 0,
+        notStarted: 0,
         IN_PROGRESS: 0,
+        inProgress: 0,
         ON_HOLD: 0,
+        onHold: 0,
         COMPLETED: 0,
-        CANCELLED: 0
+        completed: 0,
+        CANCELLED: 0,
+        cancelled: 0
       },
       overdue: 0,
       archived: 0
@@ -372,6 +395,83 @@ export const projectService = {
    */
   updateProjectProgress: async (projectId, { mode, manualPercent }) => {
     const response = await apiClient.put(`/projects/${projectId}/progress`, { mode, manualPercent });
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * 25. GET /projects/:id/activity — Get Project Activity Logs
+   */
+  getProjectActivity: async (projectId, params = {}) => {
+    const response = await apiClient.get(`/projects/${projectId}/activity`, { params });
+    return unwrapArray(response);
+  },
+
+  // =========================================================================
+  // Module M2.4: Project Directory & ACVC Partner Integration
+  // =========================================================================
+  /**
+   * POST /projects/:id/client — Link directory client to project
+   */
+  linkClient: async (projectId, { clientId, copyAddressToSite = true }) => {
+    const response = await apiClient.post(`/projects/${projectId}/client`, {
+      clientId,
+      copyAddressToSite
+    });
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * DELETE /projects/:id/client — Unlink client from project
+   */
+  unlinkClient: async (projectId) => {
+    const response = await apiClient.delete(`/projects/${projectId}/client`);
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * GET /projects/:id/partners — List partners associated with project
+   */
+  getPartners: async (projectId) => {
+    const response = await apiClient.get(`/projects/${projectId}/partners`);
+    return unwrapArray(response);
+  },
+
+  /**
+   * POST /projects/:id/partners — Associate partner with project
+   */
+  addPartner: async (projectId, { partnerId, role, note }) => {
+    const response = await apiClient.post(`/projects/${projectId}/partners`, {
+      partnerId,
+      role,
+      note
+    });
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * PATCH /projects/:id/partners/:partnerId — Update project partner role/note
+   */
+  updatePartner: async (projectId, partnerId, { role, note }) => {
+    const response = await apiClient.patch(`/projects/${projectId}/partners/${partnerId}`, {
+      role,
+      note
+    });
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * DELETE /projects/:id/partners/:partnerId — Remove partner from project
+   */
+  removePartner: async (projectId, partnerId) => {
+    const response = await apiClient.delete(`/projects/${projectId}/partners/${partnerId}`);
+    return unwrapSingleItem(response);
+  },
+
+  /**
+   * POST /projects/:id/site/share — Share project site details and map link
+   */
+  shareSite: async (projectId, { channel = 'whatsapp' } = {}) => {
+    const response = await apiClient.post(`/projects/${projectId}/site/share`, { channel });
     return unwrapSingleItem(response);
   }
 };

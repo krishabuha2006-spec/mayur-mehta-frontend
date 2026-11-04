@@ -1,7 +1,9 @@
 /* ==========================================================================
-   Sidebar.css - Professional Architectural Rail Sidebar
-   Refined Icon Tiles (46x46), Active Indicator, Bottom Pinned Utilities,
-   and Expandable Multi-Level Dropdowns with Warm Amber/Copper Accent
+   Sidebar.css - Premium Minimal SaaS Sidebar Design Language
+   Matches Reference: Soft gray surface (#F0F0F0), 260px width,
+   Floating White Pill Active State with soft shadow,
+   1.5px vertical tree line with smooth curved elbow connector,
+   Pastel peach & mint pill badges, Lucide 24x24 outline icons.
    ========================================================================== */
 
 .app-sidebar {
@@ -9,102 +11,105 @@
   top: 0;
   left: 0;
   bottom: 0;
-  width: var(--sidebar-width, 88px);
-  background-color: #FFFFFF;
-  border-right: 1px solid rgba(183, 175, 166, 0.28);
+  width: var(--sidebar-width, 260px);
+  background-color: var(--surface-sidebar, #F4F1EC);
+  border-right: 1px solid var(--border, #E8E3DB);
   display: flex;
   flex-direction: column;
-  align-items: center;
   z-index: 100;
-  transition: width var(--transition-normal, 0.25s cubic-bezier(0.16, 1, 0.3, 1)), transform var(--transition-normal, 0.25s ease);
+  transition: width 200ms ease, transform 200ms ease;
   overflow-y: auto;
   overflow-x: hidden;
-  box-shadow: 2px 0 12px rgba(46, 46, 46, 0.02);
   scrollbar-width: none;
   -ms-overflow-style: none;
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-family: var(--font-family-base, "Inter", sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  padding: 20px 16px;
+  box-sizing: border-box;
 }
 
 .app-sidebar::-webkit-scrollbar {
   display: none;
-  width: 0;
-  height: 0;
 }
 
-/* Top Logo Slot */
+/* Top Brand / Logo Slot */
 .sidebar-logo-container {
   width: 100%;
-  height: var(--header-height, 80px);
+  height: 52px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-bottom: 1px solid rgba(183, 175, 166, 0.22);
-  position: relative;
-  cursor: pointer;
-  padding: 0 8px;
+  gap: 12px;
+  padding: 0 10px;
+  margin-bottom: 20px;
   box-sizing: border-box;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 160ms ease;
   flex-shrink: 0;
+  user-select: none;
+}
+
+.sidebar-logo-container:hover {
+  background-color: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.sidebar-logo-container:active {
+  transform: scale(0.98);
+}
+
+.sidebar-logo-full {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
+  overflow: hidden;
+}
+
+.sidebar-logo-full img,
+.sidebar-logo-full .mm-master-img {
+  max-height: 44px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  display: block;
 }
 
 .sidebar-brand-mark {
-  width: 48px;
-  height: 48px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  box-sizing: border-box;
   flex-shrink: 0;
 }
 
-.sidebar-logo-container:hover .sidebar-brand-mark {
-  background-color: #F4EFEB;
-  transform: scale(1.06);
-}
-
-.sidebar-logo-container:hover .sidebar-brand-mark .mm-circles-rotating-group {
-  animation-duration: 8s;
-}
-
-/* Brand Text beside Rotating Logo when Expanded */
 .sidebar-brand-text {
   display: flex;
   flex-direction: column;
-  justify-content: center;
   line-height: 1.15;
-  user-select: none;
   white-space: nowrap;
-  animation: sidebarFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .sidebar-brand-name {
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
   font-size: 13.5px;
   font-weight: 700;
-  letter-spacing: 0.12em;
-  color: #2A241D;
+  letter-spacing: 0.08em;
+  color: #111111;
   text-transform: uppercase;
 }
 
 .sidebar-brand-subtitle {
-  font-family: var(--font-serif, "Fraunces", "Cormorant Garamond", Georgia, serif);
-  font-style: italic;
-  font-size: 12.5px;
-  font-weight: 400;
+  font-size: 11.5px;
+  font-weight: 500;
   color: var(--primary, #7A6A58);
-  letter-spacing: 0.05em;
-  margin-top: 1px;
 }
 
 .sidebar-mobile-close {
   display: none;
-  position: absolute;
-  right: 12px;
-  top: 16px;
-  color: var(--color-text, #2E2E2E);
+  margin-left: auto;
+  color: #7A7A7A;
   background: transparent;
   border: none;
   cursor: pointer;
@@ -118,130 +123,364 @@
   width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  padding: 12px 0 16px;
-  box-sizing: border-box;
 }
 
 .sidebar-nav-list {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: 100%;
   list-style: none;
   padding: 0;
   margin: 0;
-}
-
-.sidebar-nav-item {
-  width: 100%;
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+/* Top-level Nav Item */
+.sidebar-nav-item {
+  position: relative;
+  width: 100%;
+}
+
+.sidebar-nav-link {
+  display: flex;
   align-items: center;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  text-decoration: none;
+  color: var(--text-secondary, #7A7A7A);
+  font-family: var(--font-family-base, "Inter", sans-serif);
+  font-size: 14px;
+  font-weight: 550;
+  transition: all 150ms ease;
+  user-select: none;
+  cursor: pointer;
+  box-sizing: border-box;
   position: relative;
 }
 
-/* Ergonomic Navigation Tile Button */
-.sidebar-nav-link {
-  position: relative;
-  width: 50px;
-  height: 50px;
+.sidebar-nav-link:hover {
+  background-color: rgba(255, 255, 255, 0.65);
+  color: var(--text-active, #111111);
+}
+
+/* Active Top-Level Item: Floating White Pill with Soft Drop Shadow */
+.sidebar-nav-link.active:not(.sidebar-dropdown-toggle),
+.sidebar-nav-link.parent-standalone-active {
+  background-color: #FFFFFF !important;
+  color: var(--text-active, #111111) !important;
+  font-weight: 650 !important;
+  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+.sidebar-nav-link.active .sidebar-nav-icon,
+.sidebar-nav-link.parent-standalone-active .sidebar-nav-icon {
+  color: var(--text-active, #111111) !important;
+}
+
+/* Outline Icons */
+.sidebar-nav-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-right: 12px;
+  color: inherit;
+  transition: color 150ms ease;
+}
+
+.sidebar-nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* Expandable Dropdown Header */
+.sidebar-has-dropdown > .sidebar-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle {
+  color: var(--text-active, #111111);
+}
+
+.sidebar-chevron-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  color: #3A342F;
-  text-decoration: none;
-  background-color: transparent;
-  border: 1px solid transparent;
-  outline: none;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-sizing: border-box;
+  width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  flex-shrink: 0;
   cursor: pointer;
 }
 
-.sidebar-nav-icon {
+.sidebar-dropdown-chevron {
+  width: 15px;
+  height: 15px;
+  color: inherit;
+  transition: transform 200ms ease;
+}
+
+.sidebar-dropdown-chevron.chevron-rotated {
+  transform: rotate(180deg);
+}
+
+/* ==========================================================================
+   SUB-MENU TREE CONNECTOR (Key signature feature matching reference)
+   ========================================================================== */
+
+.sidebar-submenu-list {
+  position: relative;
+  list-style: none;
+  padding: 3px 0 4px 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Continuous thin 1.5px vertical line running straight down from icon column */
+.sidebar-submenu-list::before {
+  content: "";
+  position: absolute;
+  left: 24px; /* precisely aligns beneath icon center (14px link padding + 10px icon center) */
+  top: 0;
+  bottom: 18px; /* terminates at elbow of last child */
+  width: 1.5px;
+  background-color: var(--sidebar-tree-line, #D9D9D9);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Each Submenu Item */
+.sidebar-submenu-item {
+  position: relative;
+  margin-bottom: 3px;
+}
+
+.sidebar-submenu-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Smooth Curved Elbow Connector going into each child item */
+.sidebar-submenu-item::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: 0;
+  height: 19px; /* middle of 38px item */
+  width: 14px;
+  border-left: 1.5px solid var(--sidebar-tree-line, #D9D9D9);
+  border-bottom: 1.5px solid var(--sidebar-tree-line, #D9D9D9);
+  border-bottom-left-radius: 10px;
+  pointer-events: none;
+  z-index: 1;
+  box-sizing: border-box;
+}
+
+/* Child Link Row */
+.sidebar-submenu-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 38px;
+  margin-left: 32px; /* indents smoothly from icon column */
+  padding: 0 12px;
+  border-radius: 12px;
+  font-family: var(--font-family-base, "Inter", sans-serif);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-secondary, #7A7A7A);
+  text-decoration: none;
+  transition: all 150ms ease;
+  user-select: none;
+  z-index: 2;
+  box-sizing: border-box;
+}
+
+.sidebar-submenu-link:hover {
+  background-color: rgba(255, 255, 255, 0.65);
+  color: var(--text-active, #111111);
+}
+
+/* Active Child: Floating White Pill with Soft Drop Shadow (Matches "Overview" in reference) */
+.sidebar-submenu-link.sub-active {
+  background-color: #FFFFFF !important;
+  color: var(--text-active, #111111) !important;
+  font-weight: 650 !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+.submenu-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* ==========================================================================
+   BADGES (Pill shape, 22px height, 8px radius, 11.5px font - Refined Compact)
+   ========================================================================== */
+
+.sidebar-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  min-width: 24px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-family: var(--font-family-base, "Inter", sans-serif);
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  box-sizing: border-box;
   flex-shrink: 0;
-  color: #4A443E;
-  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.18s ease;
+  margin-left: 6px;
 }
 
-/* Hover State */
-.sidebar-nav-link:hover {
-  background-color: #F4EFEB;
-  border-color: rgba(183, 175, 166, 0.3);
-  color: #2E2E2E;
+/* Attention / Warning: pastel peach / terracotta harmonized */
+.sidebar-badge.badge-attention,
+.sidebar-badge.badge-peach,
+.sidebar-badge.badge-warning {
+  background-color: var(--badge-attention-bg, #FFE5D8);
+  color: var(--badge-attention-text, #8C3710);
 }
 
-.sidebar-nav-link:hover .sidebar-nav-icon {
-  transform: scale(1.12);
-  color: #2E2E2E;
+/* Success: pastel mint / sage harmonized */
+.sidebar-badge.badge-success,
+.sidebar-badge.badge-mint {
+  background-color: var(--badge-success-bg, #D7F0E2);
+  color: var(--badge-success-text, #145E36);
 }
 
-/* Active State */
-.sidebar-nav-link.active {
-  background-color: #E8E3DB;
-  border-color: #D8D2C8;
-  color: #2E2925;
-  box-shadow: 0 2px 8px rgba(123, 111, 98, 0.14);
+/* Neutral */
+.sidebar-badge.badge-neutral {
+  background-color: var(--badge-neutral-bg, #ECECEC);
+  color: var(--badge-neutral-text, #4A4A4A);
 }
 
-.sidebar-nav-link.active .sidebar-nav-icon {
-  color: #2E2925;
+/* Theme Taupe */
+.sidebar-badge.badge-theme,
+.sidebar-badge.badge-primary {
+  background-color: var(--badge-theme-bg, #EFE8E0);
+  color: var(--badge-theme-text, #5A4C3D);
 }
 
-.sidebar-nav-link.active:hover .sidebar-nav-icon {
-  transform: scale(1.08);
+/* Info */
+.sidebar-badge.badge-info {
+  background-color: var(--badge-info-bg, #E0EBF5);
+  color: var(--badge-info-text, #195280);
 }
 
-/* Inline CSS Tooltip (Desktop collapsed fallback) */
-.sidebar-inline-tooltip {
-  display: none;
+/* Bottom Pinned Section */
+.sidebar-bottom-section {
+  margin-top: auto;
+  padding-top: 16px;
 }
 
-/* Floating High-Z-Index Tooltip */
+.sidebar-divider {
+  height: 1px;
+  background-color: rgba(0, 0, 0, 0.06);
+  margin-bottom: 12px;
+}
+
+/* ==========================================================================
+   RESPONSIVE & COLLAPSED RAIL BEHAVIOR (72px Icon-Only Mode)
+   ========================================================================== */
+
+/* Collapsed Desktop / Tablet (72px rail) */
+.app-sidebar:not(.sidebar-expanded) {
+  width: var(--sidebar-width-collapsed, 72px) !important;
+  padding: 16px 10px !important;
+  align-items: center;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-logo-container {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin: 0 auto 16px auto;
+  justify-content: center;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-brand-mark {
+  width: 36px;
+  height: 36px;
+  margin: 0;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-brand-text,
+.app-sidebar:not(.sidebar-expanded) .sidebar-logo-full,
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-label,
+.app-sidebar:not(.sidebar-expanded) .sidebar-chevron-wrap,
+.app-sidebar:not(.sidebar-expanded) .sidebar-badge,
+.app-sidebar:not(.sidebar-expanded) .sidebar-submenu-list,
+.app-sidebar:not(.sidebar-expanded) .sidebar-inline-tooltip {
+  display: none !important;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-item {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-link {
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-icon {
+  margin: 0 !important;
+  width: 20px;
+  height: 20px;
+}
+
+/* Active item in rail mode: neat centered 44x44 card */
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-link.active,
+.app-sidebar:not(.sidebar-expanded) .sidebar-nav-link.parent-standalone-active {
+  background-color: #FFFFFF !important;
+  color: var(--text-active, #111111) !important;
+  border: 1px solid rgba(0, 0, 0, 0.04) !important;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Floating Hover Tooltip in Rail Mode */
 .sidebar-floating-tooltip {
   position: fixed;
   left: 80px;
   transform: translateY(-50%);
-  background-color: #2E2E2E;
-  color: #F8F6F2;
-  padding: 7px 13px;
+  background-color: #111111;
+  color: #FFFFFF;
+  padding: 6px 12px;
   border-radius: 8px;
-  font-family: var(--font-family-base, sans-serif);
-  font-size: 12.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-family: var(--font-family-base, "Inter", sans-serif);
+  font-size: 13px;
+  font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 8px 24px -2px rgba(46, 46, 46, 0.28), 0 2px 6px -1px rgba(46, 46, 46, 0.16);
-  border: 1px solid rgba(183, 175, 166, 0.3);
-  z-index: 99999;
   pointer-events: none;
-  animation: tooltipSlideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  animation: tooltipFadeIn 150ms ease forwards;
 }
 
-.sidebar-floating-tooltip .tooltip-arrow {
-  position: absolute;
-  left: -5px;
-  top: 50%;
-  width: 8px;
-  height: 8px;
-  background-color: #2E2E2E;
-  border-left: 1px solid rgba(183, 175, 166, 0.3);
-  border-bottom: 1px solid rgba(183, 175, 166, 0.3);
-  transform: translateY(-50%) rotate(45deg);
-}
-
-.sidebar-floating-tooltip .tooltip-text {
-  position: relative;
-  z-index: 2;
-}
-
-@keyframes tooltipSlideIn {
+@keyframes tooltipFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-50%) translateX(-6px);
+    transform: translateY(-50%) translateX(-4px);
   }
   to {
     opacity: 1;
@@ -249,233 +488,23 @@
   }
 }
 
-/* Bottom Anchored Utilities */
-.sidebar-bottom-section {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 10px;
+/* Flyout Popover for Submenus in Collapsed Mode */
+.sidebar-rail-flyout {
+  position: fixed;
+  left: 78px;
+  background-color: #FFFFFF;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.05);
+  padding: 10px 8px;
+  min-width: 190px;
+  z-index: 1000;
+  animation: flyoutFadeIn 150ms ease forwards;
 }
 
-.sidebar-divider {
-  width: 32px;
-  height: 1px;
-  background-color: rgba(183, 175, 166, 0.28);
-  margin-bottom: 2px;
-}
-
-.sidebar-nav-label {
-  display: none;
-}
-
-/* ==========================================================================
-   DROPDOWN & SUBMENU STYLING (Expanded & Mobile)
-   Mayur Mehta Brand Guidelines (Taupe #7B6F62, Warm Beige #E8E3DB, Sand #FAF8F5)
-   ========================================================================== */
-
-/* Chevron & Wrapper */
-.sidebar-chevron-wrap {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-left: auto;
-  border-radius: 6px;
-  transition: background-color 0.15s ease, color 0.15s ease;
-  flex-shrink: 0;
-  cursor: pointer;
-}
-
-.sidebar-chevron-wrap:hover {
-  background-color: rgba(122, 106, 88, 0.12);
-}
-
-.sidebar-dropdown-chevron {
-  color: #8C8073;
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), color 0.15s ease;
-  flex-shrink: 0;
-}
-
-.sidebar-dropdown-chevron.chevron-rotated {
-  transform: rotate(180deg);
-}
-
-.sidebar-has-dropdown.dropdown-open .sidebar-dropdown-chevron,
-.sidebar-nav-item.parent-active .sidebar-dropdown-chevron {
-  color: var(--primary, #7A6A58);
-}
-
-/* Parent Active / Open States - Architectural Soft Oatmeal Pill */
-.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle,
-.sidebar-nav-item.parent-active > .sidebar-nav-link {
-  color: var(--text, #2A241D);
-  background-color: var(--primary-soft, #EFE7DC);
-  border: 1px solid rgba(183, 175, 166, 0.38);
-  box-shadow: 0 1px 3px rgba(42, 36, 29, 0.04);
-}
-
-.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-icon,
-.sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-icon {
-  color: var(--primary, #7A6A58) !important;
-}
-
-.sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-label,
-.sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-label {
-  color: #1A1918 !important;
-  font-weight: 600 !important;
-}
-
-/* Submenu container */
-.sidebar-submenu-list {
-  list-style: none;
-  padding: 4px 0 6px 36px;
-  margin: 3px 0 4px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  width: 100%;
-  box-sizing: border-box;
-  animation: submenuSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes submenuSlideDown {
+@keyframes flyoutFadeIn {
   from {
     opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.sidebar-submenu-item {
-  width: 100%;
-}
-
-.sidebar-submenu-link {
-  display: flex;
-  align-items: center;
-  padding: 7px 12px;
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
-  font-size: 13px;
-  font-weight: 500;
-  color: #635A52;
-  text-decoration: none;
-  border-radius: 8px;
-  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  white-space: nowrap;
-  letter-spacing: -0.005em;
-  border: 1px solid transparent;
-}
-
-.sidebar-submenu-link::before {
-  content: "";
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background-color: #C2B9AF;
-  margin-right: 10px;
-  flex-shrink: 0;
-  transition: all 0.15s ease;
-}
-
-.sidebar-submenu-link:hover {
-  color: #1E1A17;
-  background-color: #F7F4EF;
-}
-
-.sidebar-submenu-link:hover::before {
-  background-color: #7A6A58;
-  transform: scale(1.25);
-}
-
-.sidebar-submenu-link.sub-active {
-  color: #1E1A17;
-  font-weight: 600;
-  background-color: var(--primary-soft, #EFE7DC);
-  border-color: rgba(183, 175, 166, 0.34);
-  box-shadow: 0 1px 2px rgba(42, 36, 29, 0.03);
-}
-
-.sidebar-submenu-link.sub-active::before {
-  background-color: var(--primary, #7A6A58);
-  transform: scale(1.35);
-}
-
-/* ==========================================================================
-   Desktop Expanded Sidebar Mode (Width: 240px)
-   ========================================================================== */
-@media (min-width: 769px) {
-  .app-sidebar.sidebar-expanded {
-    width: var(--sidebar-width, 240px);
-    align-items: stretch;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-logo-container {
-    justify-content: flex-start;
-    padding: 0 16px;
-    gap: 12px;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-list {
-    align-items: stretch;
-    padding: 0 12px;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-item {
-    justify-content: stretch;
-    width: 100%;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-link {
-    width: 100%;
-    height: 44px;
-    justify-content: flex-start;
-    padding: 0 14px;
-    gap: 12px;
-    border-radius: 10px;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-label {
-    display: inline-block;
-    font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
-    font-size: 13.5px;
-    font-weight: 500;
-    color: #4A443E;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    letter-spacing: -0.01em;
-    animation: sidebarFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-link:hover .sidebar-nav-label {
-    color: #1A1918;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-nav-link.active .sidebar-nav-label,
-  .app-sidebar.sidebar-expanded .sidebar-has-dropdown.dropdown-open > .sidebar-dropdown-toggle .sidebar-nav-label,
-  .app-sidebar.sidebar-expanded .sidebar-nav-item.parent-active > .sidebar-nav-link .sidebar-nav-label {
-    color: #1A1918;
-    font-weight: 600;
-  }
-
-  .app-sidebar.sidebar-expanded .sidebar-divider {
-    width: calc(100% - 24px);
-    margin: 6px 12px 8px;
-  }
-}
-
-@keyframes sidebarFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-5px);
+    transform: translateX(-6px);
   }
   to {
     opacity: 1;
@@ -483,60 +512,40 @@
   }
 }
 
-/* Floating Flyout Popover for Collapsed Rail Mode */
-.sidebar-rail-flyout {
-  position: fixed;
-  left: 84px;
-  background: #FFFFFF;
-  border: 1px solid rgba(183, 175, 166, 0.35);
-  border-radius: 12px;
-  box-shadow: 0 10px 28px -4px rgba(46, 46, 46, 0.18), 0 3px 8px rgba(46, 46, 46, 0.08);
-  min-width: 180px;
-  z-index: 99999;
-  padding: 8px 0;
-  animation: tooltipSlideIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
 .flyout-header {
-  padding: 6px 14px 8px;
-  border-bottom: 1px solid rgba(183, 175, 166, 0.2);
-  margin-bottom: 4px;
-}
-
-.flyout-title {
+  padding: 6px 12px 8px 12px;
   font-size: 13px;
   font-weight: 700;
-  color: var(--primary, #7A6A58);
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  color: #111111;
+  border-bottom: 1px solid #F0F0F0;
+  margin-bottom: 6px;
 }
 
 .flyout-submenu-list {
   list-style: none;
+  padding: 0;
   margin: 0;
-  padding: 2px 6px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.flyout-item {
-  width: 100%;
-}
-
 .flyout-link {
-  display: block;
-  padding: 7px 12px;
-  font-size: 13px;
-  color: var(--text-muted, #7B6F63);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #7A7A7A;
   text-decoration: none;
-  border-radius: 6px;
-  transition: all 0.15s ease;
+  transition: all 120ms ease;
 }
 
 .flyout-link:hover {
-  background-color: #F4EFEB;
-  color: var(--text, #2A241D);
+  background-color: #F5F5F5;
+  color: #111111;
 }
 
 .flyout-link.active {
@@ -545,89 +554,27 @@
   font-weight: 700;
 }
 
-/* ==========================================================================
-   Mobile Responsive Drawer
-   ========================================================================== */
-.sidebar-mobile-backdrop {
-  display: none;
-}
-
-@media (max-width: 768px) {
+/* Mobile Slide-in Drawer */
+@media (max-width: 767px) {
   .app-sidebar {
+    width: 260px !important;
     transform: translateX(-100%);
-    width: 260px;
-    align-items: flex-start;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
   }
 
-  .sidebar-mobile-open {
+  .app-sidebar.sidebar-mobile-open {
     transform: translateX(0);
-  }
-
-  .sidebar-mobile-backdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background-color: rgba(46, 46, 46, 0.45);
-    z-index: 99;
   }
 
   .sidebar-mobile-close {
     display: block;
   }
 
-  .sidebar-nav-list {
-    align-items: stretch;
-    padding: 0 16px;
-  }
-
-  .sidebar-nav-item {
-    justify-content: flex-start;
-  }
-
-  .sidebar-nav-link {
-    width: 100%;
-    justify-content: flex-start;
-    padding-left: 14px;
-    gap: 12px;
-  }
-
-  .sidebar-nav-label {
-    display: inline-block;
-    font-size: 13.5px;
-    font-weight: 500;
-    color: inherit;
-    letter-spacing: 0.01em;
-  }
-}
-
-/* Compact Height Laptops (<= 750px) */
-@media (max-height: 750px) and (min-width: 769px) {
-  .sidebar-logo-container {
-    height: 66px;
-  }
-
-  .sidebar-nav {
-    padding: 6px 0 10px;
-  }
-
-  .sidebar-nav-list {
-    gap: 4px;
-  }
-
-  .sidebar-nav-link {
-    width: 44px;
-    height: 44px;
-  }
-
-  .sidebar-bottom-section {
-    gap: 4px;
-    padding-top: 6px;
-  }
-}
-
-/* Touch devices: Disable hover floating tooltip */
-@media (hover: none) {
-  .sidebar-floating-tooltip {
-    display: none !important;
+  .sidebar-mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+    backdrop-filter: blur(2px);
   }
 }

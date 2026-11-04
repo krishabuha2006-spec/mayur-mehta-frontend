@@ -40,7 +40,17 @@ import { useConfirm } from '../../context/ConfirmationContext';
 import { useAuth } from '../../hooks/useAuth';
 import { formatCurrency, formatPaise } from '../../utils/formatCurrency';
 import { extractErrorMessage } from '../../utils/errorHandler';
+import { Toast } from '../../components/common/Toast/Toast';
 import './BillingPage.css';
+
+const toNum = (val, fallback = 10) => {
+  if (typeof val === 'number') return isNaN(val) ? fallback : val;
+  if (val && typeof val === 'object') {
+    return Number(val.limit ?? val.total ?? val.used ?? val.max ?? fallback) || fallback;
+  }
+  const parsed = Number(val);
+  return isNaN(parsed) ? fallback : parsed;
+};
 
 export function BillingPage() {
   const confirm = useConfirm();
@@ -56,14 +66,14 @@ export function BillingPage() {
     plan: authSubscription?.plan || company?.plan || 'FREE',
     planCode: (authSubscription?.plan || company?.plan || 'free').toLowerCase(),
     status: authSubscription?.status || company?.status || 'ACTIVE',
-    seats: authSubscription?.seats || company?.seats || 10,
-    seatsUsed: authSubscription?.seatsUsed || 1,
+    seats: toNum(authSubscription?.seats?.limit ?? authSubscription?.seats ?? company?.seats, 10),
+    seatsUsed: toNum(authSubscription?.seats?.used ?? authSubscription?.seatsUsed, 1),
     billingCycle: authSubscription?.billingCycle || 'MONTHLY',
     currentPeriodStart: authSubscription?.currentPeriodStart || null,
     currentPeriodEnd: authSubscription?.currentPeriodEnd || null,
     graceEndsAt: authSubscription?.graceEndsAt || null,
-    storageQuotaGB: authSubscription?.storageQuotaGB || (String(company?.plan).toUpperCase() === 'PAID' ? 100 : 5),
-    storageUsedGB: authSubscription?.storageUsedGB || 1.2
+    storageQuotaGB: toNum(authSubscription?.storageQuotaGB, String(company?.plan).toUpperCase() === 'PAID' ? 100 : 5),
+    storageUsedGB: toNum(authSubscription?.storageUsedGB, 1.2)
   }));
 
   // Plans & Quote Calculator State
@@ -120,21 +130,26 @@ export function BillingPage() {
       ]);
 
       if (subData) {
+        const parsedSeats = toNum(subData.seats?.limit ?? subData.seats ?? subData.seatLimit, 10);
+        const parsedUsed = toNum(subData.seats?.used ?? subData.seatsUsed, 1);
+        const parsedStorageLimit = toNum(subData.storageQuotaGB || (subData.storage?.limitBytes ? (subData.storage.limitBytes / (1024 ** 3)).toFixed(0) : 5), 5);
+        const parsedStorageUsed = toNum(subData.storageUsedGB || (subData.storage?.usedBytes ? (subData.storage.usedBytes / (1024 ** 3)).toFixed(1) : 1.2), 1.2);
+
         setSubscription({
           plan: subData.plan || (subData.planCode ? subData.planCode.toUpperCase() : 'FREE'),
           planCode: subData.planCode || 'free',
           status: subData.status || 'ACTIVE',
-          seats: subData.seats || subData.seatLimit || 10,
-          seatsUsed: subData.seatsUsed || 1,
+          seats: parsedSeats,
+          seatsUsed: parsedUsed,
           billingCycle: subData.billingCycle || 'MONTHLY',
           currentPeriodStart: subData.currentPeriodStart || null,
           currentPeriodEnd: subData.currentPeriodEnd || null,
           graceEndsAt: subData.graceEndsAt || null,
-          storageQuotaGB: subData.storageQuotaGB || (subData.storage?.limitBytes ? (subData.storage.limitBytes / (1024 ** 3)).toFixed(0) : 5),
-          storageUsedGB: subData.storageUsedGB || (subData.storage?.usedBytes ? (subData.storage.usedBytes / (1024 ** 3)).toFixed(1) : 1.2)
+          storageQuotaGB: parsedStorageLimit,
+          storageUsedGB: parsedStorageUsed
         });
-        if (subData.seats && subData.seats > 10) {
-          setDesiredSeats(subData.seats);
+        if (parsedSeats > 10) {
+          setDesiredSeats(parsedSeats);
         }
       }
 
@@ -249,11 +264,16 @@ export function BillingPage() {
   };
 
   // Calculations & Filtering
-  const seatPercent = Math.min(Math.round(((subscription.seatsUsed || 1) / (subscription.seats || 10)) * 100), 100);
-  const storagePercent = Math.min(Math.round(((subscription.storageUsedGB || 1) / (subscription.storageQuotaGB || 5)) * 100), 100);
-  const availableSeats = Math.max(0, (subscription.seats || 10) - (subscription.seatsUsed || 0));
+  const safeSeats = toNum(subscription.seats, 10);
+  const safeSeatsUsed = toNum(subscription.seatsUsed, 1);
+  const safeStorageQuota = toNum(subscription.storageQuotaGB, 5);
+  const safeStorageUsed = toNum(subscription.storageUsedGB, 1.2);
 
-  const isRestricted = subscription.status === 'RESTRICTED' || (subscription.status === 'EXPIRED' && subscription.seatsUsed > 10);
+  const seatPercent = Math.min(Math.round((safeSeatsUsed / safeSeats) * 100), 100);
+  const storagePercent = Math.min(Math.round((safeStorageUsed / safeStorageQuota) * 100), 100);
+  const availableSeats = Math.max(0, safeSeats - safeSeatsUsed);
+
+  const isRestricted = subscription.status === 'RESTRICTED' || (subscription.status === 'EXPIRED' && safeSeatsUsed > 10);
   const isGrace = subscription.status === 'GRACE';
 
   // Invoice KPIs
@@ -315,9 +335,12 @@ export function BillingPage() {
     <div className="billing-page">
       {/* Toast Alert */}
       {toastMessage && (
-        <div className={`billing-toast-alert ${toastMessage.type === 'error' ? 'toast-error' : 'toast-success'}`}>
-          {toastMessage.type === 'error' ? <AlertCircle size={18} /> : <CheckCircle size={18} />}
-          <span>{toastMessage.message}</span>
+        <div style={{ position: 'fixed', top: '24px', right: '28px', zIndex: 999999 }}>
+          <Toast
+            type={toastMessage.type === 'error' ? 'error' : 'success'}
+            message={toastMessage.message}
+            onClose={() => setToastMessage(null)}
+          />
         </div>
       )}
 
@@ -353,7 +376,7 @@ export function BillingPage() {
             <h4 className="restricted-title">Write Access Restricted (Subscription Expired)</h4>
             <p className="restricted-desc">
               Your firm has returned to the Free tier (10 seats quota) but currently has{' '}
-              <strong>{subscription.seatsUsed} users</strong> active. New project creation, team invitations, and edits
+              <strong>{safeSeatsUsed} users</strong> active. New project creation, team invitations, and edits
               are temporarily locked. Remove team members to reach 10 or submit an upgrade request to restore full write access immediately.
             </p>
             <Button
@@ -434,7 +457,7 @@ export function BillingPage() {
           </div>
           <div className="kpi-value-row">
             <span className="kpi-value">
-              {subscription.seatsUsed} <span className="kpi-total-denom">/ {subscription.seats} active</span>
+              {safeSeatsUsed} <span className="kpi-total-denom">/ {safeSeats} active</span>
             </span>
             <span className="kpi-percent-tag">{seatPercent}%</span>
           </div>
@@ -456,7 +479,7 @@ export function BillingPage() {
           </div>
           <div className="kpi-value-row">
             <span className="kpi-value">
-              {subscription.storageUsedGB} <span className="kpi-total-denom">/ {subscription.storageQuotaGB} GB</span>
+              {safeStorageUsed} <span className="kpi-total-denom">/ {safeStorageQuota} GB</span>
             </span>
           </div>
           <div className="kpi-progress-bar">

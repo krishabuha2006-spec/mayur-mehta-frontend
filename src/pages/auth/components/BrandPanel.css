@@ -425,7 +425,7 @@
 }
 
 .brand-mobile-name {
-  font-family: var(--font-heading, "Cormorant Garamond", Georgia, serif);
+  font-family: var(--font-heading, "Inter", -apple-system, sans-serif);
   font-size: 20px;
   font-weight: 700;
   letter-spacing: 0.16em;

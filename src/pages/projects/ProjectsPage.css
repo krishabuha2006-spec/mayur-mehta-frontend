@@ -2595,7 +2595,7 @@
   border-radius: 8px;
   border: 1px solid var(--border, #E8E0D5);
   background-color: #FFFFFF;
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-family: var(--font-family-base, 'Inter', sans-serif);
   font-size: 13px;
   font-weight: 500;
   color: var(--text, #1E1A17);
@@ -2691,7 +2691,7 @@
 .subview-data-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-family: var(--font-family-base, 'Inter', sans-serif);
   font-size: 13px;
   text-align: left;
 }

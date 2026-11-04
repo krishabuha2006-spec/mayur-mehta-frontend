@@ -16,18 +16,18 @@ import './MayurMehtaLogo.css';
  */
 export function MayurMehtaSymbol({
   size = 36,
-  color = '#7B6F62',
-  strokeWidth = 2.4,
+  color = '#1E1A17',
+  strokeWidth = 2.8,
   animated = true,
   className = '',
   style = {}
 }) {
   const resolved =
+    color === 'charcoal' || color === 'dark' ? '#1E1A17' :
+    color === 'black' ? '#111111' :
     color === 'taupe' ? '#7B6F62' :
-    color === 'charcoal' ? '#2E2E2E' :
     color === 'stone' ? '#B7AFA6' :
     color === 'white' ? '#FFFFFF' :
-    color === 'black' ? '#1A1A1A' :
     color === 'brass' ? '#B08D57' :
     color;
 
@@ -63,9 +63,9 @@ export function MayurMehtaSymbol({
 }
 
 export function MayurMehtaLogo({
-  variant = 'primary', // 'primary' | 'horizontal' | 'compact' | 'symbol'
+  variant = 'primary', // 'primary' | 'horizontal' | 'compact' | 'symbol' | 'original'
   size = 'md',         // 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'hero' | 'sidebar'
-  color = '#7B6F62',   // Primary Taupe by default, or hex / 'charcoal' / 'white' / 'brass'
+  color = 'charcoal',  // Architectural Charcoal (#1E1A17) by default for sharp contrast
   animated = true,     // Smooth rotation for symbol
   showTagline = true,
   className = '',
@@ -74,11 +74,11 @@ export function MayurMehtaLogo({
 }) {
   // Resolve color presets
   const resolvedColor =
+    color === 'charcoal' || color === 'dark' ? '#1E1A17' :
+    color === 'black' ? '#111111' :
     color === 'taupe' ? '#7B6F62' :
-    color === 'charcoal' ? '#2E2E2E' :
     color === 'stone' ? '#B7AFA6' :
     color === 'white' ? '#FFFFFF' :
-    color === 'black' ? '#1A1A1A' :
     color === 'brass' ? '#B08D57' :
     color;
 
@@ -86,7 +86,7 @@ export function MayurMehtaLogo({
 
   // Sizing configurations based on 694x272 (aspect ratio ~2.5515 for full, 1:1 for symbol)
   const sizeMap = {
-    sidebar: { width: isSymbolOnly ? 30 : 72, height: isSymbolOnly ? 30 : 28 },
+    sidebar: { width: isSymbolOnly ? 34 : 148, height: isSymbolOnly ? 34 : 52 },
     xs: { width: isSymbolOnly ? 18 : 92, height: isSymbolOnly ? 18 : 36 },
     sm: { width: isSymbolOnly ? 24 : 128, height: isSymbolOnly ? 24 : 50 },
     md: { width: isSymbolOnly ? 32 : 170, height: isSymbolOnly ? 32 : 66 },
@@ -118,12 +118,12 @@ export function MayurMehtaLogo({
         <MayurMehtaSymbol
           size={current.width}
           color={resolvedColor}
-          strokeWidth={current.width <= 26 ? 3.0 : current.width <= 32 ? 2.6 : 2.4}
+          strokeWidth={current.width <= 26 ? 3.0 : current.width <= 32 ? 2.8 : 2.6}
           animated={animated}
         />
-      ) : isPureWhite ? (
+      ) : (
         <img
-          src="/mayur_mehta_logo.svg"
+          src={isPureWhite ? '/mayur_mehta_logo_white.svg' : '/mayur_mehta_logo.svg'}
           alt="Mayur Mehta Design"
           className="mm-master-img"
           style={{
@@ -132,26 +132,6 @@ export function MayurMehtaLogo({
             height: `${current.height}px`,
             objectFit: 'contain',
           }}
-        />
-      ) : (
-        <span
-          className="mm-brand-full"
-          style={{
-            display: 'inline-block',
-            width: `${current.width}px`,
-            height: `${current.height}px`,
-            backgroundColor: resolvedColor,
-            WebkitMaskImage: 'url(/mayur_mehta_logo.svg)',
-            WebkitMaskRepeat: 'no-repeat',
-            WebkitMaskPosition: 'center center',
-            WebkitMaskSize: 'contain',
-            maskImage: 'url(/mayur_mehta_logo.svg)',
-            maskRepeat: 'no-repeat',
-            maskPosition: 'center center',
-            maskSize: 'contain',
-          }}
-          role="img"
-          aria-label="Mayur Mehta Design"
         />
       )}
     </div>

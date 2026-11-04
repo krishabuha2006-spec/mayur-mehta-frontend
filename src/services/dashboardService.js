@@ -171,35 +171,55 @@ export const dashboardService = {
 
   getSummaryMetrics: async () => {
     try {
-      const [projRes, tasksRes, seatsRes, bootRes] = await Promise.allSettled([
-        projectService.getProjects(),
-        taskService.getTasks(),
+      const [projSummaryRes, tasksSummaryRes, projRes, tasksRes, seatsRes, bootRes] = await Promise.allSettled([
+        projectService.getProjectSummary(),
+        taskService.getTasksSummary(),
+        projectService.getProjects({ limit: 10 }),
+        taskService.getTasks({ limit: 10 }),
         teamService.getSeats(),
         companyService.getBootstrap()
       ]);
 
+      const projSummary = projSummaryRes.status === 'fulfilled' ? projSummaryRes.value : null;
+      const tasksSummary = tasksSummaryRes.status === 'fulfilled' ? tasksSummaryRes.value : null;
       const projectsList = projRes.status === 'fulfilled' ? (projRes.value?.data || (Array.isArray(projRes.value) ? projRes.value : [])) : [];
       const tasksList = tasksRes.status === 'fulfilled' ? (tasksRes.value?.data || (Array.isArray(tasksRes.value) ? tasksRes.value : [])) : [];
       const seatsData = seatsRes.status === 'fulfilled' ? seatsRes.value : null;
       const bootData = bootRes.status === 'fulfilled' ? bootRes.value : null;
 
-      const activeProjectsCount = projectsList.filter((p) => p.status === 'IN_PROGRESS' || !p.status || p.status === 'ACTIVE').length;
-      const pendingTasksCount = tasksList.filter((t) => t.status !== 'Completed').length;
-      const overdueTasksCount = tasksList.filter((t) => t.status === 'Overdue').length;
+      const totalProjects = projSummary?.total ?? projectsList.length;
+      const activeProjectsCount =
+        projSummary?.byStatus?.IN_PROGRESS ??
+        projSummary?.byStatus?.inProgress ??
+        projectsList.filter((p) => p && (p.status === 'IN_PROGRESS' || !p.status || p.status === 'ACTIVE')).length;
+
+      const totalTasks = tasksSummary?.totalTasks ?? tasksList.length;
+      const pendingTasksCount =
+        tasksSummary?.byStatus?.IN_PROGRESS ??
+        tasksSummary?.byStatus?.inProgress ??
+        (tasksSummary?.totalTasks !== undefined
+          ? Math.max(0, tasksSummary.totalTasks - ((tasksSummary.byStatus?.COMPLETED ?? tasksSummary.byStatus?.completed ?? 0) + (tasksSummary.byStatus?.CANCELLED ?? tasksSummary.byStatus?.cancelled ?? 0)))
+          : tasksList.filter((t) => t && !['DONE', 'Completed', 'COMPLETED', 'CANCELLED'].includes(t.status)).length);
+
+      const overdueTasksCount =
+        tasksSummary?.overdue ??
+        tasksList.filter(
+          (t) => t && (t.status === 'Overdue' || (t.dueDate && new Date(t.dueDate) < new Date() && !['DONE', 'Completed', 'COMPLETED'].includes(t.status)))
+        ).length;
 
       return {
         projects: projectsList,
         tasks: tasksList,
         activeProjects: activeProjectsCount,
-        totalProjects: projectsList.length,
+        totalProjects: totalProjects,
         pendingTasks: pendingTasksCount,
         overdueTasks: overdueTasksCount,
-        totalTasks: tasksList.length,
+        totalTasks: totalTasks,
         seatsUsed: seatsData?.used ?? 1,
         seatLimit: seatsData?.limit ?? seatsData?.max ?? 10,
         plan: bootData?.company?.plan || seatsData?.plan || 'PRO',
-        storageUsedGB: 0,
-        storageQuotaGB: seatsData?.plan === 'PAID' ? 100 : 5
+        storageUsedGB: bootData?.company?.storageUsedGB ?? 0,
+        storageQuotaGB: seatsData?.plan === 'PAID' ? 100 : 10
       };
     } catch (err) {
       console.warn('Dashboard summary metrics notice:', err);

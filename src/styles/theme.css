@@ -18,41 +18,67 @@
 :root {
   /* =========================================================================
      MAYUR MEHTA • DESIGN ARCHITECTURAL STUDIO MANAGEMENT PORTAL TOKENS
+     Premium Minimal SaaS Design System Driven by Sheet B Brand Tokens
      ========================================================================= */
-  --bg: #F6F2EC;
+  --bg: #FAF8F5;
   --surface: #FFFFFF;
-  --surface-alt: #FBF8F4;
-  --border: #E8E0D5;
-  --border-subtle: #F0EAE1;
-  --text: #2A241D;
-  --text-muted: #7B6F63;
-  --placeholder: #A39889;
-  --primary: #7A6A58;
-  --primary-hover: #655646;
-  --primary-soft: #EFE7DC;
-  --accent: #B89A74;
+  --surface-alt: #F4F0E8;
+  --surface-sidebar: #F4F1EC;
+  --surface-hover: rgba(255, 255, 255, 0.75);
+  --border: #E8E3DB;
+  --border-subtle: #F0ECE4;
+  --sidebar-tree-line: #D5CEC5;
 
-  /* Status Colors (Muted architectural semantics) */
-  --success: #4F8A63;
-  --success-soft: rgba(79, 138, 99, 0.12);
-  --warning: #C48A22;
-  --warning-soft: rgba(196, 138, 34, 0.12);
+  --text: #1E1A17;
+  --text-primary: #1E1A17;
+  --text-secondary: #7B6F62;
+  --text-muted: #8C8277;
+  --text-active: #1E1A17;
+  --placeholder: #A69E94;
+
+  --primary: #7B6F62;
+  --primary-hover: #655A4E;
+  --primary-soft: #F3EFE9;
+  --accent: #B08D57;
+
+  /* Badges - Harmonized with Warm Architectural Brand & Pastel Reference */
+  --badge-attention-bg: #FFE5D8;
+  --badge-attention-text: #8C3710;
+  --badge-success-bg: #D7F0E2;
+  --badge-success-text: #145E36;
+  --badge-info-bg: #E0EBF5;
+  --badge-info-text: #195280;
+  --badge-danger-bg: #FFDCD8;
+  --badge-danger-text: #9E2619;
+  --badge-neutral-bg: #ECECEC;
+  --badge-neutral-text: #4A4A4A;
+  --badge-theme-bg: #EFE8E0;
+  --badge-theme-text: #5A4C3D;
+
+  /* Status Colors */
+  --success: #145E36;
+  --success-soft: #D7F0E2;
+  --warning: #8C3710;
+  --warning-soft: #FFE5D8;
   --danger: #B5483A;
-  --danger-soft: rgba(181, 72, 58, 0.12);
-  --info: #4B7391;
-  --info-soft: rgba(75, 115, 145, 0.12);
+  --danger-soft: #FFDCD8;
+  --info: #195280;
+  --info-soft: #E0EBF5;
 
-  /* Chart Palette from Brand */
-  --chart-1: #7A6A58;
-  --chart-2: #B89A74;
-  --chart-3: #4F8A63;
-  --chart-4: #4B7391;
-  --chart-5: #C48A22;
-  --chart-6: #A39889;
+  /* Chart Palette Harmonized with Brand */
+  --chart-1: #7B6F62;
+  --chart-2: #B08D57;
+  --chart-3: #3D7858;
+  --chart-4: #2E6894;
+  --chart-5: #C95F38;
+  --chart-6: #9A8E7F;
 
-  /* Typography */
-  --font-serif: "Fraunces", "Cormorant Garamond", Georgia, serif;
-  --font-family-base: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Typography: Universal Architectural Standard Across Entire System */
+  --font-serif: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-family-serif: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-family-base: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-heading: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-family-script: "Brush Script MT", "Segoe Script", "Caveat", cursive;
   --font-weight-light: 300;
   --font-weight-regular: 400;
@@ -60,31 +86,34 @@
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
 
-  --font-size-xs: 12px;
-  --font-size-sm: 13.5px;
-  --font-size-md: 15px;
-  --font-size-lg: 18px;
-  --font-size-xl: 22px;
-  --font-size-2xl: 28px;
-  --font-size-3xl: 36px;
+  /* Scaled Down Compact Modern SaaS Font Hierarchy */
+  --font-size-xs: 11px;
+  --font-size-sm: 12.5px;
+  --font-size-base: 13.5px;
+  --font-size-md: 14.5px;
+  --font-size-lg: 16px;
+  --font-size-xl: 19px;
+  --font-size-2xl: 23px;
+  --font-size-3xl: 27px;
 
-  /* Shape & Radii (Exact: 14px cards / 10px inputs) */
-  --radius-card: 14px;
-  --radius-input: 10px;
+  /* Shape & Radii (10 / 12 / 16 / 20 Scale) */
   --radius-xs: 6px;
-  --radius-sm: 8px;
+  --radius-sm: 10px;
   --radius-md: 12px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-card: 18px;
+  --radius-input: 12px;
   --radius-pill: 9999px;
 
-  /* Shadows - Minimalist Architectural Softness */
-  --shadow-sm: 0 1px 2px rgba(42, 36, 29, 0.04);
-  --shadow-card: 0 2px 10px -2px rgba(42, 36, 29, 0.04), 0 1px 3px rgba(42, 36, 29, 0.02);
-  --shadow-elevated: 0 12px 28px -6px rgba(42, 36, 29, 0.08), 0 4px 10px -2px rgba(42, 36, 29, 0.03);
-  --shadow-drawer: -6px 0 24px rgba(42, 36, 29, 0.09);
+  /* Shadows - Minimalist Softness */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-pill: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-elevated: 0 10px 24px -4px rgba(0, 0, 0, 0.07), 0 2px 6px -1px rgba(0, 0, 0, 0.03);
+  --shadow-drawer: -6px 0 24px rgba(0, 0, 0, 0.08);
 
-  /* Spacing */
+  /* Spacing (8px Scale) */
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;
@@ -94,12 +123,13 @@
   --spacing-8: 32px;
 
   /* Layout Dimensions */
-  --sidebar-width: 88px;
-  --header-height: 76px;
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 72px;
+  --header-height: 72px;
 
   /* Transitions */
-  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
-  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.2s ease;
 
   /* Backward Compatibility Aliases */
   --color-bg: var(--bg);
@@ -159,20 +189,20 @@
   --color-surface-hover: #35302A;
 }
 
-/* Page Titles and Big KPI Numbers in Light Serif */
+/* Headings typography: Inter with slight negative letter-spacing */
+h1, h2, h3, h4, h5, h6,
 .page-title,
 .analytics-main-heading,
 .admin-page-title,
 .vital-number,
 .kpi-value,
 .kpi-big-number {
-  font-family: var(--font-serif) !important;
-  font-weight: 500 !important;
+  font-family: var(--font-family-base) !important;
   letter-spacing: -0.01em !important;
 }
 
 /* =========================================================================
-   GLOBAL FORM CONTROLS & UNIFIED DROPDOWNS (Sheet B Guidelines)
+   GLOBAL FORM CONTROLS & UNIFIED DROPDOWNS (Premium Minimal SaaS)
    ========================================================================= */
 
 /* Universal Inputs & Selects */
@@ -182,18 +212,19 @@ input[type="password"],
 input[type="number"],
 input[type="tel"],
 input[type="date"],
+input[type="datetime-local"],
 select,
 textarea {
   font-family: var(--font-family-base) !important;
   font-size: var(--font-size-sm) !important;
-  font-weight: 450;
-  color: var(--color-text);
+  font-weight: 500;
+  color: var(--text-primary);
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-input);
   padding: 0 14px;
-  height: 42px;
-  line-height: 42px;
+  height: 44px;
+  line-height: 44px;
   outline: none;
   box-sizing: border-box;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast), background-color var(--transition-fast);
@@ -210,14 +241,14 @@ textarea {
 input:hover:not(:disabled),
 select:hover:not(:disabled),
 textarea:hover:not(:disabled) {
-  border-color: #A89F95;
+  border-color: #CFCFCF;
 }
 
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(123, 111, 98, 0.14) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(122, 106, 88, 0.2) !important;
   background-color: #FFFFFF !important;
   outline: none !important;
 }

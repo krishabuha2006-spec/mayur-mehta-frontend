@@ -89,6 +89,15 @@ export function DashboardPage() {
 
   useEffect(() => {
     fetchLayoutAndMetrics();
+
+    const handleEntityCreated = () => {
+      fetchLayoutAndMetrics();
+    };
+    window.addEventListener('mm:entity-created', handleEntityCreated);
+
+    return () => {
+      window.removeEventListener('mm:entity-created', handleEntityCreated);
+    };
   }, [fetchLayoutAndMetrics]);
 
   const handleToggleLock = () => {

@@ -1,82 +1,203 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
-  Building2,
-  ListTodo,
+  LayoutGrid,
+  Package,
+  CheckSquare,
   FileCheck2,
   ClipboardList,
   Layers,
   HardDrive,
-  Contact,
-  Users,
-  BarChart3,
-  Settings2,
-  Home,
-  FolderKanban,
-  CheckSquare,
-  FileText,
   BookUser,
-  Settings,
-  HelpCircle,
+  Users,
   CreditCard,
+  TrendingUp,
+  Settings2,
   ChevronDown,
-  X
+  X,
+  HelpCircle,
+  FolderKanban,
+  Building2,
+  ListTodo,
+  Contact,
+  BarChart3
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { MayurMehtaLogo } from '../../common/MayurMehtaLogo/MayurMehtaLogo';
 import { ROUTES } from '../../../constants/routes';
 import { APP_NAVIGATION } from '../../../constants/navigation';
+import { taskService } from '../../../services/taskService';
+import { approvalService } from '../../../services/approvalService';
 import './Sidebar.css';
 
+// Unified 24x24 Outline Icons (Stroke Width 1.5, No Fill)
 const ICON_MAP = {
-  // Primary Architectural Studio Icons
-  LayoutDashboard,
-  Building2,
-  ListTodo,
+  // Primary Reference Outline Icons
+  LayoutGrid,
+  Package,
+  CheckSquare,
   FileCheck2,
   ClipboardList,
   Layers,
   HardDrive,
-  Contact,
+  BookUser,
   Users,
   CreditCard,
-  BarChart3,
+  TrendingUp,
   Settings2,
 
   // Fallbacks & Aliases
-  Home: LayoutDashboard,
-  FolderKanban: Building2,
-  CheckSquare: ListTodo,
-  FileText: ClipboardList,
-  BookUser: Contact,
+  LayoutDashboard: LayoutGrid,
+  Building2: Package,
+  FolderKanban: Package,
+  ListTodo: CheckSquare,
+  Contact: BookUser,
+  BarChart3: TrendingUp,
   Settings: Settings2,
   HelpCircle
 };
 
+// Global in-memory cache to prevent spamming backend API on route changes
+let lastCountsFetchTime = 0;
+let cachedCounts = { userTasks: 0, teamTasks: 0, approvals: 0, revisions: 0 };
+
 export function Sidebar({
-  expanded = false,
+  expanded = true,
   onToggleExpand,
   mobileOpen = false,
   onCloseMobile
 }) {
-  const { navigation, hasPermission } = useAuth();
+  const { user, navigation, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [hoveredTooltip, setHoveredTooltip] = useState(null);
   const [openDropdowns, setOpenDropdowns] = useState({});
   const [activeFlyout, setActiveFlyout] = useState(null);
 
-  // Merge navigation with default APP_NAVIGATION to guarantee sub-items (children) exist
+  // Dynamic live counters from backend records
+  const [dynamicCounts, setDynamicCounts] = useState({
+    userTasks: 0,
+    teamTasks: 0,
+    approvals: 0,
+    revisions: 0
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadDynamicCounts() {
+      // If fetched within 10 seconds, reuse cached counts to avoid tripping rate limits
+      if (Date.now() - lastCountsFetchTime < 10000 && lastCountsFetchTime > 0) {
+        setDynamicCounts(cachedCounts);
+        return;
+      }
+
+      try {
+        let uCount = 0;
+        let tCount = 0;
+        let appCount = 0;
+        let revCount = 0;
+
+        // 1. Fetch live task summary directly from backend endpoint GET /tasks/summary
+        const summary = await taskService.getTasksSummary().catch(() => null);
+
+        if (summary && summary.totalTasks !== undefined) {
+          const byStatus = summary.byStatus || {};
+          const openCount =
+            (byStatus.TODO || 0) +
+            (byStatus.IN_PROGRESS || 0) +
+            (byStatus.IN_REVIEW || 0);
+
+          tCount = openCount;
+          uCount = summary.assignedToMeOpen ?? 0;
+          appCount = byStatus.IN_REVIEW ?? 0;
+        } else {
+          // Fallback to GET /tasks if summary is unavailable
+          const tasksRes = await taskService.getTasks({ limit: 100 }).catch(() => []);
+          const list = Array.isArray(tasksRes) ? tasksRes : (tasksRes?.data || []);
+          const activeTasks = list.filter(
+            (t) => t && !['DONE', 'Completed', 'COMPLETED', 'CANCELLED'].includes(t.status)
+          );
+          tCount = activeTasks.length;
+          uCount = activeTasks.filter(
+            (t) =>
+              t.assigneeId === user?.id ||
+              t.assignedTo === user?.id ||
+              t.assignedTo?._id === user?.id ||
+              t.assignee?._id === user?.id
+          ).length;
+          appCount = activeTasks.filter((t) => t.status === 'IN_REVIEW' || t.reviewStatus === 'PENDING').length;
+        }
+
+        if (isMounted) {
+          const fresh = {
+            userTasks: uCount,
+            teamTasks: tCount,
+            approvals: appCount,
+            revisions: revCount
+          };
+          cachedCounts = fresh;
+          lastCountsFetchTime = Date.now();
+          setDynamicCounts(fresh);
+        }
+      } catch (err) {
+        console.warn('Sidebar dynamic count fetch notice:', err);
+      }
+    }
+
+    loadDynamicCounts();
+
+    const handleEntityCreated = () => {
+      lastCountsFetchTime = 0;
+      loadDynamicCounts();
+    };
+    window.addEventListener('mm:entity-created', handleEntityCreated);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('mm:entity-created', handleEntityCreated);
+    };
+  }, [user?.id, location.pathname]);
+
+  // Merge navigation with default APP_NAVIGATION to guarantee sub-items and dynamic badges
   const baseNav = (navigation && navigation.length > 0) ? navigation : APP_NAVIGATION;
   const mergedNav = baseNav.map((item) => {
     const defaultItem = APP_NAVIGATION.find(
       (d) => d.id === item.id || d.route === item.route || d.label === item.label
     );
+    const children = defaultItem?.children || item.children || null;
+
+    // Dynamically assign real badge counts to child sub-items
+    const dynamicChildren = children
+      ? children.map((c) => {
+          let badge = null;
+          if (c.id === 'nav-3-1' || c.label === 'User - Task') {
+            badge = dynamicCounts.userTasks > 0 ? { count: String(dynamicCounts.userTasks), variant: 'peach' } : null;
+          } else if (c.id === 'nav-3-2' || c.label === 'Team - Task') {
+            badge = dynamicCounts.teamTasks > 0 ? { count: String(dynamicCounts.teamTasks), variant: 'mint' } : null;
+          } else if (c.id === 'nav-4-1' || c.label === 'Approvals') {
+            badge = dynamicCounts.approvals > 0 ? { count: String(dynamicCounts.approvals), variant: 'peach' } : null;
+          } else if (c.id === 'nav-4-2' || c.label === 'Revisions') {
+            badge = dynamicCounts.revisions > 0 ? { count: String(dynamicCounts.revisions), variant: 'mint' } : null;
+          }
+          return { ...c, badge };
+        })
+      : null;
+
+    // Parent badge when collapsed or overall indicator
+    let parentBadge = null;
+    if (item.id === 'nav-3' || item.label === 'Master Task') {
+      parentBadge = dynamicCounts.teamTasks > 0 ? { count: String(dynamicCounts.teamTasks), variant: 'mint' } : null;
+    } else if (item.id === 'nav-4' || item.label === 'Pending Request') {
+      const totalPending = dynamicCounts.approvals + dynamicCounts.revisions;
+      parentBadge = totalPending > 0 ? { count: String(totalPending), variant: 'peach' } : null;
+    }
+
     return {
       ...item,
       label: defaultItem?.label || item.label,
-      children: item.children || defaultItem?.children || null
+      iconKey: defaultItem?.iconKey || item.iconKey,
+      badge: parentBadge,
+      children: dynamicChildren
     };
   });
 
@@ -124,10 +245,13 @@ export function Sidebar({
   };
 
   const handleParentNavClick = (item, isCurrentlyOpen, e) => {
-    // If user clicked directly on the link row
-    if (location.pathname !== item.route && !item.children?.some(c => location.pathname === c.route.split('?')[0])) {
-      // Navigate to the primary child or base route and open ONLY this dropdown
-      navigate(item.children?.[0]?.route || item.route);
+    // If not on any child of this parent, navigate to the first child and expand
+    const isChildActive = item.children?.some(
+      (c) => location.pathname === c.route.split('?')[0]
+    );
+
+    if (!isChildActive && item.children && item.children.length > 0) {
+      navigate(item.children[0].route);
       setOpenDropdowns({ [item.id]: true });
     } else {
       // Toggle dropdown open/close (accordion)
@@ -165,6 +289,16 @@ export function Sidebar({
     setActiveFlyout(null);
   };
 
+  const renderBadge = (badge) => {
+    if (!badge || !badge.count) return null;
+    const variantClass = `badge-${badge.variant || 'attention'}`;
+    return (
+      <span className={`sidebar-badge ${variantClass}`}>
+        {badge.count}
+      </span>
+    );
+  };
+
   const renderNavItem = (item) => {
     const IconComponent = ICON_MAP[item.iconKey] || HelpCircle;
     const hasChildren = item.children && item.children.length > 0;
@@ -183,15 +317,20 @@ export function Sidebar({
           key={item.id || item.route}
           className={`sidebar-nav-item sidebar-has-dropdown ${isOpen ? 'dropdown-open' : ''} ${isCurrentActive ? 'parent-active' : ''}`}
         >
+          {/* Top-Level Expandable Row */}
           <div
-            className={`sidebar-nav-link sidebar-dropdown-toggle ${isCurrentActive ? 'active' : ''}`}
+            className={`sidebar-nav-link sidebar-dropdown-toggle ${isCurrentActive && !isOpen ? 'parent-standalone-active' : ''}`}
             onClick={(e) => handleParentNavClick(item, isOpen, e)}
             role="button"
             tabIndex={0}
             aria-expanded={isOpen}
           >
-            <IconComponent size={20} strokeWidth={1.8} className="sidebar-nav-icon" />
+            <IconComponent size={20} strokeWidth={1.5} className="sidebar-nav-icon" />
             <span className="sidebar-nav-label">{item.label}</span>
+
+            {/* Badges on parent when collapsed or highlighted */}
+            {renderBadge(item.badge)}
+
             <span
               className="sidebar-chevron-wrap"
               onClick={(e) => toggleDropdown(item.id, isOpen, e)}
@@ -200,18 +339,21 @@ export function Sidebar({
               aria-label={`Toggle ${item.label} submenu`}
             >
               <ChevronDown
-                size={15}
+                size={16}
+                strokeWidth={1.5}
                 className={`sidebar-dropdown-chevron ${isOpen ? 'chevron-rotated' : ''}`}
               />
             </span>
           </div>
 
+          {/* Submenu Tree with 1.5px vertical line & curved elbow connectors */}
           {isOpen && (
             <ul className="sidebar-submenu-list">
               {item.children.map((child) => {
                 const isChildActive =
                   currentFullUrl === child.route ||
                   (location.search === '' && child.route.endsWith('?view=list') && location.pathname === item.route) ||
+                  (location.search === '' && child.route.endsWith('?tab=my') && location.pathname === item.route) ||
                   (location.search === '' && child.route.endsWith('?tab=all') && location.pathname === item.route) ||
                   (location.search === '' && child.route.endsWith('?tab=pending') && location.pathname === item.route);
 
@@ -225,6 +367,7 @@ export function Sidebar({
                       className={`sidebar-submenu-link ${isChildActive ? 'sub-active' : ''}`}
                     >
                       <span className="submenu-label">{child.label}</span>
+                      {renderBadge(child.badge)}
                     </NavLink>
                   </li>
                 );
@@ -235,6 +378,7 @@ export function Sidebar({
       );
     }
 
+    // Top-level standalone item without children OR item in collapsed rail mode
     return (
       <li
         key={item.id || item.route}
@@ -243,24 +387,19 @@ export function Sidebar({
         onMouseLeave={handleMouseLeave}
       >
         <NavLink
-          to={item.route}
+          to={hasChildren ? (item.children[0]?.route || item.route) : item.route}
           onClick={() => {
             handleMouseLeave();
             if (onCloseMobile) onCloseMobile();
           }}
           className={({ isActive }) =>
-            `sidebar-nav-link ${isActive ? 'active' : ''}`
+            `sidebar-nav-link ${isActive || isCurrentActive ? 'active' : ''}`
           }
           aria-label={item.label}
         >
-          <IconComponent size={20} strokeWidth={1.8} className="sidebar-nav-icon" />
-          <span className="sidebar-nav-label">{item.label}</span>
-
-          {!expanded && (
-            <span className="sidebar-inline-tooltip" role="tooltip" aria-hidden="true">
-              {item.label}
-            </span>
-          )}
+          <IconComponent size={20} strokeWidth={1.5} className="sidebar-nav-icon" />
+          {expanded && <span className="sidebar-nav-label">{item.label}</span>}
+          {expanded && renderBadge(item.badge)}
         </NavLink>
       </li>
     );
@@ -277,18 +416,17 @@ export function Sidebar({
           onClick={onToggleExpand}
           role="button"
           tabIndex={0}
-          title={expanded ? 'Click logo to collapse sidebar' : 'Click logo to expand sidebar'}
+          title={expanded ? 'Click logo to collapse sidebar (icons only)' : 'Click logo to expand sidebar'}
           aria-expanded={expanded}
           aria-label={expanded ? 'Collapse sidebar menu' : 'Expand sidebar menu'}
         >
-          <div className="sidebar-brand-mark" title="Mayur Mehta Design">
-            <MayurMehtaLogo variant="symbol" size="sidebar" color="taupe" />
-          </div>
-
-          {expanded && (
-            <div className="sidebar-brand-text">
-              <span className="sidebar-brand-name">MAYUR MEHTA</span>
-              <span className="sidebar-brand-subtitle">design</span>
+          {expanded ? (
+            <div className="sidebar-logo-full" title="Click to collapse sidebar">
+              <MayurMehtaLogo size="sidebar" color="charcoal" />
+            </div>
+          ) : (
+            <div className="sidebar-brand-mark" title="Click to expand sidebar">
+              <MayurMehtaLogo variant="symbol" size={32} color="charcoal" />
             </div>
           )}
 
@@ -358,7 +496,8 @@ export function Sidebar({
                     `flyout-link ${isActive ? 'active' : ''}`
                   }
                 >
-                  {child.label}
+                  <span>{child.label}</span>
+                  {renderBadge(child.badge)}
                 </NavLink>
               </li>
             ))}

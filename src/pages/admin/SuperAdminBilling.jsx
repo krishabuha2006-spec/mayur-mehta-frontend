@@ -165,7 +165,11 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
       setCreateInvoiceOpen(false);
       loadBillingData();
     } catch (err) {
-      onNotification?.(extractErrorMessage(err) || 'Failed to create invoice draft.', 'error');
+      if (err?.response?.status === 404) {
+        onNotification?.('Backend Route Missing: POST /api/v1/admin/billing/invoices is not implemented or mounted on the backend server yet.', 'error');
+      } else {
+        onNotification?.(extractErrorMessage(err) || 'Failed to create invoice draft.', 'error');
+      }
     } finally {
       setActionLoading(false);
     }
@@ -575,7 +579,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
         {subTab === 'overview' && (
           <div className="admin-table-card" style={{ padding: '24px' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 700, color: '#1E1A17' }}>
-              Platform Commercial Engine Status (M1.6 Manual Model)
+              Platform Commercial Engine Status
             </h3>
             <p style={{ margin: '0 0 20px', fontSize: '13px', color: '#7B6F62', lineHeight: 1.5 }}>
               This platform operates on an offline payment workflow. Invoices are issued with permanent gapless financial
@@ -1060,7 +1064,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
       <Modal
         isOpen={createInvoiceOpen}
         onClose={() => setCreateInvoiceOpen(false)}
-        title="Create Invoice Draft (Module M1.6)"
+        title="Create Invoice Draft"
         maxWidth="620px"
       >
         <form onSubmit={handleCreateDraftInvoice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>

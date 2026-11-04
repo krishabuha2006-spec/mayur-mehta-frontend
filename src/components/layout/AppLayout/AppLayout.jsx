@@ -57,7 +57,7 @@ export function AppLayout() {
   return (
     <div
       className={`app-shell ${sidebarExpanded ? 'sidebar-layout-expanded' : ''}`}
-      style={{ '--sidebar-width': sidebarExpanded ? '240px' : '88px' }}
+      style={{ '--sidebar-width': sidebarExpanded ? '260px' : '72px' }}
     >
       <Sidebar
         expanded={sidebarExpanded}
@@ -67,7 +67,11 @@ export function AppLayout() {
       />
 
       <div className="app-main">
-        <Header onOpenMobileMenu={() => setMobileMenuOpen(true)} />
+        <Header
+          onOpenMobileMenu={() => setMobileMenuOpen(true)}
+          onToggleSidebar={handleToggleSidebar}
+          sidebarExpanded={sidebarExpanded}
+        />
 
         {isRestricted && (
           <div

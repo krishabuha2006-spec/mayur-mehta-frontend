@@ -19,29 +19,35 @@ import { apiClient } from './apiClient';
 export const billingService = {
   /**
    * Get Current Company Subscription & Billing Summary
-   * Fetches live company seat allocation and tier from verified backend endpoints (/team/seats and /company/bootstrap)
+   * Fetches live company seat allocation and tier from verified backend endpoints (/company/bootstrap and /team/seats)
    */
   getSubscription: async () => {
     try {
       // Fetch live seat usage & company profile from verified backend endpoints
-      const [seatsRes, bootstrapRes] = await Promise.all([
-        apiClient.get('/team/seats').catch(() => null),
-        apiClient.get('/company/bootstrap').catch(() => null)
+      const [bootstrapRes, seatsRes] = await Promise.all([
+        apiClient.get('/company/bootstrap').catch(() => null),
+        apiClient.get('/team/seats').catch(() => null)
       ]);
 
-      const seatsData = seatsRes?.data || seatsRes;
       const bootstrapData = bootstrapRes?.data || bootstrapRes;
+      const seatsData = seatsRes?.data || seatsRes;
       const company = bootstrapData?.company;
 
       const rawPlan = company?.plan || seatsData?.plan || 'FREE';
       const isPaid = String(rawPlan).toUpperCase() === 'PAID' || String(rawPlan).toUpperCase() === 'PRO';
       const planNormalized = isPaid ? 'PRO' : 'FREE';
 
-      const seatsLimit = Number(seatsData?.limit || company?.seats || 10);
-      const seatsUsed = Number(seatsData?.used || 1);
+      const seatsLimit = typeof seatsData?.limit === 'number'
+        ? seatsData.limit
+        : (typeof bootstrapData?.seats?.limit === 'number' ? bootstrapData.seats.limit : (Number(company?.seats) || 10));
+
+      const seatsUsed = typeof seatsData?.used === 'number'
+        ? seatsData.used
+        : (typeof bootstrapData?.seats?.used === 'number' ? bootstrapData.seats.used : 1);
+
       const remaining = seatsData?.remaining !== undefined
         ? Number(seatsData.remaining)
-        : Math.max(0, seatsLimit - seatsUsed);
+        : (bootstrapData?.seats?.remaining !== undefined ? Number(bootstrapData.seats.remaining) : Math.max(0, seatsLimit - seatsUsed));
 
       return {
         plan: planNormalized,
@@ -147,6 +153,25 @@ export const billingService = {
       igstPaise: 0,
       totalPaise
     };
+  },
+
+  /**
+   * GET /billing/quote - Fetch live price quote from server with offline formula fallback
+   */
+  fetchLiveQuote: async ({ seats, billingCycle = 'MONTHLY', isUpgrade = false }) => {
+    try {
+      const res = await apiClient.get('/billing/quote', {
+        params: {
+          seats: Number(seats) || 10,
+          billingCycle: String(billingCycle).toUpperCase(),
+          isUpgrade: Boolean(isUpgrade)
+        }
+      });
+      const payload = res?.data || res;
+      return payload?.data || payload;
+    } catch {
+      return billingService.getQuote({ seats, billingCycle, isUpgrade });
+    }
   },
 
   /**

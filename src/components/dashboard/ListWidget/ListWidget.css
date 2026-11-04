@@ -38,15 +38,15 @@
   justify-content: space-between;
   padding: 8px 12px;
   border-radius: 10px;
-  background-color: #FAF8F5;
-  border: 1px solid rgba(183, 175, 166, 0.18);
+  background-color: #F9F9FB;
+  border: 1px solid #ECECEC;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .list-widget-item:hover {
-  background-color: #F3EFE9;
-  border-color: rgba(123, 111, 98, 0.3);
+  background-color: #F0F0F3;
+  border-color: #D8D8D8;
   transform: translateX(2px);
 }
 
@@ -57,9 +57,10 @@
 }
 
 .item-title {
+  font-family: var(--font-family-base, "Inter", sans-serif);
   font-size: 13px;
-  font-weight: 500;
-  color: #2E2925;
+  font-weight: 550;
+  color: #111111;
 }
 
 .item-subtitle {

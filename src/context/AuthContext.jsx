@@ -124,6 +124,12 @@ export function AuthProvider({ children }) {
               seats: bootstrap.seats?.limit || 10,
               seatsUsed: bootstrap.seats?.used || 1
             });
+            if (bootstrap.unreadChats !== undefined) {
+              setHeaderBadges((prev) => ({
+                ...prev,
+                chatCount: Math.min(999, Math.max(0, Number(bootstrap.unreadChats) || 0))
+              }));
+            }
           }
         } catch (bootErr) {
           console.debug('Bootstrap load notice:', bootErr?.message);
@@ -178,14 +184,23 @@ export function AuthProvider({ children }) {
       }));
     };
 
+    const handleSuspendedEvent = () => {
+      setCompany((prev) => ({
+        ...(prev || {}),
+        status: 'SUSPENDED'
+      }));
+    };
+
     window.addEventListener('auth:logout', handleLogoutEvent);
     window.addEventListener('app:upgrade-required', handleUpgradeEvent);
     window.addEventListener('billing:restricted', handleRestrictedEvent);
+    window.addEventListener('company:suspended', handleSuspendedEvent);
 
     return () => {
       window.removeEventListener('auth:logout', handleLogoutEvent);
       window.removeEventListener('app:upgrade-required', handleUpgradeEvent);
       window.removeEventListener('billing:restricted', handleRestrictedEvent);
+      window.removeEventListener('company:suspended', handleSuspendedEvent);
     };
   }, [loadCurrentUser]);
 
@@ -232,6 +247,12 @@ export function AuthProvider({ children }) {
             seats: bootstrap.seats?.limit || 10,
             seatsUsed: bootstrap.seats?.used || 1
           });
+          if (bootstrap.unreadChats !== undefined) {
+            setHeaderBadges((prev) => ({
+              ...prev,
+              chatCount: Math.min(999, Math.max(0, Number(bootstrap.unreadChats) || 0))
+            }));
+          }
         }
       } catch (bootErr) {
         console.warn('Initial session bootstrap notice:', bootErr?.message);
@@ -321,6 +342,29 @@ export function AuthProvider({ children }) {
     return false;
   }, [user?.role, permissions]);
 
+  const isImpersonating = Boolean(
+    sessionStorage.getItem('mm_impersonating') === 'true' ||
+    (() => {
+      const tok = getAccessToken();
+      if (!tok) return false;
+      try {
+        const payload = JSON.parse(atob(tok.split('.')[1]));
+        return Boolean(payload?.imp || payload?.impersonated);
+      } catch {
+        return false;
+      }
+    })()
+  );
+
+  const exitImpersonation = () => {
+    clearAccessToken();
+    sessionStorage.removeItem('mm_impersonating');
+    sessionStorage.removeItem('mm_impersonated_company');
+    sessionStorage.removeItem('mm_user_session');
+    localStorage.removeItem('mm_user_session');
+    window.location.href = '/admin';
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -333,6 +377,8 @@ export function AuthProvider({ children }) {
         permissions,
         loading,
         isAuthenticated: !!user,
+        isImpersonating,
+        exitImpersonation,
         login,
         logout,
         refreshUser: loadCurrentUser,

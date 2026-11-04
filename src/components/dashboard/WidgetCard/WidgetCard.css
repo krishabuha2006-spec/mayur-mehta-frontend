@@ -1,23 +1,21 @@
 .widget-card {
   background-color: #FFFFFF;
-  border-radius: 18px;
-  border: 1px solid rgba(183, 175, 166, 0.24);
-  box-shadow: 0 2px 10px -2px rgba(46, 40, 34, 0.03), 0 1px 2px rgba(46, 40, 34, 0.02);
+  border-radius: 16px;
+  border: 1px solid #ECECEC;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03), 0 1px 2px rgba(0, 0, 0, 0.02);
   display: flex;
   flex-direction: column;
   padding: 18px 20px;
   position: relative;
-  transition: box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), 
-              border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s ease;
   height: 100%;
   min-height: 120px;
   box-sizing: border-box;
 }
 
 .widget-card:hover {
-  border-color: rgba(123, 111, 98, 0.32);
-  box-shadow: 0 10px 26px -6px rgba(46, 40, 34, 0.07), 0 2px 6px rgba(46, 40, 34, 0.02);
+  border-color: #D8D8D8;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
 }
 
 .widget-card-compact {

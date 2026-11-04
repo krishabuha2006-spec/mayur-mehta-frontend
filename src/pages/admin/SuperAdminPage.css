@@ -9,7 +9,7 @@
   width: 100%;
   background-color: #F8F6F2;
   color: #1E1A17;
-  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-family-base);
   overflow: hidden;
 }
 

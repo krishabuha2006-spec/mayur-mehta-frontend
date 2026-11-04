@@ -343,9 +343,10 @@ apiClient.interceptors.response.use(
         JSON.stringify(respData, null, 2)
       );
     } else if (error.response?.status >= 400) {
+      const respData = error.response?.data;
       console.error(
-        `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:`,
-        error.response?.data || error.message
+        `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n` +
+        (typeof respData === 'object' ? JSON.stringify(respData, null, 2) : (respData || error.message))
       );
     }
 
@@ -375,6 +376,22 @@ apiClient.interceptors.response.use(
       window.dispatchEvent(
         new CustomEvent('billing:restricted', {
           detail: error.response?.data?.error?.details || error.response?.data
+        })
+      );
+    }
+
+    // Handle M1.1 Foundation & M1.4 Seat Limits & Suspensions
+    const responseErrCode = error.response?.data?.error?.code || error.response?.data?.code;
+    if (responseErrCode === 'SEAT_LIMIT_REACHED') {
+      window.dispatchEvent(
+        new CustomEvent('app:upgrade-required', {
+          detail: error.response?.data?.error?.message || 'Seat limit reached (10/10). Please upgrade your plan to add more members.'
+        })
+      );
+    } else if (responseErrCode === 'COMPANY_SUSPENDED') {
+      window.dispatchEvent(
+        new CustomEvent('company:suspended', {
+          detail: error.response?.data?.error?.message || 'Workspace has been suspended by platform administration.'
         })
       );
     }

@@ -22,7 +22,7 @@
 }
 
 .settings-page-title {
-  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  font-family: var(--font-family-base, 'Inter', sans-serif);
   font-size: 22px;
   font-weight: 600;
   color: var(--color-text, #2E2E2E);

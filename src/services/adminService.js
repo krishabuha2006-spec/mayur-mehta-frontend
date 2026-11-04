@@ -614,6 +614,55 @@ export const adminService = {
     });
     const payload = res?.data || res;
     return payload?.data || payload;
+  },
+
+  // ==========================================
+  // Super Admin Email Outbox Operations (Module M2.1)
+  // ==========================================
+
+  /**
+   * GET /admin/email-outbox - List outbox emails with filtering and pagination
+   * @param {Object} params - { status, category, toEmail, companyId, page, limit }
+   */
+  getEmailOutbox: async (params = {}) => {
+    const res = await apiClient.get('/admin/email-outbox', { params });
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * GET /admin/email-outbox/stats - Get outbox metrics, counts, and 24h throughput stats
+   */
+  getEmailOutboxStats: async () => {
+    const res = await apiClient.get('/admin/email-outbox/stats');
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * POST /admin/email-outbox/{id}/retry - Manually retry a failed email outbox row
+   */
+  retryEmailOutbox: async (id) => {
+    const res = await apiClient.post(`/admin/email-outbox/${id}/retry`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * POST /admin/email-outbox/{id}/cancel - Cancel a pending or failed outbox email
+   */
+  cancelEmailOutbox: async (id) => {
+    const res = await apiClient.post(`/admin/email-outbox/${id}/cancel`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  retryOutboxEmail: async (id) => {
+    return adminService.retryEmailOutbox(id);
+  },
+
+  cancelOutboxEmail: async (id) => {
+    return adminService.cancelEmailOutbox(id);
   }
 };
 

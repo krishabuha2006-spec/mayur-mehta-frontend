@@ -68,6 +68,7 @@ import { extractErrorMessage } from '../../utils/errorHandler';
 import { isValidEmail } from '../../utils/validators';
 import { SuperAdminBilling } from './SuperAdminBilling';
 import { SuperAdminAnalytics } from './SuperAdminAnalytics';
+import { SuperAdminEmailOutbox } from './SuperAdminEmailOutbox';
 import './SuperAdminPage.css';
 
 // =============================================================================
@@ -372,7 +373,7 @@ export function SuperAdminPage() {
   const navigate = useNavigate();
   const { adminUser, updateAdminUser, logout, logoutAll } = useAdminAuth();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('tenants'); // 'tenants' | 'admins' | 'plans' | 'audit'
+  const [activeTab, setActiveTab] = useState('tenants'); // 'tenants' | 'admins' | 'plans' | 'audit' | 'outbox'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all' | 'active' | 'suspended' | 'deleted'
   const [searchQuery, setSearchQuery] = useState('');
   const [backendLoading, setBackendLoading] = useState(false);
@@ -1120,6 +1121,8 @@ export function SuperAdminPage() {
       const token = res?.accessToken || res?.token || res?.data?.accessToken || res?.data?.token;
       if (token) {
         setAccessToken(token); // In-Memory
+        sessionStorage.setItem('mm_impersonating', 'true');
+        sessionStorage.setItem('mm_impersonated_company', selectedCompanyForLogin.name || '');
       }
       setImpersonateModalOpen(false);
       showNotification(`Support access session initiated for "${selectedCompanyForLogin.name}".`);
@@ -1291,10 +1294,21 @@ export function SuperAdminPage() {
   };
 
   const handleResendAdminInvite = async (admin) => {
+    const rawStatus = (admin.status || '').toUpperCase();
+    if (rawStatus === 'ACTIVE') {
+      showNotification(`Administrator "${admin.name || admin.email}" has already activated their account.`, 'info');
+      return;
+    }
     try {
       await adminService.resendAdminInvite(admin._id || admin.id);
-      showNotification(`Invite resent to ${admin.email}.`);
+      showNotification(`Invite resent successfully to ${admin.email}.`);
     } catch (err) {
+      const errCode = err?.code || err?.error?.code || err?.response?.data?.error?.code;
+      if (errCode === 'OWNER_ALREADY_ACTIVATED' || err?.message?.includes('already activated')) {
+        showNotification(`Administrator "${admin.name || admin.email}" has already activated their account.`, 'info');
+        fetchAdminData(true);
+        return;
+      }
       showNotification(extractErrorMessage(err) || 'Failed to resend invite', 'error');
     }
   };
@@ -1461,6 +1475,19 @@ export function SuperAdminPage() {
               <span className="nav-text">Audit & Security</span>
               <span className="nav-pill-count">{auditLogs.length}</span>
             </button>
+
+            <button
+              type="button"
+              className={`admin-nav-item ${activeTab === 'outbox' ? 'is-active' : ''}`}
+              onClick={() => {
+                setActiveTab('outbox');
+                setMobileSidebarOpen(false);
+              }}
+            >
+              <Mail size={18} className="nav-icon" />
+              <span className="nav-text">Email Outbox</span>
+              <span className="nav-live-dot-pulse" style={{ background: '#6366f1' }} title="Outbox Queue Monitor" />
+            </button>
           </nav>
         </div>
 
@@ -1524,6 +1551,7 @@ export function SuperAdminPage() {
                   {activeTab === 'admins' && 'Super Admin Team'}
                   {activeTab === 'plans' && 'Plans & Subscriptions'}
                   {activeTab === 'audit' && 'Security Audit Trail'}
+                  {activeTab === 'outbox' && 'Email Outbox'}
                 </span>
               </div>
               <h1 className="admin-page-title">
@@ -1532,6 +1560,7 @@ export function SuperAdminPage() {
                 {activeTab === 'admins' && 'Platform Admins & Access Control'}
                 {activeTab === 'plans' && 'Subscription Plans & Pricing'}
                 {activeTab === 'audit' && 'Security & Tenant Activity Audit'}
+                {activeTab === 'outbox' && 'Transactional Email Outbox & Queue Monitor'}
               </h1>
             </div>
           </div>
@@ -2183,6 +2212,7 @@ export function SuperAdminPage() {
                       const adminId = admin._id || admin.id;
                       const rawStatus = (admin.status || 'ACTIVE').toUpperCase();
                       const isDisabled = rawStatus === 'DISABLED';
+                      const isInvited = rawStatus === 'INVITED' || rawStatus === 'PENDING';
                       const isLocked = Boolean(admin.isLocked || admin.locked);
                       const is2FA = Boolean(admin.twoFactorEnabled || admin.is2FA);
 
@@ -2214,6 +2244,10 @@ export function SuperAdminPage() {
                               <span className="tenant-badge in-trash">
                                 <AlertTriangle size={13} /> Locked
                               </span>
+                            ) : isInvited ? (
+                              <span className="tenant-badge invited">
+                                <Mail size={13} /> Invited
+                              </span>
                             ) : (
                               <span className="tenant-badge active">
                                 <CheckCircle2 size={13} /> Active
@@ -2237,15 +2271,17 @@ export function SuperAdminPage() {
                                 <Edit2 size={15} />
                               </button>
 
-                              {/* Resend Invite */}
-                              <button
-                                type="button"
-                                className="action-icon-btn"
-                                title="Resend Invite"
-                                onClick={() => handleResendAdminInvite(admin)}
-                              >
-                                <Mail size={15} />
-                              </button>
+                              {/* Resend Invite (only if pending/invited) */}
+                              {isInvited && (
+                                <button
+                                  type="button"
+                                  className="action-icon-btn"
+                                  title="Resend Invite"
+                                  onClick={() => handleResendAdminInvite(admin)}
+                                >
+                                  <Mail size={15} />
+                                </button>
+                              )}
 
                               {/* Unlock Account */}
                               {isLocked && (
@@ -2681,6 +2717,13 @@ export function SuperAdminPage() {
       {activeTab === 'plans' && (
         <SuperAdminBilling
           companies={companies}
+          onNotification={showNotification}
+        />
+      )}
+
+      {/* TAB 5: ADMIN EMAIL OUTBOX (Module M2.1) */}
+      {activeTab === 'outbox' && (
+        <SuperAdminEmailOutbox
           onNotification={showNotification}
         />
       )}

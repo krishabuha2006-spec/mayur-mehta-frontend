@@ -53,6 +53,7 @@ import { Modal } from '../../components/common/Modal/Modal';
 import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { Dropdown } from '../../components/common/Dropdown/Dropdown';
+import { ProjectModal } from '../../components/projects/ProjectModal/ProjectModal';
 import './ProjectsPage.css';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { useConfirm } from '../../context/ConfirmationContext';
@@ -637,6 +638,17 @@ export function ProjectsPage() {
     loadLookups();
     loadSummary();
     loadTrashCount();
+
+    const handleEntityCreated = (e) => {
+      if (!e.detail?.type || e.detail.type === 'project' || e.detail.type === 'log') {
+        loadProjects(1);
+        loadSummary();
+      }
+    };
+    window.addEventListener('mm:entity-created', handleEntityCreated);
+    return () => {
+      window.removeEventListener('mm:entity-created', handleEntityCreated);
+    };
   }, [authLoading, isAuthenticated]);
 
   // Trigger search / filters reload
@@ -1769,21 +1781,25 @@ export function ProjectsPage() {
                             className="dropdown-item"
                             onClick={() => handleDuplicateProject(proj)}
                           >
-                            <Copy size={13} style={{ marginRight: 6 }} /> Duplicate Structure
+                            <Copy size={15} className="dropdown-item-icon" />
+                            <span>Duplicate Structure</span>
                           </button>
                           <button
                             type="button"
                             className="dropdown-item"
                             onClick={() => handleToggleArchive(proj)}
                           >
-                            <Archive size={13} style={{ marginRight: 6 }} /> {proj.isArchived ? 'Unarchive' : 'Archive Project'}
+                            <Archive size={15} className="dropdown-item-icon" />
+                            <span>{proj.isArchived ? 'Unarchive' : 'Archive Project'}</span>
                           </button>
+                          <div className="dropdown-divider" />
                           <button
                             type="button"
                             className="dropdown-item text-danger"
                             onClick={() => handleDeleteProject(projId, proj.name)}
                           >
-                            <Trash2 size={13} style={{ marginRight: 6 }} /> Move to Trash (30d)
+                            <Trash2 size={15} className="dropdown-item-icon" />
+                            <span>Move to Trash (30d)</span>
                           </button>
                         </Dropdown>
                       </div>
@@ -2721,267 +2737,18 @@ export function ProjectsPage() {
       )}
 
       {/* 6. Simple & Elegant Architectural Project Modal */}
-      <Modal
+      <ProjectModal
         isOpen={createModalOpen || Boolean(editModalProject)}
         onClose={() => {
           setCreateModalOpen(false);
           setEditModalProject(null);
-          setFormErrors({});
         }}
-        title={editModalProject ? `Edit Project: ${editModalProject.name}` : 'Register New Project'}
-        maxWidth="680px"
-      >
-        <form onSubmit={handleSaveProject} noValidate>
-          <div className="form-grid-2">
-            <Input
-              label="Project Name"
-              id="proj-name-input"
-              placeholder="Enter project title"
-              value={formData.name}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, name: e.target.value }));
-                if (formErrors.name) setFormErrors((prev) => ({ ...prev, name: '' }));
-              }}
-              error={formErrors.name}
-              required
-            />
-            <Select
-              label="Priority"
-              id="proj-priority-select"
-              value={formData.priority || 'MEDIUM'}
-              onChange={(e) => setFormData((prev) => ({ ...prev, priority: e.target.value }))}
-              options={[
-                { value: 'LOW', label: 'Low' },
-                { value: 'MEDIUM', label: 'Medium' },
-                { value: 'HIGH', label: 'High' },
-                { value: 'URGENT', label: 'Urgent' }
-              ]}
-              required
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Client Organization / Name"
-              id="proj-client-input"
-              placeholder="Enter client or organization name"
-              value={formData.clientName}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, clientName: e.target.value }));
-                if (formErrors.clientName) setFormErrors((prev) => ({ ...prev, clientName: '' }));
-              }}
-              error={formErrors.clientName}
-              required
-            />
-            <Input
-              label="Contact Person"
-              id="proj-contact-input"
-              placeholder="Enter primary contact person"
-              value={formData.contactPerson}
-              onChange={(e) => setFormData((prev) => ({ ...prev, contactPerson: e.target.value }))}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Client Phone Number"
-              id="proj-phone-input"
-              type="tel"
-              isPhone={true}
-              placeholder="Enter 10-digit phone number"
-              value={formData.phone}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, phone: e.target.value }));
-                if (formErrors.phone) setFormErrors((prev) => ({ ...prev, phone: '' }));
-              }}
-              error={formErrors.phone}
-            />
-            <Input
-              label="Client Email Address"
-              id="proj-email-input"
-              type="email"
-              placeholder="Enter client email address"
-              value={formData.email}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, email: e.target.value }));
-                if (formErrors.email) setFormErrors((prev) => ({ ...prev, email: '' }));
-              }}
-              error={formErrors.email}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Select
-              label="Project Category"
-              id="proj-category-select"
-              value={formData.projectCategoryId}
-              onChange={(e) => setFormData((prev) => ({ ...prev, projectCategoryId: e.target.value }))}
-              placeholder="Select project category..."
-              options={categoryOptions}
-            />
-            <Select
-              label="Typology / Type"
-              id="proj-type-select"
-              value={formData.projectTypeId}
-              onChange={(e) => setFormData((prev) => ({ ...prev, projectTypeId: e.target.value }))}
-              placeholder="Select project typology..."
-              options={typeOptions}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="City / Location"
-              id="proj-city-input"
-              placeholder="e.g. Ahmedabad, Gujarat"
-              value={formData.city}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, city: e.target.value }));
-                if (formErrors.city) setFormErrors((prev) => ({ ...prev, city: '' }));
-              }}
-              error={formErrors.city}
-            />
-            <Input
-              label="Site Address"
-              id="proj-address-input"
-              placeholder="Enter site address"
-              value={formData.address}
-              onChange={(e) => {
-                setFormData((prev) => ({ ...prev, address: e.target.value }));
-                if (formErrors.address) setFormErrors((prev) => ({ ...prev, address: '' }));
-              }}
-              error={formErrors.address}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <div className="budget-field-container">
-              <Input
-                label="Estimated Budget (₹)"
-                id="proj-budget-input"
-                type="text"
-                inputMode="numeric"
-                placeholder="e.g. 50,00,000 or 500000"
-                value={formData.budgetRupees}
-                onChange={(e) => {
-                  setFormData((prev) => ({ ...prev, budgetRupees: e.target.value }));
-                  if (formErrors.budgetRupees) setFormErrors((prev) => ({ ...prev, budgetRupees: '' }));
-                }}
-                error={formErrors.budgetRupees}
-              />
-              {formData.budgetRupees && (
-                <div className="budget-live-preview">
-                  <span className="budget-preview-label">Live Preview:</span>{' '}
-                  <span className="budget-preview-val">{formatRupeesWord(formData.budgetRupees)}</span>
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '10px' }}>
-              <Input
-                label="Built-up Area"
-                id="proj-area-input"
-                type="number"
-                placeholder="e.g. 8500"
-                value={formData.areaValue}
-                onChange={(e) => {
-                  setFormData((prev) => ({ ...prev, areaValue: e.target.value }));
-                  if (formErrors.areaValue) setFormErrors((prev) => ({ ...prev, areaValue: '' }));
-                }}
-                error={formErrors.areaValue}
-              />
-              <Select
-                label="Unit"
-                id="proj-area-unit"
-                value={formData.areaUnit || 'SQFT'}
-                onChange={(e) => setFormData((prev) => ({ ...prev, areaUnit: e.target.value }))}
-                options={[
-                  { value: 'SQFT', label: 'Sq. Ft.' },
-                  { value: 'SQM', label: 'Sq. M.' },
-                  { value: 'SQYD', label: 'Sq. Yd.' },
-                  { value: 'ACRE', label: 'Acres' },
-                  { value: 'GUNTHA', label: 'Guntha' }
-                ]}
-              />
-            </div>
-          </div>
-
-          <div className="form-grid-2">
-            <Select
-              label="Project Manager"
-              id="proj-manager-select"
-              value={formData.managerId}
-              onChange={(e) => setFormData((prev) => ({ ...prev, managerId: e.target.value }))}
-              placeholder="Select Project Manager..."
-              options={usersDirectory.map((u) => ({
-                value: u._id || u.id,
-                label: u.name,
-                sublabel: u.designation || u.role || 'Studio Member'
-              }))}
-            />
-            <Input
-              label="Target Handover Date"
-              id="proj-end-date"
-              type="date"
-              value={formData.plannedEndDate}
-              onChange={(e) => setFormData((prev) => ({ ...prev, plannedEndDate: e.target.value }))}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Project Tags"
-              id="proj-tags-input"
-              placeholder="e.g. Luxury, High-Rise (comma separated)"
-              value={formData.tags}
-              onChange={(e) => setFormData((prev) => ({ ...prev, tags: e.target.value }))}
-            />
-            <Select
-              label="Status"
-              id="proj-status-select"
-              value={formData.status || 'NOT_STARTED'}
-              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value }))}
-              options={[
-                { value: 'NOT_STARTED', label: 'Not Started' },
-                { value: 'IN_PROGRESS', label: 'In Progress' },
-                { value: 'ON_HOLD', label: 'On Hold' }
-              ]}
-            />
-          </div>
-
-          <div className="form-grid-1">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <label className="form-label" htmlFor="proj-scope-notes">
-                Project Scope / Notes (Optional)
-              </label>
-              <textarea
-                id="proj-scope-notes"
-                className="form-input"
-                style={{ height: '70px', padding: '10px 14px', resize: 'vertical' }}
-                placeholder="Brief architectural scope, spatial concept, or client requirements..."
-                value={formData.description}
-                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="form-actions-row">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setCreateModalOpen(false);
-                setEditModalProject(null);
-                setFormErrors({});
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" icon={Check}>
-              {editModalProject ? 'Save Changes' : 'Register Project'}
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        projectToEdit={editModalProject}
+        onSaved={() => {
+          loadProjects(1);
+          loadSummary();
+        }}
+      />
 
       {/* 7. Status Machine Modal (Module M1.7 Requirement) */}
       {statusModalProject && (

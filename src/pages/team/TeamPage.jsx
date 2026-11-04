@@ -185,7 +185,7 @@ export function TeamPage() {
       setSelectedUserForRole(null);
       showNotice(`Role updated to ${newRole} successfully.`);
     } catch (err) {
-      alert(extractErrorMessage(err));
+      showNotice(extractErrorMessage(err));
     } finally {
       setRoleModalLoading(false);
     }
@@ -204,7 +204,7 @@ export function TeamPage() {
       setRemoveReason('');
       showNotice(`Member removed. Seat freed immediately (${seatsUsed - 1}/${seatLimit} seats now used).`);
     } catch (err) {
-      alert(extractErrorMessage(err));
+      showNotice(extractErrorMessage(err));
     } finally {
       setRemoveLoading(false);
     }
@@ -216,7 +216,7 @@ export function TeamPage() {
       await teamService.resendInvite(user._id || user.id);
       showNotice(`Invitation email resent to ${user.email}.`);
     } catch (err) {
-      alert(extractErrorMessage(err));
+      showNotice(extractErrorMessage(err));
     }
   };
 
@@ -227,7 +227,7 @@ export function TeamPage() {
       await fetchTeamData();
       showNotice(`Account unlocked for ${user.email}.`);
     } catch (err) {
-      alert(extractErrorMessage(err));
+      showNotice(extractErrorMessage(err));
     }
   };
 

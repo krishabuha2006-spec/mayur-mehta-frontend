@@ -322,3 +322,67 @@
   color: var(--color-text-muted);
   font-size: 14px;
 }
+
+/* Responsive adjustments for Approvals Page */
+@media (max-width: 768px) {
+  .approvals-header-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .approvals-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 12px;
+  }
+
+  .approvals-header-actions .tasks-tabs-container {
+    width: 100%;
+    overflow-x: auto;
+    display: flex;
+    justify-content: flex-start;
+    padding: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    box-sizing: border-box;
+  }
+
+  .approvals-header-actions .tasks-tabs-container::-webkit-scrollbar {
+    display: none;
+  }
+
+  .approvals-header-actions > button,
+  .approvals-header-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .approvals-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .approvals-empty-wrap {
+    padding: 40px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .approvals-heading {
+    font-size: 1.25rem;
+  }
+
+  .approvals-subheading {
+    font-size: 0.78rem;
+  }
+
+  .approval-card {
+    padding: 14px 12px;
+  }
+
+  .approval-meta-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

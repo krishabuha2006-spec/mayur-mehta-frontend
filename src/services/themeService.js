@@ -22,11 +22,12 @@ export const themeService = {
     if (theme.bgColor) root.style.setProperty('--color-bg', theme.bgColor);
     if (theme.cardColor) root.style.setProperty('--color-card', theme.cardColor);
     
-    // Global Unified Typography - Always ensure Plus Jakarta Sans
-    const fontFamily = (!theme.fontFamily || theme.fontFamily === 'Segoe UI')
-      ? '"Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
-      : theme.fontFamily;
+    // Global Unified Typography - Universal Inter Standard across whole system
+    const fontFamily = '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
     root.style.setProperty('--font-family-base', fontFamily);
+    root.style.setProperty('--font-serif', fontFamily);
+    root.style.setProperty('--font-heading', fontFamily);
+    root.style.setProperty('--font-family-serif', fontFamily);
   },
 
   applyThemeToDom: (theme) => {

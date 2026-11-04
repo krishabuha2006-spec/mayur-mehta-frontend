@@ -1,0 +1,245 @@
+.mail-popup-container {
+  width: 380px;
+  max-width: 92vw;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+  background-color: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #E8E3DB;
+  box-shadow: 0 12px 32px rgba(42, 36, 29, 0.12);
+  font-family: var(--font-family-base, 'Plus Jakarta Sans', sans-serif);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.mail-popup-header {
+  padding: 14px 16px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #F0ECE4;
+  background-color: #FAF8F5;
+}
+
+.mail-header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mail-header-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1E1A17;
+  letter-spacing: -0.01em;
+}
+
+.mail-badge-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background-color: #FAF0E6;
+  color: #8C4B18;
+  border: 1px solid rgba(140, 75, 24, 0.2);
+}
+
+.mail-filter-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #F0ECE4;
+  background-color: #FAF8F5;
+}
+
+.mail-tab-btn {
+  border: none;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7B6F62;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mail-tab-btn:hover {
+  color: #1E1A17;
+  background-color: rgba(123, 111, 98, 0.08);
+}
+
+.mail-tab-btn.active {
+  color: #1E1A17;
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 3px rgba(42, 36, 29, 0.08);
+}
+
+.mail-items-list {
+  flex: 1;
+  overflow-y: auto;
+  max-height: 330px;
+  padding: 4px 0;
+}
+
+.mail-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  border-bottom: 1px solid #F7F5F0;
+}
+
+.mail-item-row:last-child {
+  border-bottom: none;
+}
+
+.mail-item-row:hover {
+  background-color: #F8F5F0;
+}
+
+.mail-icon-wrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background-color: #F4EFEB;
+  color: #7B6F62;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mail-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.mail-item-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.mail-item-subject {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1E1A17;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 210px;
+}
+
+.mail-item-time {
+  font-size: 11px;
+  color: #8C8277;
+}
+
+.mail-item-preview {
+  font-size: 12px;
+  color: #7B6F62;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.mail-status-pill {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mail-status-pill.sent {
+  background: #D7F0E2;
+  color: #145E36;
+}
+
+.mail-status-pill.queued {
+  background: #FFF0D9;
+  color: #8C4B18;
+}
+
+.mail-status-pill.failed {
+  background: #FFDCD8;
+  color: #9E2619;
+}
+
+.mail-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.mail-empty-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background-color: #F4EFEB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  color: #7B6F62;
+}
+
+.mail-empty-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1E1A17;
+  margin-bottom: 4px;
+}
+
+.mail-empty-sub {
+  font-size: 12px;
+  color: #8C8277;
+  max-width: 250px;
+  line-height: 1.45;
+}
+
+.mail-popup-footer {
+  padding: 10px 16px;
+  border-top: 1px solid #F0ECE4;
+  background-color: #FAF8F5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mail-footer-link {
+  background: none;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7B6F62;
+  cursor: pointer;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.mail-footer-link:hover {
+  color: #1E1A17;
+}
+
+.mail-footer-link.highlight {
+  color: #9A6F42;
+}
+
+.mail-footer-link.highlight:hover {
+  color: #6E4E2C;
+}
+

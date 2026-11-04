@@ -93,6 +93,8 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       EMAIL_ALREADY_REGISTERED: 'This email address is already registered in the system.',
 
       // M1.3 Super Admin - Company Management
+      OWNER_ALREADY_ACTIVATED: 'This administrator account has already been activated and cannot be re-invited.',
+      USER_ALREADY_ACTIVATED: 'This user has already accepted their invitation and activated their account.',
       INVALID_STATE_TRANSITION: 'Invalid company lifecycle state transition. This operation is not permitted for the current status.',
       IMPERSONATION_READ_ONLY: 'Support access is strictly read-only. Data modifications are blocked during impersonation.',
       CANNOT_DISABLE_SELF: 'You cannot disable your own administrator account.',
@@ -146,7 +148,7 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       SINGLE_MANAGER_RULE: 'A project can only have one Project Manager. The previous manager has been demoted to Lead.',
       INVALID_STATUS_TRANSITION: 'Invalid project status transition. This lifecycle transition is not permitted.',
       STATUS_REASON_REQUIRED: 'A reason (at least 5 characters) is required when placing a project ON HOLD or CANCELLING.',
-      EXPORT_TOO_LARGE: 'Export size exceeds the platform safety limit. Please refine your search or date filters.',
+      EXPORT_TOO_LARGE: 'Export size exceeds the platform safety limit (maximum 5,000 rows). Please refine your search or date filters.',
       ARCHIVE_STATUS_INVALID: 'Only COMPLETED or CANCELLED projects can be moved to the archive.',
       PROJECT_DELETED: 'This project has been moved to Trash.',
       CONCURRENCY_CONFLICT: 'Project was updated by another team member. Please refresh the page to see the latest changes.',
@@ -172,7 +174,23 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       IMPERSONATION_DOWNLOAD_BLOCKED: 'File downloads and previews are strictly blocked during support impersonation mode for studio security.',
       INVALID_FILE_TYPE: 'Unsupported file extension. Allowed formats: PNG, JPG, JPEG, GIF, WebP, PDF, ZIP.',
       FOLDER_DEPTH_EXCEEDED: 'Folder nesting limit reached: Maximum folder depth is 8 levels.',
-      FOLDER_NOT_FOUND: 'The specified folder was not found or has been moved to trash.'
+      FOLDER_NOT_FOUND: 'The specified folder was not found or has been moved to trash.',
+
+      // M2.1 Notifications & Email Outbox
+      EMAIL_NOT_FOUND: 'Email outbox record not found.',
+      EMAIL_NOT_RETRYABLE: 'This email cannot be retried because it is not in FAILED status.',
+      EMAIL_NOT_CANCELLABLE: 'This email cannot be cancelled because it has already been dispatched.',
+
+      // M2.2 Task Advanced: Dependencies, Gantt, Review, Time Tracking & Templates
+      REVIEW_REQUIRED: 'Direct completion blocked: This task requires formal work review approval by a project lead or reviewer.',
+      DEPENDENCY_CYCLE: 'Dependency loop blocked: Linking this task creates a circular dependency chain.',
+      DAY_LIMIT_REACHED: 'Daily time allowance reached: Maximum 24 hours (1,440 minutes) can be logged per calendar day.',
+      BACKDATE_LIMIT_EXCEEDED: 'Backdate limit exceeded: You cannot log worked hours beyond the allowed backdate window.',
+      TIMER_ALREADY_RUNNING: 'A live stopwatch timer is already running for your account. Please stop the active timer before starting a new one.',
+      TIMER_NOT_RUNNING: 'No active timer is currently running.',
+      TEMPLATE_NOT_FOUND: 'The requested task template was not found.',
+      TEMPLATE_NAME_EXISTS: 'A task template with this blueprint name already exists in your studio workspace.',
+      TEMPLATE_IN_USE: 'This template cannot be removed because it is referenced in an active workflow.'
     };
 
     if (code && SYSTEM_ERROR_MESSAGES[code]) {
@@ -195,6 +213,25 @@ export function extractErrorMessage(err, fallback = 'Unable to process your requ
       if (detailsList) {
         return `Validation failed: ${detailsList}`;
       }
+    }
+
+    // Specific error message from error object if present
+    if (data.error?.message && typeof data.error.message === 'string' && !data.error.message.toLowerCase().includes('internal server error')) {
+      return sanitizeErrorMessage(data.error.message, status);
+    }
+
+    if (data.message && typeof data.message === 'string' && !data.message.toLowerCase().includes('internal server error')) {
+      return sanitizeErrorMessage(data.message, status);
+    }
+
+    // Diagnostic code or details from server
+    if (code) {
+      const detail = data.error?.message || (typeof data.error?.details === 'string' ? data.error.details : null);
+      return detail ? `Server Error (${code}): ${detail}` : `Server Error: ${code}`;
+    }
+
+    if (data.error?.details && typeof data.error.details === 'string') {
+      return `Server Error: ${data.error.details}`;
     }
 
     if (data.message && typeof data.message === 'string') {

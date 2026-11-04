@@ -38,11 +38,11 @@
   height: 44px;
   padding: 10px 14px;
   background-color: #FFFFFF;
-  border: 1px solid #D1D5DB;
-  border-radius: 8px;
-  color: #1E1A17;
+  border: 1px solid #ECECEC;
+  border-radius: var(--radius-md, 12px);
+  color: #111111;
   font-size: 14px;
-  font-family: inherit;
+  font-family: var(--font-family-base, "Inter", sans-serif);
   transition: all 0.15s ease-in-out;
   box-sizing: border-box;
 }
@@ -53,12 +53,12 @@
 }
 
 .form-input:hover:not(:disabled) {
-  border-color: #9CA3AF;
+  border-color: #CFCFCF;
 }
 
 .form-input:focus {
-  border-color: #B89A74;
-  box-shadow: 0 0 0 3px rgba(184, 154, 116, 0.15);
+  border-color: var(--primary, #7A6A58);
+  box-shadow: 0 0 0 3px rgba(122, 106, 88, 0.2);
   outline: none;
 }
 

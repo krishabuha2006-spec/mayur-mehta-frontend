@@ -10,6 +10,8 @@ import { settingsService } from '../../services/settingsService';
 import { masterService } from '../../services/masterService';
 import { permissionService } from '../../services/permissionService';
 import { teamService } from '../../services/teamService';
+import { notificationService } from '../../services/notificationService';
+import { projectService } from '../../services/projectService';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { useConfirm } from '../../context/ConfirmationContext';
 import {
@@ -32,7 +34,10 @@ import {
   CheckCircle2,
   ChevronUp,
   ChevronDown,
-  UserCheck
+  UserCheck,
+  Bell,
+  VolumeX,
+  Mail
 } from 'lucide-react';
 import './SettingsPage.css';
 
@@ -567,6 +572,65 @@ export function SettingsPage() {
     }
   };
 
+  // =========================================================================
+  // 5. NOTIFICATION PREFERENCES (Module M2.1: /settings/notifications/preferences)
+  // =========================================================================
+  const [notifPrefs, setNotifPrefs] = useState({
+    emailEnabled: true,
+    channels: { inApp: true, email: true },
+    groups: {
+      TASKS: { inApp: true, email: true },
+      PROJECTS: { inApp: true, email: true },
+      FILES: { inApp: true, email: false },
+      BILLING: { inApp: true, email: true },
+      TEAM: { inApp: true, email: true },
+      SECURITY: { inApp: true, email: true },
+      SYSTEM: { inApp: true, email: false }
+    },
+    mutedProjectIds: []
+  });
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifSaving, setNotifSaving] = useState(false);
+  const [liveProjects, setLiveProjects] = useState([]);
+
+  const fetchNotifPrefs = async () => {
+    setNotifLoading(true);
+    try {
+      const [prefs, projs] = await Promise.allSettled([
+        notificationService.getPreferences(),
+        projectService.getProjects({ limit: 100 })
+      ]);
+      if (prefs.status === 'fulfilled' && prefs.value) {
+        setNotifPrefs((prev) => ({
+          ...prev,
+          ...prefs.value,
+          groups: { ...prev.groups, ...(prefs.value.groups || {}) },
+          mutedProjectIds: Array.isArray(prefs.value.mutedProjectIds) ? prefs.value.mutedProjectIds : []
+        }));
+      }
+      if (projs.status === 'fulfilled' && projs.value) {
+        const list = Array.isArray(projs.value) ? projs.value : (projs.value?.data || []);
+        setLiveProjects(list);
+      }
+    } catch (err) {
+      console.warn('Notification preferences fetch notice:', err);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  const handleSaveNotifPrefs = async () => {
+    setNotifSaving(true);
+    try {
+      await notificationService.updatePreferences(notifPrefs);
+      showNotice('Notification preferences saved successfully.');
+    } catch (err) {
+      showNotice(extractErrorMessage(err, 'Failed to update notification preferences'), 'error');
+    } finally {
+      setNotifSaving(false);
+    }
+  };
+
   // Sync tab with URL search parameter
   useEffect(() => {
     const tabParam = searchParams.get('tab');
@@ -581,6 +645,7 @@ export function SettingsPage() {
     else if (activeTab === 'settings') fetchSettings();
     else if (activeTab === 'master') fetchMasterTypes();
     else if (activeTab === 'permissions') fetchPermissionsData();
+    else if (activeTab === 'notifications') fetchNotifPrefs();
   }, [activeTab]);
 
   useEffect(() => {
@@ -655,6 +720,13 @@ export function SettingsPage() {
           >
             <ShieldCheck size={15} />
             <span>Permissions</span>
+          </button>
+          <button
+            className={`settings-tab-btn ${activeTab === 'notifications' ? 'active' : ''}`}
+            onClick={() => handleTabChange('notifications')}
+          >
+            <Bell size={15} />
+            <span>Notifications</span>
           </button>
         </div>
       </div>
@@ -1401,6 +1473,194 @@ export function SettingsPage() {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          TAB 5: NOTIFICATIONS & EMAIL PREFERENCES (Module M2.1)
+          ===================================================================== */}
+      {activeTab === 'notifications' && (
+        <div className="settings-tab-panel">
+          <div className="settings-card">
+            <div className="settings-card-header">
+              <div>
+                <h3 className="settings-card-title">
+                  <Bell size={18} color="var(--color-primary)" />
+                  Notification Preferences & Email Rules
+                </h3>
+                <p className="settings-card-desc">
+                  Configure real-time in-app alerts, transactional emails, and project-specific muting.
+                </p>
+              </div>
+              <Button
+                variant="primary"
+                onClick={handleSaveNotifPrefs}
+                disabled={notifSaving || notifLoading}
+                loading={notifSaving}
+              >
+                <Save size={16} />
+                Save Preferences
+              </Button>
+            </div>
+
+            {notifLoading ? (
+              <div className="settings-loading-state">
+                <RefreshCw size={22} className="spin" />
+                <span>Loading notification preferences...</span>
+              </div>
+            ) : (
+              <div className="notif-prefs-matrix-container">
+                {/* Master Email Switch */}
+                <div style={{ padding: '14px', background: '#FAFAFB', border: '1px solid #ECECEC', borderRadius: '10px', marginBottom: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Mail size={18} color="var(--color-primary)" />
+                      <div>
+                        <strong style={{ fontSize: '13.5px' }}>Company Master Email Notifications</strong>
+                        <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                          When enabled, transactional updates (tasks, projects, invoices) are dispatched to verified email addresses.
+                        </div>
+                      </div>
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(notifPrefs.emailEnabled ?? true)}
+                        onChange={(e) => setNotifPrefs((prev) => ({ ...prev, emailEnabled: e.target.checked }))}
+                        style={{ width: '16px', height: '16px', accentColor: '#3D312A' }}
+                      />
+                      <span>{notifPrefs.emailEnabled ? 'Enabled' : 'Disabled'}</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Preference Groups Matrix */}
+                <h4 style={{ margin: '20px 0 10px', fontSize: '14px', fontWeight: 600 }}>
+                  Event Notification Channels
+                </h4>
+                <div className="settings-table-wrapper" style={{ border: '1px solid #ECECEC', borderRadius: '10px' }}>
+                  <table className="settings-table">
+                    <thead>
+                      <tr>
+                        <th>Notification Category</th>
+                        <th style={{ width: '120px', textAlign: 'center' }}>In-App Bell</th>
+                        <th style={{ width: '120px', textAlign: 'center' }}>Email Outbox</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { key: 'TASKS', label: 'Tasks & Milestones', desc: 'Assignments, due dates, checklists, completions' },
+                        { key: 'PROJECTS', label: 'Architectural Projects', desc: 'Stage approvals, new projects, team changes' },
+                        { key: 'FILES', label: 'Drawings & Documents', desc: 'CAD uploads, drawing revisions, folder updates' },
+                        { key: 'BILLING', label: 'Billing & Invoices', desc: 'Payment receipts, invoice requests, seat notices' },
+                        { key: 'TEAM', label: 'Team & Directory', desc: 'Invitations, role promotions, access changes' },
+                        { key: 'SECURITY', label: 'Security & Access', desc: 'Password resets, new logins (Mandatory override)' },
+                        { key: 'SYSTEM', label: 'System & Storage', desc: 'Drive quota warnings, scheduled maintenance' }
+                      ].map((grp) => {
+                        const inAppVal = notifPrefs.groups?.[grp.key]?.inApp ?? true;
+                        const emailVal = notifPrefs.groups?.[grp.key]?.email ?? true;
+                        const isMandatory = grp.key === 'SECURITY';
+
+                        return (
+                          <tr key={grp.key}>
+                            <td>
+                              <strong>{grp.label}</strong>
+                              <div style={{ fontSize: '12px', color: '#6B7280' }}>{grp.desc}</div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={inAppVal}
+                                disabled={isMandatory}
+                                onChange={(e) => {
+                                  const val = e.target.checked;
+                                  setNotifPrefs((prev) => ({
+                                    ...prev,
+                                    groups: {
+                                      ...prev.groups,
+                                      [grp.key]: { ...(prev.groups?.[grp.key] || {}), inApp: val }
+                                    }
+                                  }));
+                                }}
+                                style={{ width: '16px', height: '16px', accentColor: '#3D312A' }}
+                              />
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                checked={emailVal}
+                                disabled={isMandatory || !notifPrefs.emailEnabled}
+                                onChange={(e) => {
+                                  const val = e.target.checked;
+                                  setNotifPrefs((prev) => ({
+                                    ...prev,
+                                    groups: {
+                                      ...prev.groups,
+                                      [grp.key]: { ...(prev.groups?.[grp.key] || {}), email: val }
+                                    }
+                                  }));
+                                }}
+                                style={{ width: '16px', height: '16px', accentColor: '#3D312A' }}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Project-Level Muting */}
+                <div style={{ marginTop: '24px' }}>
+                  <h4 style={{ margin: '0 0 6px', fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <VolumeX size={16} color="#DC2626" />
+                    <span>Project-Specific Notification Muting</span>
+                  </h4>
+                  <p style={{ margin: '0 0 12px', fontSize: '12px', color: '#6B7280' }}>
+                    Select specific projects where non-critical activity notifications should be suppressed for your account.
+                  </p>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {liveProjects.map((p) => {
+                      const pId = p.id || p._id;
+                      const isMuted = (notifPrefs.mutedProjectIds || []).includes(pId);
+                      return (
+                        <button
+                          key={pId}
+                          type="button"
+                          style={{
+                            padding: '6px 12px',
+                            borderRadius: '8px',
+                            border: `1px solid ${isMuted ? '#FCA5A5' : '#E5E7EB'}`,
+                            background: isMuted ? '#FEE2E2' : '#FFFFFF',
+                            color: isMuted ? '#991B1B' : '#374151',
+                            fontSize: '12.5px',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          onClick={() => {
+                            setNotifPrefs((prev) => {
+                              const current = prev.mutedProjectIds || [];
+                              const updated = isMuted ? current.filter((id) => id !== pId) : [...current, pId];
+                              return { ...prev, mutedProjectIds: updated };
+                            });
+                          }}
+                        >
+                          <span>{p.name || p.title || p.code}</span>
+                          <span style={{ fontSize: '10px', fontWeight: 700, padding: '1px 4px', borderRadius: '4px', background: isMuted ? '#EF4444' : '#E5E7EB', color: isMuted ? '#FFF' : '#374151' }}>
+                            {isMuted ? 'MUTED' : '+ MUTE'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             )}
           </div>

@@ -4,6 +4,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
 import { ConfirmationProvider } from './context/ConfirmationContext';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AppRoutes } from './routes';
 
 export function App() {
@@ -13,7 +14,9 @@ export function App() {
         <AuthProvider>
           <AdminAuthProvider>
             <ConfirmationProvider>
-              <AppRoutes />
+              <ErrorBoundary>
+                <AppRoutes />
+              </ErrorBoundary>
             </ConfirmationProvider>
           </AdminAuthProvider>
         </AuthProvider>

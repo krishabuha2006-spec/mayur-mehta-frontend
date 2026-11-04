@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Filter,
@@ -26,7 +26,9 @@ import {
   UserCheck,
   X,
   Sparkles,
-  FileText
+  FileText,
+  Bell,
+  GitCommit
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
@@ -35,80 +37,43 @@ import { Input } from '../../components/common/Input/Input';
 import { Select } from '../../components/common/Select/Select';
 import { Drawer } from '../../components/common/Drawer/Drawer';
 import { Toast } from '../../components/common/Toast/Toast';
+import { TaskModal } from '../../components/tasks/TaskModal/TaskModal';
 import { useConfirm } from '../../context/ConfirmationContext';
 import { extractErrorMessage } from '../../utils/errorHandler';
 import { formatDate } from '../../utils/formatDate';
+import { useAuth } from '../../hooks/useAuth';
 import { taskService } from '../../services/taskService';
 import { projectService } from '../../services/projectService';
 import { teamService } from '../../services/teamService';
+import { taskAdvancedService } from '../../services/taskAdvancedService';
+import { chatService } from '../../services/chatService';
+import { TaskTemplatesView } from './TaskTemplatesView';
+import { TaskGanttView } from './TaskGanttView';
+import {
+  TaskRemindersWidget,
+  TaskDependenciesWidget,
+  TaskReviewHistoryWidget,
+  TaskTimeLogsWidget
+} from './TaskAdvancedWidgets';
 import './TasksPage.css';
 
-const ARCHITECTURAL_TEMPLATES = [
-  {
-    id: 'tmpl-1',
-    title: 'Concept & Schematic Design Review',
-    category: 'Design Phase',
-    duration: '5 Days',
-    checklist: [
-      'Site topography and contour study',
-      'Client brief and space program sign-off',
-      'Massing options and sun-path analysis',
-      'Schematic architectural floor plans 1:100',
-      '3D mood boards and material palette'
-    ]
-  },
-  {
-    id: 'tmpl-2',
-    title: 'Municipal Statutory Clearances & Liaison',
-    category: 'Regulatory',
-    duration: '14 Days',
-    checklist: [
-      'Zoning & FSI / FAR calculations verification',
-      'Municipal corporation submission drawings prep',
-      'Fire & life safety egress compliance check',
-      'Environmental NOC and building line verification',
-      'Scrutiny fee receipt and liaison log update'
-    ]
-  },
-  {
-    id: 'tmpl-3',
-    title: 'GFC (Good For Construction) Package Release',
-    category: 'Working Drawings',
-    duration: '10 Days',
-    checklist: [
-      'Centerline and foundation setting out drawings',
-      'Masonry setting-out plans with door-window schedules',
-      'RCC column and beam junction coordination',
-      'Electrical switchboard and lighting conduit layout',
-      'Plumbing invert levels and drainage slope verification'
-    ]
-  },
-  {
-    id: 'tmpl-4',
-    title: 'MEP & Structural Clash Detection',
-    category: 'Engineering',
-    duration: '4 Days',
-    checklist: [
-      'HVAC duct vs structural beam clearance check',
-      'Sump tank vs plumbing riser clash review',
-      'Electrical riser room fire-seal verification',
-      'Sign-off from structural engineer on cutouts'
-    ]
-  },
-  {
-    id: 'tmpl-5',
-    title: 'Site Handover & Snag List Inspection',
-    category: 'Execution',
-    duration: '7 Days',
-    checklist: [
-      'Tile joints, levels and floor slope to drain test',
-      'Door/window hardware operation & silicone seal audit',
-      'Electrical socket phase-neutral-earth live testing',
-      'Plumbing pressure test and leak audit',
-      'As-built drawings compilation & keys handover log'
-    ]
-  }
-];
+export const TASK_STATUS_CONFIG = {
+  TODO: { label: 'To Do', badge: 'neutral', isDone: false },
+  IN_PROGRESS: { label: 'In Progress', badge: 'warning', isDone: false },
+  IN_REVIEW: { label: 'Review & Approvals', badge: 'info', isDone: false },
+  DONE: { label: 'Completed', badge: 'success', isDone: true },
+  CANCELLED: { label: 'Cancelled', badge: 'danger', isDone: false }
+};
+
+export const normalizeTaskStatus = (raw) => {
+  if (!raw) return 'TODO';
+  const upper = String(raw).toUpperCase().trim();
+  if (upper === 'DONE' || upper === 'COMPLETED') return 'DONE';
+  if (upper === 'IN_PROGRESS' || upper === 'IN PROGRESS') return 'IN_PROGRESS';
+  if (upper === 'IN_REVIEW' || upper === 'REVIEW') return 'IN_REVIEW';
+  if (upper === 'CANCELLED' || upper === 'CANCELED') return 'CANCELLED';
+  return 'TODO';
+};
 
 const KANBAN_COLUMNS = [
   { id: 'TODO', label: 'To Do', color: 'var(--primary)', match: ['TODO', 'PENDING', 'NOT_STARTED'] },
@@ -119,6 +84,7 @@ const KANBAN_COLUMNS = [
 ];
 
 export function TasksPage() {
+  const { user } = useAuth();
   const confirm = useConfirm();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -126,6 +92,7 @@ export function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [trashTasks, setTrashTasks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState(tabParam || 'all'); // 'all' | 'in_progress' | 'today' | 'completed' | 'my' | 'templates' | 'trash'
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTasks, setSelectedTasks] = useState([]);
@@ -149,15 +116,26 @@ export function TasksPage() {
 
   // Task Details Drawer state
   const [selectedTask, setSelectedTask] = useState(null);
+  const [drawerActiveTab, setDrawerActiveTab] = useState('overview'); // 'overview' | 'time' | 'links' | 'activity'
   const [newCommentText, setNewCommentText] = useState('');
   const [newChecklistText, setNewChecklistText] = useState('');
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
 
+  // Chat & Discussion Thread State (Module M2.3)
+  const [taskMessages, setTaskMessages] = useState([]);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+
   // Dynamic dropdown options
   const [projectOptions, setProjectOptions] = useState([]);
   const [assigneeOptions, setAssigneeOptions] = useState([]);
   const [selectedProjectFilter, setSelectedProjectFilter] = useState('');
+
+  const projectOptionsRef = useRef([]);
+  const assigneeOptionsRef = useRef([]);
+  projectOptionsRef.current = projectOptions;
+  assigneeOptionsRef.current = assigneeOptions;
 
   // Month Calendar Grid State & Navigation
   const [calendarDate, setCalendarDate] = useState(new Date());
@@ -217,7 +195,22 @@ export function TasksPage() {
         // GET /tasks/trash
         const res = await taskService.getTrashTasks();
         taskList = Array.isArray(res) ? res : (res?.data || []);
-        setTrashTasks(taskList);
+        const formattedTrash = taskList.map((t, idx) => ({
+          id: t.id || t._id || `trash_${idx}`,
+          title: t.title || t.name || 'Untitled Task',
+          project: t.project?.name || t.project?.title || t.projectName || 'Studio Project',
+          projectId: t.project?.id || t.project?._id || t.projectId || null,
+          assignee: t.assignee?.name || t.assignees?.[0]?.name || 'Unassigned',
+          assigneeLetter: ((t.assignee?.name || t.assignees?.[0]?.name || 'U')[0] || 'U').toUpperCase(),
+          priority: String(t.priority || 'MEDIUM').toUpperCase(),
+          category: t.taskType?.name || t.category || 'Architectural Task',
+          dueDate: t.dueDate || null,
+          status: normalizeTaskStatus(t.status),
+          checklist: [],
+          comments: [],
+          loggedHours: 0
+        }));
+        setTrashTasks(formattedTrash);
         setLoading(false);
         return;
       }
@@ -263,25 +256,54 @@ export function TasksPage() {
 
       if (taskList.length > 0) {
         const formatted = taskList.map((t, idx) => {
-          const rawAssignee = t.assignee?.name || t.assignees?.[0]?.name || (typeof t.assignee === 'string' ? t.assignee : '') || '';
+          // Resolve assignee
+          const rawAssigneeObj = (Array.isArray(t.assignees) && t.assignees[0]) || t.assignee;
+          let assigneeName = '';
+          let assigneeId = null;
+
+          if (typeof rawAssigneeObj === 'string') {
+            assigneeId = rawAssigneeObj;
+            const matchedUser = assigneeOptionsRef.current.find((u) => u.value === assigneeId || u.id === assigneeId || u._id === assigneeId);
+            assigneeName = matchedUser?.label || matchedUser?.name || '';
+          } else if (rawAssigneeObj && typeof rawAssigneeObj === 'object') {
+            assigneeId = rawAssigneeObj.id || rawAssigneeObj._id;
+            assigneeName = rawAssigneeObj.name || '';
+            if (!assigneeName && assigneeId) {
+              const matchedUser = assigneeOptionsRef.current.find((u) => u.value === assigneeId || u.id === assigneeId || u._id === assigneeId);
+              assigneeName = matchedUser?.label || matchedUser?.name || '';
+            }
+          }
+
+          // Resolve project name dynamically from project record or loaded projects
+          const projId = t.project?.id || t.project?._id || t.projectId || (typeof t.project === 'string' ? t.project : null);
+          const matchedProj = projectOptionsRef.current.find((p) => p.value === projId || p.id === projId || p._id === projId);
+          const filterProj = selectedProjectFilter ? projectOptionsRef.current.find((p) => p.value === selectedProjectFilter) : null;
+          const projName = t.project?.name || t.project?.title || matchedProj?.label || t.projectName || (filterProj ? filterProj.label : '') || 'Studio Project';
+
+          const isMine = !!(
+            (assigneeId && (assigneeId === user?.id || assigneeId === user?._id)) ||
+            (user?.name && assigneeName && assigneeName.toLowerCase().includes(user.name.toLowerCase()))
+          );
+
           return {
             id: t.id || t._id || `task_${idx}`,
             title: t.title || t.name || 'Untitled Task',
-            project: t.project?.name || t.project?.title || t.projectName || (typeof t.project === 'string' ? t.project : 'General Practice'),
-            projectId: t.project?.id || t.project?._id || t.projectId || null,
-            assignee: rawAssignee || 'Unassigned',
-            assigneeLetter: (rawAssignee?.[0] || 'U').toUpperCase(),
+            project: projName,
+            projectId: projId,
+            assignee: assigneeName || 'Unassigned',
+            assigneeLetter: (assigneeName?.[0] || 'U').toUpperCase(),
+            isMyTask: isMine,
             priority: String(t.priority || 'MEDIUM').toUpperCase(),
             category: t.taskType?.name || t.category || 'Architectural Task',
             dueDate: t.dueDate || null,
-            status: t.status || 'TODO',
+            status: normalizeTaskStatus(t.status),
             checklist: (t.checklist || []).map((c, cIdx) =>
               typeof c === 'string'
                 ? { id: `c_${cIdx}`, title: c, text: c, done: false }
                 : { id: c.id || c._id || `c_${cIdx}`, title: c.title || c.text || '', text: c.text || c.title || '', done: !!c.done }
             ),
             comments: t.comments || [],
-            loggedHours: t.loggedHours || 0
+            loggedHours: t.loggedHours || (t.estimatedMinutes ? +(t.estimatedMinutes / 60).toFixed(1) : 0)
           };
         });
         setTasks(formatted);
@@ -295,50 +317,64 @@ export function TasksPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, selectedProjectFilter]);
+  }, [activeTab, selectedProjectFilter, user]);
 
+  // Initial Metadata Load: Projects & Team Directory (strictly 1 time on mount)
   useEffect(() => {
+    let isMounted = true;
+    const loadMetadata = async () => {
+      try {
+        const [projRes, teamRes] = await Promise.allSettled([
+          projectService.getProjects(),
+          teamService.getDirectory()
+        ]);
+
+        if (!isMounted) return;
+
+        if (projRes.status === 'fulfilled') {
+          const projs = Array.isArray(projRes.value) ? projRes.value : (projRes.value?.data || []);
+          if (projs.length > 0) {
+            setProjectOptions(
+              projs
+                .filter((p) => p && (p._id || p.id))
+                .map((p) => ({
+                  value: p._id || p.id,
+                  label: p.title || p.name || p.code || 'Untitled Project',
+                  sublabel: `${p.city || 'Ahmedabad'} • ${p.type || 'Project'}`
+                }))
+            );
+          }
+        }
+
+        if (teamRes.status === 'fulfilled') {
+          const users = Array.isArray(teamRes.value) ? teamRes.value : (teamRes.value?.data || teamRes.value?.users || []);
+          if (users.length > 0) {
+            setAssigneeOptions(
+              users
+                .filter((u) => u && (u._id || u.id))
+                .map((u) => ({
+                  value: u._id || u.id,
+                  label: u.name || `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Team Member',
+                  sublabel: u.designation || u.role || 'Studio Member'
+                }))
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('Metadata load notice:', err?.message);
+      }
+    };
+
+    loadMetadata();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Fetch Tasks & Summary when Tab or Project Filter changes
+  useEffect(() => {
+    if (activeTab === 'templates') return;
     fetchTasks();
     fetchTaskSummary();
-
-    const loadProjects = async () => {
-      try {
-        const res = await projectService.getProjects();
-        const projs = Array.isArray(res) ? res : (res?.data || []);
-        if (projs.length > 0) {
-          setProjectOptions(
-            projs.map((p) => ({
-              value: p.id || p._id || p.code || p.title,
-              label: p.title || p.name || p.code,
-              sublabel: `${p.city || 'Ahmedabad'} • ${p.type || 'Project'}`
-            }))
-          );
-        }
-      } catch (err) {
-        console.warn('Projects load notice:', err.message);
-      }
-    };
-    loadProjects();
-
-    const loadTeam = async () => {
-      try {
-        const res = await teamService.getDirectory();
-        const users = Array.isArray(res) ? res : (res?.data || res?.users || []);
-        if (users.length > 0) {
-          setAssigneeOptions(
-            users.map((u) => ({
-              value: u.id || u._id || u.name,
-              label: u.name,
-              sublabel: u.designation || u.role || 'Studio Member'
-            }))
-          );
-        }
-      } catch (err) {
-        console.warn('Team load notice:', err.message);
-      }
-    };
-    loadTeam();
-  }, [fetchTasks, fetchTaskSummary]);
+  }, [activeTab, selectedProjectFilter, fetchTasks, fetchTaskSummary]);
 
   // Timer Tick
   useEffect(() => {
@@ -356,14 +392,19 @@ export function TasksPage() {
     project: '',
     projectId: '',
     assignee: '',
-    priority: 'Medium',
+    assigneeId: '',
+    priority: 'MEDIUM',
     category: 'Working Drawings',
-    dueDate: ''
+    dueDate: '',
+    estimatedHours: '',
+    description: ''
   });
 
   // 3. Toggle / Change Status (PUT /tasks/{id}/status)
   const toggleTaskStatus = async (t) => {
-    const nextStatus = t.status === 'Completed' ? 'Pending' : 'Completed';
+    const nextStatus = t.status === 'DONE' ? 'TODO' : 'DONE';
+    const prevStatus = t.status;
+
     setTasks((prev) =>
       prev.map((item) => (item.id === t.id ? { ...item, status: nextStatus } : item))
     );
@@ -373,40 +414,101 @@ export function TasksPage() {
 
     try {
       await taskService.updateTaskStatus(t.id, nextStatus);
-      showToast(`Task status updated to ${nextStatus}`, 'info');
+      showToast(`Task marked as ${TASK_STATUS_CONFIG[nextStatus]?.label || nextStatus}`, 'success');
+      fetchTaskSummary();
     } catch (err) {
-      console.warn('PUT /tasks/{id}/status fallback:', err.message);
+      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
+      if (isNotFound) {
+        setTasks((prev) => prev.filter((item) => item.id !== t.id));
+        if (selectedTask?.id === t.id) setSelectedTask(null);
+        showToast('This task belongs to a project that was removed or is inaccessible. Task removed from board.', 'error');
+        fetchTasks();
+      } else {
+        // Revert optimistic update on other errors
+        setTasks((prev) =>
+          prev.map((item) => (item.id === t.id ? { ...item, status: prevStatus } : item))
+        );
+        if (selectedTask?.id === t.id) {
+          setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
+        }
+        showToast(extractErrorMessage(err) || 'Failed to update task status in backend', 'error');
+      }
     }
   };
 
   const handleStatusChange = async (taskId, status) => {
+    const normStatus = normalizeTaskStatus(status);
+    const targetTask = tasks.find((t) => t.id === taskId);
+    const prevStatus = targetTask?.status || 'TODO';
+
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status } : t))
+      prev.map((t) => (t.id === taskId ? { ...t, status: normStatus } : t))
     );
     if (selectedTask?.id === taskId) {
-      setSelectedTask((prev) => ({ ...prev, status }));
+      setSelectedTask((prev) => ({ ...prev, status: normStatus }));
     }
 
     try {
-      await taskService.updateTaskStatus(taskId, status);
-      showToast(`Moved to ${status}`, 'success');
+      await taskService.updateTaskStatus(taskId, normStatus);
+      showToast(`Moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
+      fetchTaskSummary();
     } catch (err) {
-      console.warn('PUT /tasks/{id}/status notice:', err.message);
+      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
+      if (isNotFound) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+        if (selectedTask?.id === taskId) setSelectedTask(null);
+        showToast('This task belongs to an inaccessible or removed project.', 'error');
+        fetchTasks();
+      } else {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus } : t))
+        );
+        if (selectedTask?.id === taskId) {
+          setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
+        }
+        showToast(extractErrorMessage(err) || 'Status update failed in backend', 'error');
+      }
     }
   };
 
   // 4. Move Task in Kanban (PUT /tasks/{id}/move)
   const handleKanbanMove = async (taskId, targetStatus) => {
+    const normStatus = normalizeTaskStatus(targetStatus);
+    const targetTask = tasks.find((t) => t.id === taskId);
+    const prevStatus = targetTask?.status || 'TODO';
+
+    if (prevStatus === normStatus) return;
+
     setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, status: targetStatus } : t))
+      prev.map((t) => (t.id === taskId ? { ...t, status: normStatus } : t))
     );
 
     try {
-      await taskService.moveTask(taskId, { status: targetStatus });
-      showToast(`Task moved to ${targetStatus}`, 'success');
+      await taskService.moveTask(taskId, { status: normStatus });
+      showToast(`Task moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
+      fetchTaskSummary();
     } catch (err) {
-      // Fallback to status update
-      await taskService.updateTaskStatus(taskId, targetStatus);
+      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
+
+      // If 404 NOT_FOUND, the task or its project doesn't exist on server - DO NOT retry with status update!
+      if (isNotFound) {
+        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+        showToast('This task belongs to a project that was removed or is inaccessible. Removing from board.', 'error');
+        fetchTasks();
+        return;
+      }
+
+      // If move failed for another reason (e.g. 501 or route variant), fallback to updateTaskStatus
+      try {
+        await taskService.updateTaskStatus(taskId, normStatus);
+        showToast(`Task moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
+        fetchTaskSummary();
+      } catch (err2) {
+        setTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus } : t))
+        );
+        showToast(extractErrorMessage(err2 || err) || 'Failed to move task in backend', 'error');
+      }
     }
   };
 
@@ -427,7 +529,15 @@ export function TasksPage() {
     try {
       await taskService.updateChecklistItem(selectedTask.id, itemId, { done: newDoneState });
     } catch (err) {
-      console.warn('PATCH /tasks/{id}/checklist/{itemId} notice:', err.message);
+      // Revert on error
+      const reverted = (selectedTask.checklist || []).map((c) =>
+        c.id === itemId ? { ...c, done: !newDoneState } : c
+      );
+      setSelectedTask((prev) => ({ ...prev, checklist: reverted }));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? { ...t, checklist: reverted } : t))
+      );
+      showToast(extractErrorMessage(err) || 'Failed to update checklist item', 'error');
     }
   };
 
@@ -435,30 +545,32 @@ export function TasksPage() {
     e.preventDefault();
     if (!newChecklistText.trim() || !selectedTask) return;
     const itemTitle = newChecklistText.trim();
-    const newItem = {
-      id: `chk_${Date.now()}`,
-      title: itemTitle,
-      text: itemTitle,
-      done: false
-    };
-    const updated = [...(selectedTask.checklist || []), newItem];
-    setSelectedTask((prev) => ({ ...prev, checklist: updated }));
-    setTasks((prev) =>
-      prev.map((t) => (t.id === selectedTask.id ? { ...t, checklist: updated } : t))
-    );
     setNewChecklistText('');
 
     try {
-      await taskService.addChecklistItem(selectedTask.id, { title: itemTitle });
-      showToast('Subtask checklist item added', 'success');
+      const res = await taskService.addChecklistItem(selectedTask.id, { title: itemTitle });
+      const serverItem = res?.data || res;
+      const newItem = {
+        id: serverItem?.id || serverItem?._id || `chk_${Date.now()}`,
+        title: serverItem?.title || itemTitle,
+        text: serverItem?.title || itemTitle,
+        done: !!serverItem?.done
+      };
+      const updated = [...(selectedTask.checklist || []), newItem];
+      setSelectedTask((prev) => ({ ...prev, checklist: updated }));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? { ...t, checklist: updated } : t))
+      );
+      showToast('Subtask checklist item saved to backend', 'success');
     } catch (err) {
-      console.warn('POST /tasks/{id}/checklist notice:', err.message);
+      showToast(extractErrorMessage(err) || 'Failed to add checklist item in backend', 'error');
     }
   };
 
   const handleDeleteChecklistItem = async (itemId) => {
     if (!selectedTask) return;
-    const updated = (selectedTask.checklist || []).filter((c) => c.id !== itemId);
+    const previousChecklist = selectedTask.checklist || [];
+    const updated = previousChecklist.filter((c) => c.id !== itemId);
     setSelectedTask((prev) => ({ ...prev, checklist: updated }));
     setTasks((prev) =>
       prev.map((t) => (t.id === selectedTask.id ? { ...t, checklist: updated } : t))
@@ -466,9 +578,13 @@ export function TasksPage() {
 
     try {
       await taskService.deleteChecklistItem(selectedTask.id, itemId);
-      showToast('Subtask removed', 'info');
+      showToast('Subtask removed from backend', 'info');
     } catch (err) {
-      console.warn('DELETE /tasks/{id}/checklist/{itemId} notice:', err.message);
+      setSelectedTask((prev) => ({ ...prev, checklist: previousChecklist }));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? { ...t, checklist: previousChecklist } : t))
+      );
+      showToast(extractErrorMessage(err) || 'Failed to delete checklist item', 'error');
     }
   };
 
@@ -497,13 +613,23 @@ export function TasksPage() {
       if (res?.alreadyDeleted) {
         showToast('Task was already moved to trash', 'info');
       } else {
-        showToast('Task moved to trash', 'warning');
+        showToast('Task moved to trash in backend', 'warning');
       }
       fetchTaskSummary();
     } catch (err) {
       setTasks(previousTasks);
-      const errMsg = extractErrorMessage(err) || 'Failed to delete task';
-      showToast(errMsg, 'error');
+      const isImp =
+        err?.code === 'IMPERSONATION_READ_ONLY' ||
+        err?.error?.code === 'IMPERSONATION_READ_ONLY' ||
+        err?.message?.includes('IMPERSONATION_READ_ONLY') ||
+        err?.response?.data?.error?.code === 'IMPERSONATION_READ_ONLY';
+
+      if (isImp) {
+        showToast('Support access is strictly read-only. Modifications & deletions are blocked during Super Admin impersonation.', 'error');
+      } else {
+        const errMsg = extractErrorMessage(err) || 'Failed to delete task';
+        showToast(errMsg, 'error');
+      }
       fetchTasks();
     }
   };
@@ -513,7 +639,7 @@ export function TasksPage() {
     try {
       await taskService.restoreTask(taskId);
       setTrashTasks((prev) => prev.filter((t) => t.id !== taskId));
-      showToast('Task restored successfully', 'success');
+      showToast('Task restored successfully in backend', 'success');
       fetchTasks();
       fetchTaskSummary();
     } catch (err) {
@@ -542,7 +668,7 @@ export function TasksPage() {
 
     if (action === 'status') {
       normAction = 'SET_STATUS';
-      normValue = value === 'Completed' ? 'DONE' : (value === 'In Progress' ? 'IN_PROGRESS' : (value || 'DONE'));
+      normValue = normalizeTaskStatus(value || 'DONE');
       setTasks((prev) =>
         prev.map((t) => (selectedTasks.includes(t.id) ? { ...t, status: normValue } : t))
       );
@@ -556,49 +682,200 @@ export function TasksPage() {
       showToast(
         action === 'delete'
           ? `Moved ${selectedTasks.length} tasks to trash`
-          : `Bulk updated ${selectedTasks.length} tasks`,
+          : `Bulk updated ${selectedTasks.length} tasks in backend`,
         'success'
       );
-      fetchTasks();
       fetchTaskSummary();
     } catch (err) {
-      const errMsg = extractErrorMessage(err) || 'Bulk operation failed';
-      showToast(errMsg, 'error');
+      showToast(extractErrorMessage(err) || 'Bulk operation failed in backend', 'error');
       fetchTasks();
     } finally {
       setSelectedTasks([]);
     }
   };
 
-  // 9. Comments & Time Logging
-  const handleAddComment = (e) => {
-    e.preventDefault();
-    if (!newCommentText.trim() || !selectedTask) return;
-    const newComment = {
-      author: 'Krisha Buha',
-      text: newCommentText.trim(),
-      time: 'Just now'
-    };
-    const updated = [newComment, ...(selectedTask.comments || [])];
-    setSelectedTask((prev) => ({ ...prev, comments: updated }));
-    setTasks((prev) =>
-      prev.map((t) => (t.id === selectedTask.id ? { ...t, comments: updated } : t))
-    );
-    setNewCommentText('');
-    showToast('Comment posted', 'info');
+  // Bulk Reassign (POST /tasks/reassign-bulk)
+  const handleBulkReassign = async (assigneeId) => {
+    if (selectedTasks.length === 0 || !assigneeId) return;
+    try {
+      await taskAdvancedService.bulkReassignTasks({
+        taskIds: selectedTasks,
+        assigneeId,
+        reason: 'Bulk team reassignment'
+      });
+      const matched = assigneeOptionsRef.current.find((u) => u.value === assigneeId || u.id === assigneeId);
+      const newName = matched?.label || 'Assigned Member';
+      setTasks((prev) =>
+        prev.map((t) => (selectedTasks.includes(t.id) ? { ...t, assignee: newName, assigneeId } : t))
+      );
+      showToast(`Reassigned ${selectedTasks.length} tasks to ${newName}`, 'success');
+      setSelectedTasks([]);
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to bulk reassign tasks'), 'error');
+    }
   };
 
-  const handleLogTimer = () => {
+  // 9. Real-Time Chat & Discussion (Module M2.3)
+  const fetchTaskMessages = useCallback(async (taskId) => {
+    if (!taskId) return;
+    setIsLoadingMessages(true);
+    try {
+      const data = await chatService.getMessages('task', taskId);
+      const list = Array.isArray(data) ? data : data?.messages || [];
+      setTaskMessages(list);
+      if (data?.lastSeq) {
+        chatService.markRead('task', taskId, data.lastSeq).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Failed to fetch task messages:', err?.message);
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedTask?.id && drawerActiveTab === 'activity') {
+      fetchTaskMessages(selectedTask.id);
+    }
+  }, [selectedTask?.id, drawerActiveTab, fetchTaskMessages]);
+
+  const handleAddComment = async (e) => {
+    e.preventDefault();
+    const content = newCommentText.trim();
+    if (!content || !selectedTask?.id || isSendingMessage) return;
+
+    setIsSendingMessage(true);
+    try {
+      await chatService.sendMessage('task', selectedTask.id, { content });
+      setNewCommentText('');
+      await fetchTaskMessages(selectedTask.id);
+      showToast('Message sent to task thread', 'success');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to post message'), 'error');
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
+
+  const handleDeleteComment = async (messageId) => {
+    if (!messageId) return;
+    try {
+      await chatService.deleteMessage(messageId);
+      setTaskMessages((prev) => prev.filter((m) => (m.id || m._id) !== messageId));
+      showToast('Message deleted', 'info');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to delete message'), 'error');
+    }
+  };
+
+  // Live Backend Stopwatch Timer (POST /time/timer/start & POST /time/timer/stop)
+  const handleStartTimer = async () => {
     if (!selectedTask) return;
-    const hours = +(timerSeconds / 3600).toFixed(2);
-    const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
-    setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
-    setTasks((prev) =>
-      prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
-    );
-    setIsTimerRunning(false);
-    setTimerSeconds(0);
-    showToast(`Logged ${hours} hrs to task`, 'success');
+    try {
+      await taskAdvancedService.startTimer({
+        taskId: selectedTask.id,
+        projectId: selectedTask.projectId
+      });
+      setIsTimerRunning(true);
+      setTimerSeconds(0);
+      showToast('Live stopwatch timer started', 'success');
+    } catch {
+      setIsTimerRunning(true);
+      setTimerSeconds(0);
+    }
+  };
+
+  const handleStopTimer = async () => {
+    if (!selectedTask) return;
+    const elapsedMins = Math.max(1, Math.ceil(timerSeconds / 60));
+    try {
+      const res = await taskAdvancedService.stopTimer({ note: 'Stopwatch time log' });
+      const booked = res?.minutes || elapsedMins;
+      const hours = +(booked / 60).toFixed(2);
+      const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
+      setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
+      );
+      setIsTimerRunning(false);
+      setTimerSeconds(0);
+      showToast(`Booked ${booked} mins (${hours} hrs) to server`, 'success');
+    } catch {
+      // Fallback to manual time booking
+      try {
+        await taskAdvancedService.logManualTime(selectedTask.id, {
+          minutes: elapsedMins,
+          workDate: new Date().toISOString(),
+          note: 'Timer logged'
+        });
+        const hours = +(elapsedMins / 60).toFixed(2);
+        const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
+        setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
+        setTasks((prev) =>
+          prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
+        );
+        setIsTimerRunning(false);
+        setTimerSeconds(0);
+        showToast(`Booked ${elapsedMins} mins to server`, 'success');
+      } catch (err) {
+        setIsTimerRunning(false);
+        setTimerSeconds(0);
+        showToast(extractErrorMessage(err, 'Failed to book time'), 'error');
+      }
+    }
+  };
+
+  // Work Review Workflow Actions (M2.2 QA Gate)
+  const handleSubmitForReview = async () => {
+    if (!selectedTask) return;
+    try {
+      await taskAdvancedService.submitForReview(selectedTask.id, 'Work completed, submitted for review');
+      handleStatusChange(selectedTask.id, 'IN_REVIEW');
+      showToast('Task submitted for review', 'success');
+    } catch (err) {
+      handleStatusChange(selectedTask.id, 'IN_REVIEW');
+    }
+  };
+
+  const handleApproveReview = async () => {
+    if (!selectedTask) return;
+    try {
+      await taskAdvancedService.approveReview(selectedTask.id, 'Approved by lead');
+      handleStatusChange(selectedTask.id, 'DONE');
+      showToast('Task review approved and completed!', 'success');
+    } catch (err) {
+      handleStatusChange(selectedTask.id, 'DONE');
+    }
+  };
+
+  const handleRejectReview = async () => {
+    if (!selectedTask) return;
+    const reason = window.prompt('Specify reason / changes requested:');
+    if (reason === null) return;
+    try {
+      await taskAdvancedService.rejectReview(selectedTask.id, reason || 'Revisions required');
+      handleStatusChange(selectedTask.id, 'IN_PROGRESS');
+      showToast('Task returned to In Progress for revision', 'info');
+    } catch (err) {
+      handleStatusChange(selectedTask.id, 'IN_PROGRESS');
+    }
+  };
+
+  // Reassign Task (POST /tasks/:id/reassign)
+  const handleReassignTask = async (newAssigneeId) => {
+    if (!selectedTask || !newAssigneeId) return;
+    try {
+      await taskAdvancedService.reassignTask(selectedTask.id, { assigneeId: newAssigneeId });
+      const matched = assigneeOptionsRef.current.find((u) => u.value === newAssigneeId || u.id === newAssigneeId);
+      const newName = matched?.label || 'Assigned Member';
+      setSelectedTask((prev) => ({ ...prev, assignee: newName, assigneeId: newAssigneeId }));
+      setTasks((prev) =>
+        prev.map((t) => (t.id === selectedTask.id ? { ...t, assignee: newName, assigneeId: newAssigneeId } : t))
+      );
+      showToast(`Task reassigned to ${newName}`, 'success');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to reassign task'), 'error');
+    }
   };
 
   // Filtered Task List
@@ -610,9 +887,10 @@ export function TasksPage() {
         (t.project || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (t.assignee || '').toLowerCase().includes(searchTerm.toLowerCase());
 
-      if (activeTab === 'today') return matchSearch && t.status !== 'Completed';
-      if (activeTab === 'completed') return matchSearch && t.status === 'Completed';
-      if (activeTab === 'in_progress') return matchSearch && t.status === 'In Progress';
+      if (activeTab === 'today') return matchSearch && t.status !== 'DONE' && t.status !== 'CANCELLED';
+      if (activeTab === 'completed') return matchSearch && t.status === 'DONE';
+      if (activeTab === 'in_progress') return matchSearch && t.status === 'IN_PROGRESS';
+      if (activeTab === 'my') return matchSearch && t.isMyTask;
       return matchSearch;
     });
   }, [tasks, trashTasks, searchTerm, activeTab]);
@@ -695,7 +973,7 @@ export function TasksPage() {
     }).length;
   }, [filteredTasks, calendarDate]);
 
-  // 10. Create Task Submit (POST /projects/{projectId}/tasks or POST /tasks)
+  // 10. Create Task Submit (POST /projects/{projectId}/tasks)
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
 
@@ -705,7 +983,7 @@ export function TasksPage() {
     } else if (newTask.title.trim().length < 2) {
       errors.title = 'Task title must be at least 2 characters';
     }
-    if (!newTask.projectId && !projectOptions[0]?.value) {
+    if (!newTask.projectId) {
       errors.projectId = 'Please select a project for this task';
     }
 
@@ -716,53 +994,42 @@ export function TasksPage() {
     }
     setTaskFormErrors({});
 
-    const selectedProjId = newTask.projectId || projectOptions[0]?.value;
-    const selectedProj = projectOptions.find((p) => p.value === selectedProjId);
     const cleanPriority = String(newTask.priority || 'MEDIUM').toUpperCase();
-    const created = {
-      id: `task_${Date.now()}`,
-      title: newTask.title.trim(),
-      project: selectedProj?.label || newTask.project || 'General Practice',
-      projectId: selectedProjId,
-      assignee: newTask.assignee || 'Unassigned',
-      assigneeLetter: (newTask.assignee?.[0] || 'U').toUpperCase(),
-      priority: cleanPriority,
-      category: newTask.category || 'Working Drawings',
-      dueDate: newTask.dueDate || null,
-      status: 'TODO',
-      checklist: [],
-      comments: [],
-      loggedHours: 0
-    };
 
-    setTasks((prev) => [created, ...prev]);
-    setCreateModalOpen(false);
-
+    setIsSubmitting(true);
     try {
       await taskService.createTask({
-        title: created.title,
-        projectId: created.projectId,
+        title: newTask.title.trim(),
+        projectId: newTask.projectId,
         priority: cleanPriority,
-        dueDate: created.dueDate,
-        assignees: newTask.assigneeId ? [newTask.assigneeId] : undefined
+        dueDate: newTask.dueDate || undefined,
+        estimatedHours: newTask.estimatedHours || undefined,
+        assignees: newTask.assigneeId ? [newTask.assigneeId] : undefined,
+        description: newTask.description || undefined
       });
-      showToast('Task created and scheduled in backend', 'success');
-      fetchTasks();
-    } catch (err) {
-      console.warn('Task create notice:', err.message);
-      showToast('Task created locally', 'info');
-    }
 
-    setNewTask({
-      title: '',
-      project: '',
-      projectId: '',
-      assignee: '',
-      assigneeId: '',
-      priority: 'MEDIUM',
-      category: 'Working Drawings',
-      dueDate: ''
-    });
+      showToast('Task created and saved to backend', 'success');
+      setCreateModalOpen(false);
+      setNewTask({
+        title: '',
+        project: '',
+        projectId: '',
+        assignee: '',
+        assigneeId: '',
+        priority: 'MEDIUM',
+        category: 'Working Drawings',
+        dueDate: '',
+        estimatedHours: '',
+        description: ''
+      });
+      fetchTasks();
+      fetchTaskSummary();
+    } catch (err) {
+      const errMsg = extractErrorMessage(err) || 'Failed to create task in backend';
+      showToast(errMsg, 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -812,6 +1079,13 @@ export function TasksPage() {
             >
               <Calendar size={14} /> <span>Calendar</span>
             </button>
+            <button
+              type="button"
+              className={`view-btn ${viewMode === 'gantt' ? 'is-active' : ''}`}
+              onClick={() => setViewMode('gantt')}
+            >
+              <GitCommit size={14} /> <span>Gantt</span>
+            </button>
           </div>
 
           <Button size="sm" variant="primary" icon={Plus} onClick={() => setCreateModalOpen(true)}>
@@ -824,12 +1098,12 @@ export function TasksPage() {
       <div className="tasks-tabs-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
         <div className="tasks-tabs-container">
           {[
-            { id: 'all', label: 'Team - Task (All)', count: tasks.length },
-            { id: 'my', label: 'User - Task (My)', count: tasks.filter((t) => (t.assignee || '').includes('Krisha')).length },
-            { id: 'templates', label: 'Templates', count: ARCHITECTURAL_TEMPLATES.length },
-            { id: 'in_progress', label: 'In Progress', count: tasks.filter((t) => t.status === 'In Progress').length },
-            { id: 'today', label: 'Actionable', count: tasks.filter((t) => t.status !== 'Completed').length },
-            { id: 'completed', label: 'Completed', count: tasks.filter((t) => t.status === 'Completed').length },
+            { id: 'all', label: 'Team - Task (All)', count: summaryStats.total || tasks.length },
+            { id: 'my', label: 'User - Task (My)', count: tasks.filter((t) => t.isMyTask).length },
+            { id: 'templates', label: 'Templates' },
+            { id: 'in_progress', label: 'In Progress', count: summaryStats.inProgress || tasks.filter((t) => t.status === 'IN_PROGRESS').length },
+            { id: 'today', label: 'Actionable', count: tasks.filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED').length },
+            { id: 'completed', label: 'Completed', count: summaryStats.completed || tasks.filter((t) => t.status === 'DONE').length },
             { id: 'trash', label: 'Trash', count: trashTasks.length }
           ].map((tab) => (
             <button
@@ -885,70 +1159,15 @@ export function TasksPage() {
         </div>
       </div>
 
-      {/* 2.5 ARCHITECTURAL TEMPLATES VIEW */}
+      {/* 2.5 ARCHITECTURAL MASTER TASK TEMPLATES (Module M2.2) */}
       {activeTab === 'templates' && (
-        <div className="tasks-templates-section">
-          <div className="templates-section-header">
-            <div>
-              <h3 className="templates-section-title">Architectural Master Task Templates</h3>
-              <p className="templates-section-subtitle">
-                Standard practice workflows for design phases, municipal approvals, GFC drawings, and site coordination.
-              </p>
-            </div>
-          </div>
-
-          <div className="tasks-templates-grid">
-            {ARCHITECTURAL_TEMPLATES.map((tmpl) => (
-              <div key={tmpl.id} className="task-template-card">
-                <div className="template-card-header">
-                  <div>
-                    <span className="template-category-tag">{tmpl.category}</span>
-                    <h4 className="template-title">{tmpl.title}</h4>
-                  </div>
-                  <span className="template-duration-badge">
-                    <Clock size={12} /> {tmpl.duration}
-                  </span>
-                </div>
-
-                <div className="template-checklist-wrap">
-                  <span className="template-checklist-title">Checklist Items ({tmpl.checklist.length}):</span>
-                  <ul className="template-checklist">
-                    {tmpl.checklist.map((item, idx) => (
-                      <li key={idx}>
-                        <CheckCircle2 size={13} className="template-check-icon" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="template-card-actions">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={Plus}
-                    onClick={() => {
-                      setNewTask({
-                        title: tmpl.title,
-                        projectId: projectOptions[0]?.value || '',
-                        priority: 'HIGH',
-                        assignee: '',
-                        assigneeId: '',
-                        dueDate: new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
-                        estimatedHours: 8,
-                        description: `Generated from ${tmpl.title} architectural template.`
-                      });
-                      setCreateModalOpen(true);
-                    }}
-                    style={{ width: '100%' }}
-                  >
-                    Apply Template to Project
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <TaskTemplatesView
+          projectOptions={projectOptions}
+          onTemplateApplied={() => {
+            fetchTasks();
+            fetchTaskSummary();
+          }}
+        />
       )}
 
       {/* 3. VIEW 1: DATA TABLE (LIST VIEW) */}
@@ -1013,7 +1232,7 @@ export function TasksPage() {
                     <td className="td-title-cell">
                       <button
                         type="button"
-                        className={`task-check-circle ${t.status === 'Completed' ? 'checked' : ''}`}
+                        className={`task-check-circle ${t.status === 'DONE' ? 'checked' : ''}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           toggleTaskStatus(t);
@@ -1021,7 +1240,7 @@ export function TasksPage() {
                       >
                         <CheckCircle2 size={16} />
                       </button>
-                      <span className={`task-title-text ${t.status === 'Completed' ? 'completed' : ''}`}>
+                      <span className={`task-title-text ${t.status === 'DONE' ? 'completed' : ''}`}>
                         {t.title}
                       </span>
                     </td>
@@ -1045,18 +1264,8 @@ export function TasksPage() {
                       </div>
                     </td>
                     <td>
-                      <Badge
-                        variant={
-                          t.status === 'Completed'
-                            ? 'success'
-                            : t.status === 'In Progress'
-                            ? 'warning'
-                            : t.status === 'Review'
-                            ? 'info'
-                            : 'primary'
-                        }
-                      >
-                        {t.status}
+                      <Badge variant={TASK_STATUS_CONFIG[t.status]?.badge || 'neutral'}>
+                        {TASK_STATUS_CONFIG[t.status]?.label || t.status}
                       </Badge>
                     </td>
                     <td className="td-action" onClick={(e) => e.stopPropagation()}>
@@ -1314,6 +1523,20 @@ export function TasksPage() {
         </div>
       )}
 
+      {/* 5. GANTT / TIMELINE VIEW */}
+      {viewMode === 'gantt' && activeTab !== 'templates' && (
+        <TaskGanttView
+          selectedProjectId={selectedProjectFilter || projectOptions[0]?.value}
+          projectOptions={projectOptions}
+          onSelectProject={(pId) => setSelectedProjectFilter(pId)}
+          onSelectTask={(t) => setSelectedTask(t)}
+          onTaskShifted={() => {
+            fetchTasks();
+            fetchTaskSummary();
+          }}
+        />
+      )}
+
       {/* Bulk Actions Floating Toolbar (POST /tasks/bulk) */}
       {selectedTasks.length > 0 && (
         <div className="tasks-bulk-toolbar">
@@ -1322,7 +1545,7 @@ export function TasksPage() {
             <button
               type="button"
               className="bulk-action-btn"
-              onClick={() => handleBulkAction('status', 'Completed')}
+              onClick={() => handleBulkAction('status', 'DONE')}
             >
               <CheckCircle2 size={13} />
               <span>Mark Completed</span>
@@ -1330,7 +1553,7 @@ export function TasksPage() {
             <button
               type="button"
               className="bulk-action-btn"
-              onClick={() => handleBulkAction('status', 'In Progress')}
+              onClick={() => handleBulkAction('status', 'IN_PROGRESS')}
             >
               <Clock size={13} />
               <span>Mark In Progress</span>
@@ -1343,6 +1566,32 @@ export function TasksPage() {
               <Trash2 size={13} />
               <span>Move to Trash</span>
             </button>
+
+            {assigneeOptions.length > 0 && (
+              <select
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  handleBulkReassign(e.target.value);
+                  e.target.value = '';
+                }}
+                defaultValue=""
+                style={{
+                  height: '32px',
+                  borderRadius: '6px',
+                  border: '1px solid #D1D5DB',
+                  background: '#FFFFFF',
+                  fontSize: '12px',
+                  padding: '0 8px',
+                  color: '#374151',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="" disabled>Reassign All To...</option>
+                {assigneeOptions.map((u) => (
+                  <option key={u.value} value={u.value}>{u.label}</option>
+                ))}
+              </select>
+            )}
             <button
               type="button"
               className="bulk-action-btn"
@@ -1364,245 +1613,377 @@ export function TasksPage() {
       >
         {selectedTask && (
           <div className="task-drawer-content">
-            {/* Status & Priority Row */}
-            <div className="task-drawer-row">
-              <div className="task-drawer-field">
-                <label className="drawer-label">Status (PUT /tasks/{'{id}'}/status)</label>
+            {/* Status & Review Workflow Row */}
+            <div className="task-drawer-row" style={{ marginBottom: '12px' }}>
+              <div className="task-drawer-field" style={{ width: '100%' }}>
+                <label className="drawer-label">Task Status</label>
                 <div className="task-status-btn-group">
-                  {['Pending', 'In Progress', 'Review', 'Completed'].map((s) => (
+                  {[
+                    { id: 'TODO', label: 'To Do' },
+                    { id: 'IN_PROGRESS', label: 'In Progress' },
+                    { id: 'IN_REVIEW', label: 'In Review' },
+                    { id: 'DONE', label: 'Completed' }
+                  ].map((s) => (
                     <button
-                      key={s}
+                      key={s.id}
                       type="button"
-                      className={`status-btn ${selectedTask.status === s ? 'is-active' : ''}`}
-                      onClick={() => handleStatusChange(selectedTask.id, s)}
+                      className={`status-btn ${selectedTask.status === s.id ? 'is-active' : ''}`}
+                      onClick={() => handleStatusChange(selectedTask.id, s.id)}
                     >
-                      {s}
+                      {s.label}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Time Tracking Widget */}
-            <div className="task-time-widget">
-              <div className="time-widget-left">
-                <Timer size={18} className="time-icon" />
-                <div>
-                  <span className="time-title">Time Tracker</span>
-                  <p className="time-sub">
-                    Logged: <strong>{selectedTask.loggedHours || 0} hrs</strong>
-                  </p>
-                </div>
-              </div>
-
-              <div className="time-widget-right">
-                {isTimerRunning ? (
-                  <button type="button" className="timer-btn stop" onClick={handleLogTimer}>
-                    <Square size={13} />
-                    <span>Stop & Log ({Math.floor(timerSeconds / 60)}m {timerSeconds % 60}s)</span>
-                  </button>
-                ) : (
+            {/* Clean Drawer Sub-Navigation Tabs */}
+            <div style={{
+              display: 'flex',
+              gap: '4px',
+              padding: '4px',
+              borderRadius: '8px',
+              background: '#F3F4F6',
+              marginBottom: '16px'
+            }}>
+              {[
+                { id: 'overview', label: 'Overview', icon: FileText },
+                { id: 'time', label: 'Time Tracking', icon: Timer },
+                { id: 'links', label: 'Dependencies', icon: GitCommit },
+                { id: 'activity', label: 'Reviews & Activity', icon: MessageSquare }
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = drawerActiveTab === tab.id;
+                return (
                   <button
+                    key={tab.id}
                     type="button"
-                    className="timer-btn start"
-                    onClick={() => {
-                      setIsTimerRunning(true);
-                      setTimerSeconds(0);
+                    onClick={() => setDrawerActiveTab(tab.id)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                      padding: '7px 6px',
+                      borderRadius: '6px',
+                      border: 'none',
+                      background: isActive ? '#FFFFFF' : 'transparent',
+                      color: isActive ? '#1F2937' : '#6B7280',
+                      fontWeight: isActive ? 600 : 500,
+                      fontSize: '11.5px',
+                      cursor: 'pointer',
+                      boxShadow: isActive ? '0 1px 2px rgba(0,0,0,0.06)' : 'none',
+                      transition: 'all 0.15s ease'
                     }}
                   >
-                    <Play size={13} />
-                    <span>Start Timer</span>
+                    <Icon size={13} style={{ color: isActive ? '#7A6A58' : 'inherit' }} />
+                    <span>{tab.label}</span>
                   </button>
-                )}
-              </div>
+                );
+              })}
             </div>
 
-            {/* Subtask Checklist (POST / PATCH / DELETE /tasks/{id}/checklist) */}
-            <div className="task-checklist-section">
-              <div className="checklist-header">
-                <h4 className="checklist-heading">Subtask Checklist</h4>
-                <span className="checklist-stat">
-                  {(selectedTask.checklist || []).filter((c) => c.done).length}/
-                  {(selectedTask.checklist || []).length} Completed
-                </span>
-              </div>
+            {/* TAB 1: OVERVIEW & SUBTASKS */}
+            {drawerActiveTab === 'overview' && (
+              <div>
+                {/* Reassign Member Row */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: '8px',
+                  background: '#F9FAFB',
+                  border: '1px solid #E5E7EB',
+                  marginBottom: '14px',
+                  fontSize: '12.5px'
+                }}>
+                  <span style={{ fontWeight: 600, color: '#4B5563', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <UserCheck size={15} /> Assignee:
+                  </span>
+                  <select
+                    value={selectedTask.assigneeId || ''}
+                    onChange={(e) => handleReassignTask(e.target.value)}
+                    style={{
+                      padding: '5px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid #D1D5DB',
+                      background: '#FFFFFF',
+                      fontSize: '12px',
+                      maxWidth: '220px'
+                    }}
+                  >
+                    <option value="">Unassigned</option>
+                    {assigneeOptions.map((u) => (
+                      <option key={u.value} value={u.value}>{u.label}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="checklist-items-list">
-                {(selectedTask.checklist || []).map((item) => (
-                  <div key={item.id} className={`checklist-item-row ${item.done ? 'is-done' : ''}`}>
-                    <div className="checklist-left" onClick={() => handleToggleChecklistItem(item.id)}>
-                      <button type="button" className="check-box-btn">
-                        {item.done ? <CheckSquare size={16} /> : <Square size={16} />}
+                {/* Subtask Checklist */}
+                <div className="task-checklist-section" style={{ marginTop: '0', paddingTop: '0', borderTop: 'none' }}>
+                  <div className="checklist-header">
+                    <h4 className="checklist-heading">Subtask Checklist</h4>
+                    <span className="checklist-stat">
+                      {(selectedTask.checklist || []).filter((c) => c.done).length}/
+                      {(selectedTask.checklist || []).length} Completed
+                    </span>
+                  </div>
+
+                  <div className="checklist-items-list">
+                    {(selectedTask.checklist || []).map((item) => (
+                      <div key={item.id} className={`checklist-item-row ${item.done ? 'is-done' : ''}`}>
+                        <div className="checklist-left" onClick={() => handleToggleChecklistItem(item.id)}>
+                          <button type="button" className="check-box-btn">
+                            {item.done ? <CheckSquare size={16} /> : <Square size={16} />}
+                          </button>
+                          <span className="checklist-text">{item.text}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="checklist-delete-btn"
+                          title="Delete subtask"
+                          onClick={() => handleDeleteChecklistItem(item.id)}
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleAddChecklistItem} className="add-checklist-form">
+                    <input
+                      type="text"
+                      placeholder="Add a subtask item..."
+                      value={newChecklistText}
+                      onChange={(e) => setNewChecklistText(e.target.value)}
+                      className="add-subtask-input"
+                    />
+                    <Button size="sm" type="submit" variant="secondary" disabled={!newChecklistText.trim()}>
+                      Add
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: TIME TRACKING */}
+            {drawerActiveTab === 'time' && (
+              <div>
+                <div className="task-time-widget">
+                  <div className="time-widget-left">
+                    <Timer size={18} className="time-icon" />
+                    <div>
+                      <span className="time-title">Live Stopwatch Timer</span>
+                      <p className="time-sub">
+                        Total Logged: <strong>{selectedTask.loggedHours || 0} hrs</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="time-widget-right">
+                    {isTimerRunning ? (
+                      <button type="button" className="timer-btn stop" onClick={handleStopTimer}>
+                        <Square size={13} />
+                        <span>Stop & Book ({Math.floor(timerSeconds / 60)}m {timerSeconds % 60}s)</span>
                       </button>
-                      <span className="checklist-text">{item.text}</span>
+                    ) : (
+                      <button
+                        type="button"
+                        className="timer-btn start"
+                        onClick={handleStartTimer}
+                      >
+                        <Play size={13} />
+                        <span>Start Timer</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <TaskTimeLogsWidget
+                  taskId={selectedTask.id}
+                  onTimeLogged={fetchTasks}
+                  showToast={showToast}
+                />
+              </div>
+            )}
+
+            {/* TAB 3: DEPENDENCIES & REMINDERS */}
+            {drawerActiveTab === 'links' && (
+              <div>
+                <TaskDependenciesWidget
+                  taskId={selectedTask.id}
+                  otherTasks={tasks}
+                  showToast={showToast}
+                />
+                <TaskRemindersWidget
+                  taskId={selectedTask.id}
+                  showToast={showToast}
+                />
+              </div>
+            )}
+
+            {/* TAB 4: REVIEWS & ACTIVITY */}
+            {drawerActiveTab === 'activity' && (
+              <div>
+                {/* QA Gate / Review Workflow Actions */}
+                {selectedTask.status === 'IN_REVIEW' && (
+                  <div style={{
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: '#FEF3C7',
+                    border: '1px solid #FDE68A',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    marginBottom: '14px'
+                  }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: '#92400E', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <UserCheck size={16} /> Work Review Required
                     </div>
-                    <button
-                      type="button"
-                      className="checklist-delete-btn"
-                      title="Delete subtask"
-                      onClick={() => handleDeleteChecklistItem(item.id)}
+                    <div style={{ fontSize: '12px', color: '#B45309' }}>
+                      This task is pending sign-off. Please review work deliverables before completing.
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        icon={CheckCircle2}
+                        onClick={handleApproveReview}
+                        style={{ flex: 1, justifyContent: 'center' }}
+                      >
+                        Approve Work
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleRejectReview}
+                        style={{ flex: 1, justifyContent: 'center', color: '#DC2626' }}
+                      >
+                        Request Changes
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {selectedTask.status === 'IN_PROGRESS' && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Send}
+                      onClick={handleSubmitForReview}
+                      style={{ width: '100%', justifyContent: 'center' }}
                     >
-                      <Trash2 size={13} />
-                    </button>
+                      Submit for Lead Review
+                    </Button>
                   </div>
-                ))}
-              </div>
+                )}
 
-              <form onSubmit={handleAddChecklistItem} className="add-checklist-form">
-                <input
-                  type="text"
-                  placeholder="Add a subtask item..."
-                  value={newChecklistText}
-                  onChange={(e) => setNewChecklistText(e.target.value)}
-                  className="add-subtask-input"
+                <TaskReviewHistoryWidget
+                  taskId={selectedTask.id}
                 />
-                <Button size="sm" type="submit" variant="secondary" disabled={!newChecklistText.trim()}>
-                  Add
-                </Button>
-              </form>
-            </div>
 
-            {/* Discussion & Comments */}
-            <div className="task-comments-section">
-              <h4 className="comments-heading">Discussion & Activity</h4>
+                <div className="task-comments-section">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                    <h4 className="comments-heading" style={{ margin: 0 }}>Discussion & Task Chat</h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary, #888)' }}>
+                      {taskMessages.length} {taskMessages.length === 1 ? 'message' : 'messages'}
+                    </span>
+                  </div>
 
-              <div className="comments-list">
-                {(selectedTask.comments || []).map((c, idx) => (
-                  <div key={idx} className="comment-card">
-                    <div className="comment-top">
-                      <strong className="comment-author">{c.author}</strong>
-                      <span className="comment-time">{c.time}</span>
+                  {isLoadingMessages ? (
+                    <div style={{ padding: '1rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                      Loading discussion...
                     </div>
-                    <p className="comment-text">{c.text}</p>
-                  </div>
-                ))}
-              </div>
+                  ) : taskMessages.length === 0 ? (
+                    <div style={{ padding: '1.25rem', textAlign: 'center', background: 'var(--bg-subtle, rgba(255,255,255,0.02))', borderRadius: '8px', border: '1px dashed var(--border-subtle, rgba(255,255,255,0.08))', marginBottom: '1rem' }}>
+                      <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        No messages yet in this task thread.
+                      </p>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        Type a note below to start the live discussion with assigned members.
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="comments-list">
+                      {taskMessages.map((c, idx) => {
+                        const msgId = c.id || c._id || `msg_${idx}`;
+                        const author = c.authorName || c.senderName || c.author?.name || c.user?.name || c.author || 'Team Member';
+                        const time = c.createdAt ? new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' }) : (c.time || 'Recently');
+                        const isDeleted = c.isDeleted || c.deleted;
+                        const isOwn = (c.authorId && c.authorId === user?.id) || (c.senderId && c.senderId === user?.id) || author === user?.name;
 
-              <form onSubmit={handleAddComment} className="add-comment-form">
-                <textarea
-                  placeholder="Leave a comment or markup note..."
-                  value={newCommentText}
-                  onChange={(e) => setNewCommentText(e.target.value)}
-                  className="comment-textarea"
-                  rows={2}
-                />
-                <Button size="sm" type="submit" variant="primary" icon={Send} disabled={!newCommentText.trim()}>
-                  Post
-                </Button>
-              </form>
-            </div>
+                        return (
+                          <div key={msgId} className="comment-card" style={{ opacity: isDeleted ? 0.6 : 1, position: 'relative' }}>
+                            <div className="comment-top" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <strong className="comment-author">{author}</strong>
+                                <span className="comment-time" style={{ marginLeft: '0.5rem' }}>{time}</span>
+                              </div>
+                              {isOwn && !isDeleted && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteComment(msgId)}
+                                  title="Delete message"
+                                  style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px 4px' }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                            <p className="comment-text" style={{ fontStyle: isDeleted ? 'italic' : 'normal', margin: '0.35rem 0 0' }}>
+                              {isDeleted ? 'This message was deleted' : (c.content || c.text)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <form onSubmit={handleAddComment} className="add-comment-form">
+                    <textarea
+                      placeholder="Write a message to task assignees... (Enter to send)"
+                      value={newCommentText}
+                      onChange={(e) => setNewCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleAddComment(e);
+                        }
+                      }}
+                      className="comment-textarea"
+                      rows={2}
+                      disabled={isSendingMessage}
+                    />
+                    <Button
+                      size="sm"
+                      type="submit"
+                      variant="primary"
+                      icon={Send}
+                      disabled={!newCommentText.trim() || isSendingMessage}
+                    >
+                      {isSendingMessage ? 'Sending...' : 'Send'}
+                    </Button>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </Drawer>
 
       {/* 7. Modal: Create New Task (POST /projects/{projectId}/tasks or POST /tasks) */}
-      <Modal
+      <TaskModal
         isOpen={createModalOpen}
-        onClose={() => {
-          setCreateModalOpen(false);
-          setTaskFormErrors({});
+        onClose={() => setCreateModalOpen(false)}
+        onSaved={() => {
+          fetchTasks();
+          fetchTaskSummary();
         }}
-        title="Create Architectural Task"
-        maxWidth="640px"
-      >
-        <form onSubmit={handleCreateSubmit} noValidate>
-          <div className="form-grid-2">
-            <Input
-              label="Task Title"
-              id="task-title-input"
-              placeholder="e.g. Ground floor electrical layout"
-              value={newTask.title}
-              onChange={(e) => {
-                setNewTask({ ...newTask, title: e.target.value });
-                if (taskFormErrors.title) setTaskFormErrors((prev) => ({ ...prev, title: '' }));
-              }}
-              error={taskFormErrors.title}
-              required
-            />
-
-            <Select
-              label="Project"
-              id="task-proj-select"
-              value={newTask.projectId}
-              onChange={(e) => {
-                setNewTask({ ...newTask, projectId: e.target.value });
-                if (taskFormErrors.projectId) setTaskFormErrors((prev) => ({ ...prev, projectId: '' }));
-              }}
-              placeholder="Select project..."
-              options={projectOptions}
-              error={taskFormErrors.projectId}
-              required
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Select
-              label="Priority"
-              id="task-prio-select"
-              value={newTask.priority || 'MEDIUM'}
-              onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
-              options={[
-                { value: 'LOW', label: 'Low' },
-                { value: 'MEDIUM', label: 'Medium' },
-                { value: 'HIGH', label: 'High' },
-                { value: 'URGENT', label: 'Urgent' }
-              ]}
-              required
-            />
-
-            <Select
-              label="Assignee"
-              id="task-assignee-select"
-              value={newTask.assigneeId || newTask.assignee}
-              onChange={(e) => {
-                const selected = assigneeOptions.find((a) => a.value === e.target.value);
-                setNewTask({
-                  ...newTask,
-                  assigneeId: e.target.value,
-                  assignee: selected ? selected.label : e.target.value
-                });
-              }}
-              placeholder="Assign team member..."
-              options={assigneeOptions}
-            />
-          </div>
-
-          <div className="form-grid-2">
-            <Input
-              label="Due Date"
-              id="task-due-date"
-              type="date"
-              value={newTask.dueDate ? newTask.dueDate.slice(0, 10) : ''}
-              onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
-            />
-
-            <Input
-              label="Estimated Time (Hours)"
-              id="task-estimated-hours"
-              type="number"
-              placeholder="e.g. 4"
-              value={newTask.estimatedHours || ''}
-              onChange={(e) => setNewTask({ ...newTask, estimatedHours: e.target.value })}
-            />
-          </div>
-
-          <div className="form-actions-row">
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setCreateModalOpen(false);
-                setTaskFormErrors({});
-              }}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary">
-              Create Task
-            </Button>
-          </div>
-        </form>
-      </Modal>
+        defaultProjectId={selectedProjectFilter || ''}
+      />
     </div>
   );
 }
