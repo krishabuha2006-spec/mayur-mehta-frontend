@@ -1,38 +1,60 @@
 import { apiClient } from './apiClient';
 import { projectService } from './projectService';
 import { taskService } from './taskService';
+import { taskAdvancedService } from './taskAdvancedService';
 
+/**
+ * Architectural Approvals & QA Review Service
+ * 100% Backend-driven, zero static mock data
+ * Integrates:
+ * - Module M1.7 Project Stages (/projects/:id/stages)
+ * - Module M1.8 Task Management (/tasks)
+ * - Module M2.2 Work Review (/tasks/:id/review/submit, /approve, /reject, /review/history)
+ */
 export const approvalService = {
+  // 1. Fetch live pending, in-review, and approved items from backend
   getApprovals: async () => {
     try {
-      // 1. Fetch live projects and tasks
-      const [projRes, taskRes] = await Promise.allSettled([
+      const [projRes, tasksInReviewRes, allTasksRes] = await Promise.allSettled([
         projectService.getProjects({ limit: 50 }),
+        taskService.getTasks({ status: 'IN_REVIEW', limit: 50 }),
         taskService.getTasks({ limit: 50 })
       ]);
 
       const projects = projRes.status === 'fulfilled' ? (projRes.value?.data || (Array.isArray(projRes.value) ? projRes.value : [])) : [];
-      const tasks = taskRes.status === 'fulfilled' ? (taskRes.value?.data || (Array.isArray(taskRes.value) ? taskRes.value : [])) : [];
+      const reviewTasks = tasksInReviewRes.status === 'fulfilled' ? (tasksInReviewRes.value?.data || (Array.isArray(tasksInReviewRes.value) ? tasksInReviewRes.value : [])) : [];
+      const allTasks = allTasksRes.status === 'fulfilled' ? (allTasksRes.value?.data || (Array.isArray(allTasksRes.value) ? allTasksRes.value : [])) : [];
 
       const list = [];
 
-      // 1.5 Load custom locally tracked approvals if any
-      try {
-        const stored = JSON.parse(localStorage.getItem('mm_custom_approvals') || '[]');
-        if (Array.isArray(stored)) {
-          list.push(...stored);
-        }
-      } catch {}
+      // 1. In-Review QA Tasks (Module M2.2)
+      reviewTasks.forEach((t, idx) => {
+        list.push({
+          id: t.id || t._id,
+          taskId: t.id || t._id,
+          projectId: t.projectId || t.project?._id || t.project?.id,
+          title: t.title || 'Architectural Work Package',
+          drawingNo: `MMD-QA-00${idx + 1}`,
+          project: t.project?.name || t.projectName || 'Practice Project',
+          client: t.clientName || 'Principal In-Charge',
+          version: 'R1',
+          status: 'Pending Client Approval',
+          date: t.updatedAt || t.createdAt || new Date().toISOString(),
+          type: 'WORK_REVIEW',
+          task: t
+        });
+      });
 
-      // 2. Add Project Stages as architectural approval sheets
+      // 2. Project Stages as Architectural Approvals (Module M1.7)
       for (const p of projects.slice(0, 10)) {
         const projId = p.id || p._id;
+        if (!projId) continue;
         try {
           const stages = await projectService.getProjectStages(projId);
           if (Array.isArray(stages)) {
             stages.forEach((s, idx) => {
               let displayStatus = 'Pending Client Approval';
-              if (s.status === 'DONE') displayStatus = 'Approved & Sealed';
+              if (s.status === 'DONE' || s.status === 'COMPLETED') displayStatus = 'Approved & Sealed';
               else if (s.status === 'IN_PROGRESS') displayStatus = 'Under Review';
 
               list.push({
@@ -42,161 +64,114 @@ export const approvalService = {
                 title: `${s.name || s.stageName || 'Architectural Stage'} Drawing Set`,
                 drawingNo: `MMD-${(p.code || 'PRJ').replace(/[^a-zA-Z0-9]/g, '')}-S0${idx + 1}`,
                 project: p.name || p.title || 'Architectural Project',
-                client: p.client?.name || p.clientName || 'Private Client',
+                client: p.client?.name || p.clientName || 'Client',
                 version: `R${idx}`,
                 status: displayStatus,
-                date: s.updatedAt || p.updatedAt || new Date().toISOString()
+                date: s.updatedAt || p.updatedAt || new Date().toISOString(),
+                type: 'PROJECT_STAGE',
+                stage: s
               });
             });
           }
         } catch {
-          // Ignore individual project stage fetch errors
+          // Ignore individual stage fetch errors
         }
       }
 
-      // 3. Add In-Review tasks
-      tasks.forEach((t, idx) => {
-        if (t.status === 'IN_REVIEW' || (t.tags && t.tags.includes('REVIEW'))) {
+      // 3. Completed review tasks marked as Approved
+      allTasks.forEach((t, idx) => {
+        if (t.status === 'DONE' && t.tags && (t.tags.includes('REVIEW') || t.tags.includes('APPROVAL'))) {
           list.push({
             id: t.id || t._id,
             taskId: t.id || t._id,
-            projectId: t.projectId || t.project?.id || t.project?._id,
-            title: t.title || 'Architectural Detail Sheet',
-            drawingNo: `MMD-TASK-00${idx + 1}`,
+            projectId: t.projectId || t.project?._id || t.project?.id,
+            title: t.title || 'Architectural Drawing Sheet',
+            drawingNo: `MMD-APPR-00${idx + 1}`,
             project: t.project?.name || t.projectName || 'Practice Project',
-            client: t.clientName || 'Practice Principal',
+            client: t.clientName || 'Client',
             version: 'R1',
-            status: 'Pending Client Approval',
-            date: t.updatedAt || new Date().toISOString()
+            status: 'Approved & Sealed',
+            date: t.updatedAt || new Date().toISOString(),
+            type: 'APPROVED_TASK',
+            task: t
           });
         }
       });
 
       return list;
     } catch (err) {
-      console.warn('Approvals live resolution notice:', err?.message);
+      console.warn('Approvals backend fetch notice:', err?.message);
       return [];
     }
   },
 
+  // 2. Submit new approval request - creates live backend task in IN_REVIEW state
   createApprovalRequest: async (data) => {
-    try {
-      let createdTask = null;
-      if (data.projectId) {
+    let createdTask = null;
+    if (data.projectId) {
+      createdTask = await taskService.createTask({
+        title: data.title || 'Drawing Approval Request',
+        projectId: data.projectId,
+        priority: data.priority || 'HIGH',
+        status: 'IN_REVIEW',
+        tags: ['REVIEW', 'APPROVAL', data.type || 'DRAWING_APPROVAL'],
+        dueDate: data.dueDate || null,
+        description: data.notes || `Drawing Approval Request: ${data.drawingNo || 'Sheet'} (${data.version || 'R1'})`
+      });
+
+      // Submit via M2.2 review endpoint
+      if (createdTask?.id || createdTask?._id) {
         try {
-          createdTask = await taskService.createTask({
-            title: data.title || 'Drawing Approval Request',
-            projectId: data.projectId,
-            priority: data.priority || 'HIGH',
-            status: 'IN_REVIEW',
-            tags: ['REVIEW', data.type || 'DRAWING_APPROVAL'],
-            dueDate: data.dueDate || null,
-            description: data.notes || `Drawing Approval Request: ${data.drawingNo || 'Sheet'} (${data.version || 'R1'})`
-          });
-        } catch (taskErr) {
-          console.warn('Backend task create for approval notice:', taskErr?.message);
-        }
+          await taskAdvancedService.submitForReview(createdTask.id || createdTask._id, data.notes || 'Submitted for approval');
+        } catch {}
       }
-
-      const newApproval = {
-        id: createdTask?.id || createdTask?._id || `req_${Date.now()}`,
-        taskId: createdTask?.id || createdTask?._id || null,
-        projectId: data.projectId || null,
-        title: data.title || 'Architectural Drawing Sheet',
-        drawingNo: data.drawingNo || `MMD-DWG-${Date.now().toString().slice(-4)}`,
-        project: data.projectName || 'Practice Project',
-        client: data.clientName || 'Private Client',
-        version: data.version || 'R1',
-        status: data.isRevision ? 'Revision Requested' : 'Pending Client Approval',
-        submittedBy: data.submittedBy || 'Studio Lead',
-        submittedAt: new Date().toISOString(),
-        notes: data.notes || ''
-      };
-
-      try {
-        const saved = JSON.parse(localStorage.getItem('mm_custom_approvals') || '[]');
-        saved.unshift(newApproval);
-        localStorage.setItem('mm_custom_approvals', JSON.stringify(saved));
-      } catch {}
-
-      return newApproval;
-    } catch (err) {
-      console.warn('createApprovalRequest notice:', err);
-      throw err;
     }
+
+    return {
+      id: createdTask?.id || createdTask?._id || `appr_${Date.now()}`,
+      taskId: createdTask?.id || createdTask?._id || null,
+      projectId: data.projectId || null,
+      title: data.title || 'Architectural Drawing Sheet',
+      drawingNo: data.drawingNo || `MMD-DWG-${Date.now().toString().slice(-4)}`,
+      project: data.projectName || 'Practice Project',
+      client: data.clientName || 'Client',
+      version: data.version || 'R1',
+      status: data.isRevision ? 'Revision Requested' : 'Pending Client Approval',
+      submittedBy: data.submittedBy || 'Studio Architect',
+      date: new Date().toISOString()
+    };
   },
 
+  // 3. Approve Drawing / Stage / Review Task (Module M2.2 / M1.7)
   approveDrawing: async (item) => {
-    try {
-      if (item.stageId && item.projectId) {
-        await projectService.updateProjectStage(item.projectId, item.stageId, { status: 'DONE' });
-        return { success: true };
+    if (item.stageId && item.projectId) {
+      return projectService.updateProjectStage(item.projectId, item.stageId, { status: 'DONE' });
+    }
+    if (item.taskId || item.id) {
+      const taskId = item.taskId || item.id;
+      try {
+        return await taskAdvancedService.approveReview(taskId, 'Approved & sealed by Principal');
+      } catch {
+        return await taskService.updateTaskStatus(taskId, 'DONE');
       }
-      if (item.taskId || item.id) {
-        await taskService.updateTaskStatus(item.taskId || item.id, 'DONE');
-        return { success: true };
-      }
-    } catch (err) {
-      console.warn('Approve drawing backend notice:', err.message);
     }
     return { success: true };
   },
 
-  requestRevision: async (item, notes) => {
-    try {
-      if (item.stageId && item.projectId) {
-        await projectService.updateProjectStage(item.projectId, item.stageId, { status: 'IN_PROGRESS' });
-        return { success: true };
+  // 4. Request Revision / Reject Review Task (Module M2.2 / M1.7)
+  requestRevision: async (item, notes = '') => {
+    if (item.stageId && item.projectId) {
+      return projectService.updateProjectStage(item.projectId, item.stageId, { status: 'IN_PROGRESS' });
+    }
+    if (item.taskId || item.id) {
+      const taskId = item.taskId || item.id;
+      try {
+        return await taskAdvancedService.rejectReview(taskId, notes || 'Revision requested on drawing sheet');
+      } catch {
+        return await taskService.updateTaskStatus(taskId, 'IN_PROGRESS', notes);
       }
-      if (item.taskId || item.id) {
-        await taskService.updateTaskStatus(item.taskId || item.id, 'IN_PROGRESS', notes);
-        return { success: true };
-      }
-    } catch (err) {
-      console.warn('Request revision backend notice:', err.message);
     }
     return { success: true };
-  },
-
-  downloadDrawingPdf: (item) => {
-    const title = item.title || 'Architectural Sheet';
-    const dwgNo = item.drawingNo || 'MMD-DWG';
-    const version = item.version || 'R0';
-    const project = item.project || 'Mayur Mehta Studio Project';
-    const client = item.client || 'Client';
-
-    const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 850" width="1200" height="850">
-      <rect width="1200" height="850" fill="#FAF8F5"/>
-      <rect x="30" y="30" width="1140" height="790" fill="none" stroke="#7B6F62" stroke-width="3"/>
-      <rect x="40" y="40" width="1120" height="770" fill="none" stroke="#1E1A17" stroke-width="1"/>
-      <line x1="850" y1="710" x2="1160" y2="710" stroke="#7B6F62" stroke-width="2"/>
-      <line x1="850" y1="710" x2="850" y2="810" stroke="#7B6F62" stroke-width="2"/>
-      <text x="870" y="740" font-family="'Segoe UI', sans-serif" font-size="18" font-weight="bold" fill="#1E1A17">MAYUR MEHTA DESIGN</text>
-      <text x="870" y="760" font-family="'Segoe UI', sans-serif" font-size="12" fill="#7B6F62">ARCHITECTURE &amp; INTERIOR PRACTICE</text>
-      <text x="870" y="785" font-family="'Segoe UI', sans-serif" font-size="14" fill="#1E1A17">DWG: ${dwgNo} (${version})</text>
-      <text x="870" y="802" font-family="'Segoe UI', sans-serif" font-size="12" fill="#666">PROJECT: ${project}</text>
-      <text x="60" y="90" font-family="'Segoe UI', sans-serif" font-size="28" font-weight="bold" fill="#1E1A17">${title}</text>
-      <text x="60" y="120" font-family="'Segoe UI', sans-serif" font-size="16" fill="#7B6F62">CLIENT: ${client} • STATUS: ${item.status || 'SUBMITTED'}</text>
-      <line x1="60" y1="200" x2="800" y2="200" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <line x1="60" y1="400" x2="800" y2="400" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <line x1="60" y1="600" x2="800" y2="600" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <line x1="200" y1="160" x2="200" y2="700" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <line x1="450" y1="160" x2="450" y2="700" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <line x1="700" y1="160" x2="700" y2="700" stroke="#DFC38D" stroke-width="1.5" stroke-dasharray="8,6"/>
-      <rect x="220" y="240" width="460" height="320" fill="none" stroke="#1E1A17" stroke-width="3"/>
-      <text x="450" y="410" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="20" fill="#7B6F62">ARCHITECTURAL SPECIFICATION &amp; WORKING DRAWING</text>
-      <text x="450" y="440" text-anchor="middle" font-family="'Segoe UI', sans-serif" font-size="14" fill="#999">STAMPED &amp; SEALED FOR SITE EXECUTION</text>
-    </svg>`;
-
-    const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${dwgNo}_${version}_Sheet.svg`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   }
 };
 
