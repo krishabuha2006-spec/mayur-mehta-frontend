@@ -17,6 +17,7 @@ import { LogsPage } from './pages/logs/LogsPage';
 import { LibraryPage } from './pages/library/LibraryPage';
 import { StoragePage } from './pages/storage/StoragePage';
 import { DirectoryPage } from './pages/directory/DirectoryPage';
+import { ChatPage } from './pages/chat/ChatPage';
 import { TeamPage } from './pages/team/TeamPage';
 import { BillingPage } from './pages/billing/BillingPage';
 import { ReportsPage } from './pages/reports/ReportsPage';
@@ -82,6 +83,7 @@ export function AppRoutes() {
         <Route path={ROUTES.LIBRARY} element={<LibraryPage />} />
         <Route path={ROUTES.STORAGE} element={<StoragePage />} />
         <Route path={ROUTES.DIRECTORY} element={<DirectoryPage />} />
+        <Route path={ROUTES.CHAT} element={<ChatPage />} />
         <Route path={ROUTES.TEAM} element={<TeamPage />} />
         <Route path={ROUTES.BILLING} element={<BillingPage />} />
         <Route path={ROUTES.REPORTS} element={<ReportsPage />} />

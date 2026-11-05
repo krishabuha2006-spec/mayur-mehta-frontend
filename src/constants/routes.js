@@ -10,6 +10,7 @@ export const ROUTES = {
   LIBRARY: '/library',
   STORAGE: '/storage',
   DIRECTORY: '/directory',
+  CHAT: '/chat',
   TEAM: '/team',
   BILLING: '/billing',
   REPORTS: '/reports',

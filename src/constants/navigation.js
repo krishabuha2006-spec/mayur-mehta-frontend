@@ -80,11 +80,19 @@ export const APP_NAVIGATION = [
     permission: null
   },
   {
+    id: 'nav-chat',
+    label: 'Studio Chat',
+    iconKey: 'MessageSquare',
+    route: ROUTES.CHAT,
+    order: 9,
+    permission: null
+  },
+  {
     id: 'nav-9',
     label: 'Team',
     iconKey: 'Users',
     route: ROUTES.TEAM,
-    order: 9,
+    order: 10,
     permission: null
   },
   {

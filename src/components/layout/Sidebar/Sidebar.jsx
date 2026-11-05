@@ -13,6 +13,7 @@ import {
   CreditCard,
   TrendingUp,
   Settings2,
+  MessageSquare,
   ChevronDown,
   X,
   HelpCircle,
@@ -45,6 +46,7 @@ const ICON_MAP = {
   CreditCard,
   TrendingUp,
   Settings2,
+  MessageSquare,
 
   // Fallbacks & Aliases
   LayoutDashboard: LayoutGrid,

@@ -36,14 +36,12 @@ export function ChatDropdown() {
   }, []);
 
   const handleThreadClick = (t) => {
-    if (t.scopeType === 'task' || t.taskId) {
-      const id = t.scopeId || t.taskId;
-      navigate(`/tasks?tab=all&taskId=${id}`);
-    } else if (t.scopeType === 'project' || t.projectId) {
-      const id = t.scopeId || t.projectId;
-      navigate(`/projects?view=list&projectId=${id}`);
+    const scopeType = t.scopeType || (t.taskId ? 'task' : 'project');
+    const scopeId = t.scopeId || t.taskId || t.projectId;
+    if (scopeType && scopeId) {
+      navigate(`/chat?scopeType=${scopeType}&scopeId=${scopeId}`);
     } else {
-      navigate('/tasks');
+      navigate('/chat');
     }
   };
 
@@ -97,7 +95,7 @@ export function ChatDropdown() {
             type="button"
             className="chat-footer-link highlight"
             style={{ fontSize: '11.5px' }}
-            onClick={() => navigate('/tasks')}
+            onClick={() => navigate('/chat')}
           >
             Open Tasks &rarr;
           </button>
@@ -184,7 +182,7 @@ export function ChatDropdown() {
           <button
             type="button"
             className="chat-footer-link"
-            onClick={() => navigate('/tasks')}
+            onClick={() => navigate('/chat')}
           >
             Go to Task Board
           </button>
