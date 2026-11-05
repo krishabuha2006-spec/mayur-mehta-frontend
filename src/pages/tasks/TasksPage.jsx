@@ -1240,9 +1240,12 @@ export function TasksPage() {
                       >
                         <CheckCircle2 size={16} />
                       </button>
-                      <span className={`task-title-text ${t.status === 'DONE' ? 'completed' : ''}`}>
-                        {t.title}
-                      </span>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="card-code-pill">{t.code || `TSK-${String(t.taskNumber || idx + 1).padStart(4, '0')}`}</span>
+                        <span className={`task-title-text ${t.status === 'DONE' ? 'completed' : ''}`}>
+                          {t.title}
+                        </span>
+                      </div>
                     </td>
                     <td className="td-project">{t.project}</td>
                     <td>
@@ -1349,6 +1352,7 @@ export function TasksPage() {
                         style={{ cursor: 'grab' }}
                       >
                         <div className="task-card-top">
+                          <span className="card-code-pill">{t.code || `TSK-${String(t.taskNumber || 1).padStart(4, '0')}`}</span>
                           <span className={`priority-badge priority-${t.priority.toLowerCase()}`}>
                             {t.priority}
                           </span>

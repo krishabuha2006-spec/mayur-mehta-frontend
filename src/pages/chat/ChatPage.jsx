@@ -487,7 +487,10 @@ export function ChatPage() {
 
                   <div className="thread-content-col">
                     <div className="thread-title-row">
-                      <span className="thread-title">{title}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, flex: 1 }}>
+                        {c.code && <span className="card-code-pill" style={{ fontSize: '10px', padding: '1px 5px' }}>{c.code}</span>}
+                        <span className="thread-title">{title}</span>
+                      </div>
                       {c.time && <span className="thread-time">{formatMessageTime(c.time)}</span>}
                     </div>
 
@@ -524,7 +527,7 @@ export function ChatPage() {
                     </Badge>
                   </div>
                   <span className="chat-header-meta">
-                    Live channel connected to {activeThread.scopeType} • ID: {String(activeThread.scopeId).slice(-6)}
+                    Live studio collaboration channel • {activeThread.scopeType === 'project' ? 'Project Space' : 'Task Space'}
                   </span>
                 </div>
               </div>

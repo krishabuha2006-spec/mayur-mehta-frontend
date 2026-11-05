@@ -1701,7 +1701,10 @@ export function ProjectsPage() {
                       onClick={() => handleOpenViewModal(proj)}
                       title={`${proj.name} (${proj.projectCode || proj.code || 'PRJ'})`}
                     >
-                      <strong className="proj-name-link">{proj.name}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="card-code-pill">{proj.projectCode || proj.code || 'PRJ-0001'}</span>
+                        <strong className="proj-name-link">{proj.name}</strong>
+                      </div>
                     </td>
                     <td title={locationDisplay ? `${proj.client?.name || 'Client'} • ${locationDisplay}` : (proj.client?.name || 'Client')}>
                       <span className="client-name">{proj.client?.name || 'Private Client'}</span>

@@ -746,7 +746,7 @@ export function LibraryPage() {
                 style={{ cursor: 'pointer' }}
               >
                 <div className="board-card-header">
-                  <span className="board-code">{b.code || 'BRD'}</span>
+                  <span className="card-code-pill">{b.code || 'BRD-0001'}</span>
                   <Badge variant={b.status === 'ACTIVE' ? 'success' : 'neutral'}>{b.status || 'ACTIVE'}</Badge>
                 </div>
                 <h3 className="board-title">{b.name}</h3>
@@ -817,7 +817,10 @@ export function LibraryPage() {
                       <Badge variant={item.status === 'ACTIVE' ? 'success' : 'neutral'}>{item.status}</Badge>
                     </div>
 
-                    <h3 className="material-name">{item.title}</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span className="card-code-pill">{code}</span>
+                      <h3 className="material-name" style={{ margin: 0 }}>{item.title}</h3>
+                    </div>
                     {item.description && <p className="material-desc-excerpt">{item.description}</p>}
 
                     {/* Specs section based on kind */}

@@ -947,7 +947,7 @@ export function BillingPage() {
                       <tr key={inv._id || inv.id}>
                         <td className="inv-number-cell">
                           <FileText size={15} className="inv-icon" />
-                          <span className="mono-val font-semibold">{inv.invoiceNumber || 'INV-DRAFT'}</span>
+                          <span className="card-code-pill">{inv.invoiceNumber || 'INV-2026-0001'}</span>
                         </td>
                         <td>
                           {inv.issuedAt
@@ -1101,7 +1101,11 @@ export function BillingPage() {
                           <strong className="text-success font-semibold">{formatPaise(pmt.amountPaise)}</strong>
                         </td>
                         <td>
-                          <span className="mono-val">{pmt.invoiceNumber || pmt.invoiceId || '—'}</span>
+                          {pmt.invoiceNumber ? (
+                            <span className="card-code-pill">{pmt.invoiceNumber}</span>
+                          ) : (
+                            <span className="mono-val">—</span>
+                          )}
                         </td>
                         <td>
                           <span className="payment-verified-badge">
