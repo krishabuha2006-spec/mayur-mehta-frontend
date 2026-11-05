@@ -19,11 +19,45 @@ import { apiClient } from './apiClient';
 export const billingService = {
   /**
    * Get Current Company Subscription & Billing Summary
-   * Fetches live company seat allocation and tier from verified backend endpoints (/company/bootstrap and /team/seats)
+   * Probes /billing/subscription first; gracefully falls back to /company/bootstrap and /team/seats
    */
   getSubscription: async () => {
     try {
-      // Fetch live seat usage & company profile from verified backend endpoints
+      // 1. Attempt official /billing/subscription endpoint (silently so fallback doesn't log 404)
+      try {
+        const subRes = await apiClient.get('/billing/subscription', { silent: true });
+        const subPayload = subRes?.data || subRes;
+        const subData = subPayload?.data || subPayload;
+        if (subData && (subData.plan || subData.status || subData.seats !== undefined)) {
+          const rawPlan = subData.plan || subData.planCode || 'FREE';
+          const isPaid = String(rawPlan).toUpperCase() === 'PAID' || String(rawPlan).toUpperCase() === 'PRO';
+          const planNormalized = isPaid ? 'PRO' : 'FREE';
+          const seatsLimit = Number(subData.seats?.limit || subData.seats || 10);
+          const seatsUsed = Number(subData.seats?.used || subData.seatsUsed || 1);
+          const remaining = subData.seats?.remaining !== undefined || subData.availableSeats !== undefined
+            ? Number(subData.seats?.remaining ?? subData.availableSeats)
+            : Math.max(0, seatsLimit - seatsUsed);
+
+          return {
+            plan: planNormalized,
+            planCode: planNormalized.toLowerCase(),
+            status: subData.status || 'ACTIVE',
+            seats: seatsLimit,
+            seatsUsed: seatsUsed,
+            availableSeats: remaining,
+            billingCycle: subData.billingCycle || 'MONTHLY',
+            currentPeriodStart: subData.currentPeriodStart || new Date().toISOString(),
+            currentPeriodEnd: subData.currentPeriodEnd || null,
+            graceEndsAt: subData.graceEndsAt || null,
+            storageQuotaGB: subData.storageQuotaGB || (isPaid ? 100 : 5),
+            storageUsedGB: subData.storageUsedGB || 1.2
+          };
+        }
+      } catch {
+        // Fallback to bootstrap and seats
+      }
+
+      // 2. Fallback: Fetch live seat usage & company profile from verified backend endpoints
       const [bootstrapRes, seatsRes] = await Promise.all([
         apiClient.get('/company/bootstrap').catch(() => null),
         apiClient.get('/team/seats').catch(() => null)

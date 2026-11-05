@@ -336,18 +336,20 @@ apiClient.interceptors.response.use(
     // Attach parsed human-readable message for easy consumption across components
     error.userMessage = extractErrorMessage(error);
 
-    if (error.response?.status === 422) {
-      const respData = error.response?.data;
-      console.error(
-        `[422 Validation Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n`,
-        JSON.stringify(respData, null, 2)
-      );
-    } else if (error.response?.status >= 400) {
-      const respData = error.response?.data;
-      console.error(
-        `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n` +
-        (typeof respData === 'object' ? JSON.stringify(respData, null, 2) : (respData || error.message))
-      );
+    if (!originalRequest.silent) {
+      if (error.response?.status === 422) {
+        const respData = error.response?.data;
+        console.error(
+          `[422 Validation Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n`,
+          JSON.stringify(respData, null, 2)
+        );
+      } else if (error.response?.status >= 400) {
+        const respData = error.response?.data;
+        console.error(
+          `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n` +
+          (typeof respData === 'object' ? JSON.stringify(respData, null, 2) : (respData || error.message))
+        );
+      }
     }
 
     const url = originalRequest.url || '';
