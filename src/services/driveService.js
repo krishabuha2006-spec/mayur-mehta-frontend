@@ -293,6 +293,28 @@ export const driveService = {
   },
 
   // ==========================================
+  // 3.1 Client Portal Selective Sharing (M2.6)
+  // ==========================================
+
+  /**
+   * PUT /drive/files/{id}/client-sharing - Share or unshare single file with external client
+   */
+  toggleFileClientSharing: async (fileId, sharedWithClient) => {
+    const res = await apiClient.put(`/drive/files/${fileId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
+    const result = res?.data || res;
+    return result?.data || result;
+  },
+
+  /**
+   * PUT /drive/folders/{id}/client-sharing - Recursively toggle client sharing for folder & contents
+   */
+  toggleFolderClientSharing: async (folderId, sharedWithClient) => {
+    const res = await apiClient.put(`/drive/folders/${folderId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
+    const result = res?.data || res;
+    return result?.data || result;
+  },
+
+  // ==========================================
   // 4. Admin Reconciliation
   // ==========================================
 

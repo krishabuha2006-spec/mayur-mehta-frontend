@@ -663,6 +663,59 @@ export const adminService = {
 
   cancelOutboxEmail: async (id) => {
     return adminService.cancelEmailOutbox(id);
+  },
+
+  // ==========================================
+  // 12. External Client Account Management (M2.6)
+  // ==========================================
+
+  /**
+   * GET /admin/client-accounts - List client accounts with filters & search
+   */
+  getClientAccounts: async (params = {}) => {
+    const res = await apiClient.get('/admin/client-accounts', { params });
+    const payload = res?.data || res;
+    const list = Array.isArray(payload) ? payload : (payload?.accounts || payload?.data || []);
+    return {
+      accounts: list,
+      pagination: payload?.pagination || { total: list.length, page: 1, limit: 20 }
+    };
+  },
+
+  /**
+   * GET /admin/client-accounts/{id} - View client account details and connected firms
+   */
+  getClientAccount: async (id) => {
+    const res = await apiClient.get(`/admin/client-accounts/${id}`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * POST /admin/client-accounts/{id}/disable - Disable client account and revoke sessions
+   */
+  disableClientAccount: async (id, reason) => {
+    const res = await apiClient.post(`/admin/client-accounts/${id}/disable`, { reason });
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * POST /admin/client-accounts/{id}/enable - Re-enable disabled client account
+   */
+  enableClientAccount: async (id) => {
+    const res = await apiClient.post(`/admin/client-accounts/${id}/enable`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * POST /admin/client-accounts/{id}/unlock - Clear failed login attempts and lockout
+   */
+  unlockClientAccount: async (id) => {
+    const res = await apiClient.post(`/admin/client-accounts/${id}/unlock`);
+    const payload = res?.data || res;
+    return payload?.data || payload;
   }
 };
 

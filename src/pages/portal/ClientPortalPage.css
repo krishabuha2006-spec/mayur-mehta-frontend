@@ -569,3 +569,297 @@
   gap: 10px;
   margin-top: 18px;
 }
+
+/* ==========================================================================
+   Module M2.6 External Portal Enhancements
+   ========================================================================== */
+
+.portal-alert-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 24px;
+}
+
+.alert-success {
+  background-color: #EBF4EE;
+  color: #2E5A44;
+  border: 1px solid #C4E1CF;
+}
+
+.alert-error {
+  background-color: #FDF1F1;
+  color: #8C3A3A;
+  border: 1px solid #F5C6C6;
+}
+
+.client-user-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1E1A17;
+  background-color: #FAF8F5;
+  border: 1px solid rgba(183, 175, 166, 0.4);
+  padding: 5px 12px;
+  border-radius: 20px;
+}
+
+.portal-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #7B6F62;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.link-text-btn {
+  background: none;
+  border: none;
+  color: #7B6F62;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: 13px;
+}
+
+.link-text-btn:hover {
+  color: #1E1A17;
+}
+
+.portal-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+/* Portal Hub Layout */
+.portal-hub-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.portal-welcome-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  background-color: #FFFFFF;
+  padding: 24px 30px;
+  border-radius: 16px;
+  border: 1px solid rgba(183, 175, 166, 0.3);
+}
+
+.portal-firm-switcher {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.firm-switcher-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #7B6F62;
+  letter-spacing: 0.04em;
+}
+
+.firm-select-dropdown {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(183, 175, 166, 0.4);
+  background-color: #FAF8F5;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #1E1A17;
+  outline: none;
+  cursor: pointer;
+}
+
+.portal-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.portal-project-card {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(183, 175, 166, 0.3);
+  border-radius: 14px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.portal-project-card:hover {
+  box-shadow: 0 8px 24px rgba(46, 40, 34, 0.08);
+  border-color: #7B6F62;
+}
+
+.portal-project-card.is-selected {
+  border-color: #7B6F62;
+  background-color: #FCFBF9;
+  box-shadow: 0 0 0 2px rgba(123, 111, 98, 0.2);
+}
+
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.project-code-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #7B6F62;
+  background-color: rgba(123, 111, 98, 0.1);
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.project-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1E1A17;
+  margin: 0;
+}
+
+.project-loc {
+  font-size: 12.5px;
+  color: #7B6F62;
+  margin: 0;
+}
+
+.project-specs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: #FAF8F5;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.project-card-footer {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid rgba(183, 175, 166, 0.2);
+}
+
+.view-detail-link {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #7B6F62;
+}
+
+.selected-project-detail-box {
+  background-color: #FFFFFF;
+  border: 1px solid rgba(183, 175, 166, 0.3);
+  border-radius: 14px;
+  padding: 24px;
+  margin-top: 20px;
+}
+
+.detail-heading {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1E1A17;
+  margin: 0;
+}
+
+.detail-sub {
+  font-size: 13px;
+  color: #7B6F62;
+  margin: 4px 0 16px;
+}
+
+.detail-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.detail-kpi-card {
+  background-color: #FAF8F5;
+  padding: 14px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.portal-empty-card {
+  background-color: #FFFFFF;
+  border: 1px dashed rgba(183, 175, 166, 0.4);
+  border-radius: 14px;
+  padding: 40px;
+  text-align: center;
+  color: #7B6F62;
+}
+
+.portal-empty-card h3 {
+  font-size: 16px;
+  color: #1E1A17;
+  margin: 12px 0 6px;
+}
+
+/* Connect Code Card */
+.active-code-display-card {
+  background-color: #FAF8F5;
+  border: 1px solid rgba(183, 175, 166, 0.4);
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 16px;
+}
+
+.code-string-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.code-large-text {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  font-family: monospace;
+  color: #1E1A17;
+}
+
+.code-expiry-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #7B6F62;
+  margin-top: 10px;
+}
+
+.portal-security-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background-color: rgba(123, 111, 98, 0.08);
+  padding: 12px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: #5C5349;
+  line-height: 1.4;
+  margin-top: 20px;
+}

@@ -92,6 +92,54 @@ export const clearAdminToken = () => {
   }
 };
 
+// ==========================================
+// External Client Realm Tokens (Module M2.6)
+// ==========================================
+let inMemoryClientToken = null;
+
+export const getClientToken = () => {
+  if (inMemoryClientToken) return inMemoryClientToken;
+  try {
+    const saved = sessionStorage.getItem('mm_client_token') || localStorage.getItem('mm_client_token');
+    if (saved) {
+      inMemoryClientToken = saved;
+      return saved;
+    }
+  } catch {
+    // Restricted browser storage environment
+  }
+  return null;
+};
+
+export const setClientToken = (token) => {
+  inMemoryClientToken = token || null;
+  try {
+    if (token) {
+      sessionStorage.setItem('mm_client_token', token);
+      localStorage.setItem('mm_client_token', token);
+    } else {
+      sessionStorage.removeItem('mm_client_token');
+      localStorage.removeItem('mm_client_token');
+    }
+  } catch {
+    // Restricted browser storage environment
+  }
+};
+
+export const clearClientToken = () => {
+  inMemoryClientToken = null;
+  try {
+    sessionStorage.removeItem('mm_client_token');
+    localStorage.removeItem('mm_client_token');
+  } catch {
+    // Restricted browser storage environment
+  }
+};
+
+export const isClientPath = (url = '') => {
+  return url.includes('/client/') || url.startsWith('/client');
+};
+
 // Image 2 Rule 1: Set withCredentials: true so browser automatically sends httpOnly rt / art cookies
 axios.defaults.withCredentials = true;
 
@@ -270,7 +318,8 @@ apiClient.interceptors.request.use(
       url.startsWith('/admin/auth') ||
       url.includes('/health');
 
-    const isAdmin = isAdminPath(url);
+    const isClient = isClientPath(url);
+    const isClientAuthRoute = url.includes('/client/auth/');
 
     if (isAdmin) {
       // Super Admin World (audience: 'platform')
@@ -289,6 +338,16 @@ apiClient.interceptors.request.use(
           config.headers.set('Authorization', `Bearer ${token}`);
         } else {
           config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+    } else if (isClient) {
+      // External Client World (audience: 'client' - Module M2.6)
+      const clientToken = getClientToken();
+      if (clientToken && !isClientAuthRoute) {
+        if (config.headers.set) {
+          config.headers.set('Authorization', `Bearer ${clientToken}`);
+        } else {
+          config.headers.Authorization = `Bearer ${clientToken}`;
         }
       }
     } else {

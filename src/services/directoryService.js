@@ -390,5 +390,65 @@ export const directoryService = {
     const res = await apiClient.post(`/projects/${projectId}/site/share`, { channel });
     const payload = res?.data || res;
     return payload?.data || payload;
+  },
+
+  // =========================================================================
+  // 9. CLIENT PORTAL LINKING VIA UNIQUE CODE (Module M2.6)
+  // =========================================================================
+
+  /**
+   * Step 1: Look up 10-char Connect Code with preview & confirmToken
+   * POST /directory/clients/{id}/portal/preview-code
+   */
+  previewClientConnectCode: async (clientId, code) => {
+    const res = await apiClient.post(`/directory/clients/${clientId}/portal/preview-code`, {
+      code: String(code || '').trim().toUpperCase()
+    });
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * Step 2: Claim confirmToken and bind active ClientLink
+   * POST /directory/clients/{id}/portal/claim
+   */
+  claimClientConnectCode: async (clientId, confirmToken) => {
+    const res = await apiClient.post(`/directory/clients/${clientId}/portal/claim`, { confirmToken });
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * List active/revoked portal links for this client
+   * GET /directory/clients/{id}/portal/links
+   */
+  getClientPortalLinks: async (clientId) => {
+    const res = await apiClient.get(`/directory/clients/${clientId}/portal/links`);
+    const payload = res?.data || res;
+    return unwrapDirectoryArray(payload, 'links');
+  },
+
+  /**
+   * Revoke client portal link from firm side
+   * DELETE /directory/clients/{id}/portal/links/{linkId}
+   */
+  revokeClientPortalLink: async (clientId, linkId, reason) => {
+    const res = await apiClient.delete(`/directory/clients/${clientId}/portal/links/${linkId}`, {
+      data: { reason }
+    });
+    const payload = res?.data || res;
+    return payload?.data || payload;
+  },
+
+  /**
+   * Update client portal link access expiration date
+   * PATCH /directory/clients/{id}/portal/links/{linkId/expiry
+   */
+  updateClientPortalLinkExpiry: async (clientId, linkId, accessExpiresAt) => {
+    const res = await apiClient.patch(`/directory/clients/${clientId}/portal/links/${linkId}/expiry`, {
+      accessExpiresAt
+    });
+    const payload = res?.data || res;
+    return payload?.data || payload;
   }
 };
