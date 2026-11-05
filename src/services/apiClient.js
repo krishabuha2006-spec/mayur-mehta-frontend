@@ -318,6 +318,7 @@ apiClient.interceptors.request.use(
       url.startsWith('/admin/auth') ||
       url.includes('/health');
 
+    const isAdmin = isAdminPath(url);
     const isClient = isClientPath(url);
     const isClientAuthRoute = url.includes('/client/auth/');
 
