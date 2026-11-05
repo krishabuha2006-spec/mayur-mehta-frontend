@@ -48,10 +48,10 @@ export function ChatPage() {
   const urlScopeId = searchParams.get('scopeId') || '';
 
   // Data states
-  const [threads, setThreads] = useState([]);
+  const [channels, setChannels] = useState([]);
   const [activeThread, setActiveThread] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [threadsLoading, setThreadsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
 
@@ -78,68 +78,117 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  // 1. Fetch live threads from backend
-  const fetchThreads = useCallback(async (selectTarget = null) => {
+  // 1. Fetch live channels: Merges threads from /chat/threads with available projects and tasks
+  const loadAllChannels = useCallback(async (preferredTarget = null) => {
     try {
-      const data = await chatService.getThreads();
-      const list = Array.isArray(data) ? data : data?.threads || data?.items || [];
-      setThreads(list);
+      const [threadsRes, projsRes, tasksRes] = await Promise.allSettled([
+        chatService.getThreads(),
+        projectService.getProjects({ limit: 50 }),
+        taskService.getTasks({ limit: 50 })
+      ]);
 
-      // If specific thread requested or none selected yet
-      if (selectTarget) {
-        const found = list.find(
-          (t) => (t.scopeType === selectTarget.scopeType && String(t.scopeId) === String(selectTarget.scopeId))
-        );
-        if (found) {
-          setActiveThread(found);
+      const backendThreads = threadsRes.status === 'fulfilled'
+        ? (Array.isArray(threadsRes.value) ? threadsRes.value : (threadsRes.value?.threads || threadsRes.value?.items || []))
+        : [];
+
+      const rawProjects = projsRes.status === 'fulfilled'
+        ? (Array.isArray(projsRes.value?.data) ? projsRes.value.data : (Array.isArray(projsRes.value) ? projsRes.value : []))
+        : [];
+
+      const rawTasks = tasksRes.status === 'fulfilled'
+        ? (Array.isArray(tasksRes.value?.data) ? tasksRes.value.data : (Array.isArray(tasksRes.value) ? tasksRes.value : []))
+        : [];
+
+      setProjectsList(rawProjects);
+      setTasksList(rawTasks);
+
+      // Create a unified channels map
+      const channelsMap = new Map();
+
+      // 1. First add existing active backend threads
+      backendThreads.forEach((t) => {
+        const key = `${t.scopeType || (t.taskId ? 'task' : 'project')}_${t.scopeId || t.taskId || t.projectId}`;
+        channelsMap.set(key, {
+          scopeType: t.scopeType || (t.taskId ? 'task' : 'project'),
+          scopeId: t.scopeId || t.taskId || t.projectId,
+          title: t.title || t.name || (t.scopeType === 'task' ? 'Task Discussion' : 'Project Channel'),
+          snippet: t.lastMessage?.body || t.lastMessage?.content || t.snippet || '',
+          time: t.lastMessage?.createdAt || t.updatedAt || t.createdAt,
+          unreadCount: Number(t.unreadCount || 0),
+          isMuted: !!t.isMuted
+        });
+      });
+
+      // 2. Add Project channels from database if not already present
+      rawProjects.forEach((p) => {
+        const pId = p._id || p.id;
+        if (!pId) return;
+        const key = `project_${pId}`;
+        if (!channelsMap.has(key)) {
+          channelsMap.set(key, {
+            scopeType: 'project',
+            scopeId: pId,
+            title: p.name || p.title || p.code || 'Project Channel',
+            code: p.code,
+            snippet: 'Click to start project discussion',
+            time: p.updatedAt || p.createdAt,
+            unreadCount: 0,
+            isMuted: false
+          });
         } else {
-          setActiveThread(selectTarget);
+          // Enhance title if available
+          const existing = channelsMap.get(key);
+          if (p.name && !existing.title) existing.title = p.name;
         }
-      } else if (!activeThread && list.length > 0) {
-        setActiveThread(list[0]);
+      });
+
+      // 3. Add Task channels from database if not already present
+      rawTasks.forEach((t) => {
+        const tId = t._id || t.id;
+        if (!tId) return;
+        const key = `task_${tId}`;
+        if (!channelsMap.has(key)) {
+          channelsMap.set(key, {
+            scopeType: 'task',
+            scopeId: tId,
+            title: t.title || t.name || 'Task Discussion',
+            code: t.code,
+            snippet: 'Click to collaborate on task',
+            time: t.updatedAt || t.createdAt,
+            unreadCount: 0,
+            isMuted: false
+          });
+        }
+      });
+
+      const mergedList = Array.from(channelsMap.values());
+      setChannels(mergedList);
+
+      // Select active channel
+      if (preferredTarget) {
+        const found = mergedList.find(
+          (c) => c.scopeType === preferredTarget.scopeType && String(c.scopeId) === String(preferredTarget.scopeId)
+        );
+        setActiveThread(found || preferredTarget);
+      } else if (!activeThread && mergedList.length > 0) {
+        setActiveThread(mergedList[0]);
       }
     } catch (err) {
-      console.warn('Failed to load threads:', err?.message);
+      console.warn('Failed to load studio chat channels:', err?.message);
     } finally {
-      setThreadsLoading(false);
+      setLoading(false);
     }
   }, [activeThread]);
 
   // Initial load
   useEffect(() => {
-    setThreadsLoading(true);
+    setLoading(true);
     if (urlScopeType && urlScopeId) {
-      const target = {
-        scopeType: urlScopeType,
-        scopeId: urlScopeId,
-        title: `${urlScopeType === 'project' ? 'Project' : 'Task'} Discussion`,
-        unreadCount: 0
-      };
-      fetchThreads(target);
+      loadAllChannels({ scopeType: urlScopeType, scopeId: urlScopeId });
     } else {
-      fetchThreads();
+      loadAllChannels();
     }
-  }, [urlScopeType, urlScopeId, fetchThreads]);
-
-  // Load project & task options for creating new discussion
-  useEffect(() => {
-    Promise.allSettled([
-      projectService.getProjects({ limit: 100 }),
-      taskService.getTasks({ limit: 100 })
-    ]).then(([pRes, tRes]) => {
-      if (pRes.status === 'fulfilled') {
-        const pList = Array.isArray(pRes.value) ? pRes.value : (pRes.value?.data || []);
-        setProjectsList(pList);
-        if (pList.length > 0 && newScopeType === 'project' && !selectedEntityId) {
-          setSelectedEntityId(pList[0]._id || pList[0].id);
-        }
-      }
-      if (tRes.status === 'fulfilled') {
-        const tList = Array.isArray(tRes.value) ? tRes.value : (tRes.value?.data || []);
-        setTasksList(tList);
-      }
-    });
-  }, [newScopeType, selectedEntityId]);
+  }, [urlScopeType, urlScopeId, loadAllChannels]);
 
   // 2. Fetch messages when activeThread changes
   const fetchMessages = useCallback(async (thread) => {
@@ -174,10 +223,10 @@ export function ChatPage() {
     scrollToBottom();
   }, [messages]);
 
-  // Select Thread
-  const handleSelectThread = (thread) => {
-    setActiveThread(thread);
-    setSearchParams({ scopeType: thread.scopeType, scopeId: thread.scopeId });
+  // Select Channel
+  const handleSelectChannel = (channel) => {
+    setActiveThread(channel);
+    setSearchParams({ scopeType: channel.scopeType, scopeId: channel.scopeId });
   };
 
   // 3. Send Message
@@ -205,7 +254,15 @@ export function ChatPage() {
 
       setMessages((prev) => [...prev, createdMsg]);
       setInputText('');
-      fetchThreads(activeThread);
+
+      // Update snippet in channels list
+      setChannels((prev) =>
+        prev.map((c) =>
+          c.scopeType === activeThread.scopeType && String(c.scopeId) === String(activeThread.scopeId)
+            ? { ...c, snippet: text, time: new Date().toISOString() }
+            : c
+        )
+      );
     } catch (err) {
       console.warn('Failed to send message:', err?.message);
     } finally {
@@ -253,11 +310,11 @@ export function ChatPage() {
     try {
       await chatService.toggleMute(activeThread.scopeType, activeThread.scopeId, nextMuteState);
       setActiveThread((prev) => ({ ...prev, isMuted: nextMuteState }));
-      setThreads((prev) =>
-        prev.map((t) =>
-          t.scopeId === activeThread.scopeId && t.scopeType === activeThread.scopeType
-            ? { ...t, isMuted: nextMuteState }
-            : t
+      setChannels((prev) =>
+        prev.map((c) =>
+          c.scopeId === activeThread.scopeId && c.scopeType === activeThread.scopeType
+            ? { ...c, isMuted: nextMuteState }
+            : c
         )
       );
     } catch (err) {
@@ -265,7 +322,7 @@ export function ChatPage() {
     }
   };
 
-  // 7. Start New Discussion
+  // 7. Start New Discussion Modal
   const handleStartNewDiscussion = async (e) => {
     e.preventDefault();
     if (!selectedEntityId) return;
@@ -296,21 +353,21 @@ export function ChatPage() {
 
     setNewDiscussionModalOpen(false);
     setInitialMsgText('');
-    handleSelectThread(newTarget);
-    fetchThreads(newTarget);
+    handleSelectChannel(newTarget);
+    loadAllChannels(newTarget);
   };
 
-  // Filtered threads
-  const filteredThreads = threads.filter((t) => {
+  // Filtered channels
+  const filteredChannels = channels.filter((c) => {
     const matchesFilter =
       filterType === 'ALL' ||
-      (filterType === 'PROJECT' && (t.scopeType === 'project' || t.projectId)) ||
-      (filterType === 'TASK' && (t.scopeType === 'task' || t.taskId));
+      (filterType === 'PROJECT' && c.scopeType === 'project') ||
+      (filterType === 'TASK' && c.scopeType === 'task');
 
     const matchesSearch =
       !searchQuery.trim() ||
-      (t.title || t.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (t.lastMessage?.body || t.lastMessage?.content || '').toLowerCase().includes(searchQuery.toLowerCase());
+      (c.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.snippet || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesFilter && matchesSearch;
   });
@@ -338,7 +395,12 @@ export function ChatPage() {
             variant="primary"
             size="sm"
             icon={Plus}
-            onClick={() => setNewDiscussionModalOpen(true)}
+            onClick={() => {
+              if (projectsList.length > 0 && !selectedEntityId) {
+                setSelectedEntityId(projectsList[0]._id || projectsList[0].id);
+              }
+              setNewDiscussionModalOpen(true);
+            }}
             title="Start New Discussion"
           >
             New
@@ -352,7 +414,7 @@ export function ChatPage() {
             className={`filter-pill ${filterType === 'ALL' ? 'active' : ''}`}
             onClick={() => setFilterType('ALL')}
           >
-            All
+            All Channels ({channels.length})
           </button>
           <button
             type="button"
@@ -382,17 +444,17 @@ export function ChatPage() {
           />
         </div>
 
-        {/* Thread List */}
+        {/* Channel List */}
         <div className="chat-thread-list">
-          {threadsLoading ? (
+          {loading ? (
             <div className="chat-threads-loading">
               <RefreshCw size={18} className="spin-icon" />
               <span>Loading discussions...</span>
             </div>
-          ) : filteredThreads.length === 0 ? (
+          ) : filteredChannels.length === 0 ? (
             <div className="chat-threads-empty">
               <MessageSquare size={32} strokeWidth={1.2} />
-              <p>No active discussions found.</p>
+              <p>No channels found.</p>
               <Button
                 variant="secondary"
                 size="sm"
@@ -403,22 +465,21 @@ export function ChatPage() {
               </Button>
             </div>
           ) : (
-            filteredThreads.map((t) => {
+            filteredChannels.map((c) => {
               const isActive =
                 activeThread &&
-                activeThread.scopeType === t.scopeType &&
-                String(activeThread.scopeId) === String(t.scopeId);
+                activeThread.scopeType === c.scopeType &&
+                String(activeThread.scopeId) === String(c.scopeId);
 
-              const isProject = t.scopeType === 'project' || t.projectId;
-              const title = t.title || t.name || (isProject ? 'Project Channel' : 'Task Thread');
-              const snippet = t.lastMessage?.body || t.lastMessage?.content || t.snippet || 'No messages yet';
-              const time = t.lastMessage?.createdAt || t.updatedAt || t.createdAt;
+              const isProject = c.scopeType === 'project';
+              const title = c.title || (isProject ? 'Project Channel' : 'Task Thread');
+              const snippet = c.snippet || 'Click to collaborate';
 
               return (
                 <div
-                  key={`${t.scopeType}_${t.scopeId}`}
+                  key={`${c.scopeType}_${c.scopeId}`}
                   className={`chat-thread-item ${isActive ? 'active' : ''}`}
-                  onClick={() => handleSelectThread(t)}
+                  onClick={() => handleSelectChannel(c)}
                 >
                   <div className={`thread-icon-badge ${isProject ? 'project' : 'task'}`}>
                     {isProject ? <Building2 size={16} /> : <CheckSquare size={16} />}
@@ -427,12 +488,12 @@ export function ChatPage() {
                   <div className="thread-content-col">
                     <div className="thread-title-row">
                       <span className="thread-title">{title}</span>
-                      {time && <span className="thread-time">{formatMessageTime(time)}</span>}
+                      {c.time && <span className="thread-time">{formatMessageTime(c.time)}</span>}
                     </div>
 
                     <div className="thread-snippet-row">
                       <span className="thread-snippet">{snippet}</span>
-                      {t.unreadCount > 0 && <span className="thread-unread-pill">{t.unreadCount}</span>}
+                      {c.unreadCount > 0 && <span className="thread-unread-pill">{c.unreadCount}</span>}
                     </div>
                   </div>
                 </div>
@@ -519,8 +580,8 @@ export function ChatPage() {
               ) : messages.length === 0 ? (
                 <div className="chat-messages-empty">
                   <MessageSquare size={48} strokeWidth={1.2} />
-                  <h4>No messages yet</h4>
-                  <p>Start the discussion with the architectural team for this {activeThread.scopeType}.</p>
+                  <h4>No messages in this channel yet</h4>
+                  <p>Send a message below to start collaborating on this {activeThread.scopeType}.</p>
                 </div>
               ) : (
                 messages.map((m, idx) => {
@@ -597,7 +658,7 @@ export function ChatPage() {
             <form onSubmit={handleSendMessage} className="chat-composer-bar">
               <input
                 type="text"
-                placeholder={`Message #${activeThread.title || 'channel'}...`}
+                placeholder={`Message #${activeThread.title || 'channel'}... (Press Enter to send)`}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 disabled={sending}

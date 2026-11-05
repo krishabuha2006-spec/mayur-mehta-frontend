@@ -189,10 +189,21 @@ export function AdminAuthProvider({ children }) {
   );
 }
 
+const fallbackAdmin = {
+  adminUser: null,
+  loading: true,
+  isAuthenticated: false,
+  setAuthenticatedAdmin: () => {},
+  updateAdminUser: () => {},
+  refreshProfile: async () => {},
+  logout: async () => {},
+  logoutAll: async () => {}
+};
+
 export function useAdminAuth() {
   const context = useContext(AdminAuthContext);
   if (!context) {
-    throw new Error('useAdminAuth must be used within an AdminAuthProvider');
+    return fallbackAdmin;
   }
   return context;
 }
