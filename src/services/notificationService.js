@@ -122,6 +122,14 @@ export const notificationService = {
   updatePreferences: async (preferences) => {
     const res = await apiClient.patch('/settings/notifications/preferences', preferences);
     return unwrapData(res);
+  },
+
+  /**
+   * 11. POST /public/notifications/unsubscribe - Public one-click unsubscribe
+   */
+  unsubscribePublic: async ({ token, categories }) => {
+    const res = await apiClient.post('/public/notifications/unsubscribe', { token, categories });
+    return unwrapData(res);
   }
 };
 
