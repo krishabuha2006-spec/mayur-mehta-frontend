@@ -355,7 +355,14 @@ export function TeamPage() {
           <div className="team-member-cell">
             <Avatar letter={displayName?.[0] || 'U'} size="sm" src={row.avatarUrl} />
             <div>
-              <p className="team-member-name">{displayName}</p>
+              <p className="team-member-name">
+                {(row.code || row.employeeCode) && (
+                  <span className="card-code-pill" style={{ marginRight: '6px' }}>
+                    {row.code || row.employeeCode}
+                  </span>
+                )}
+                {displayName}
+              </p>
               <p className="team-member-email">{row.email}</p>
               {row.designation && <span className="team-member-designation">{row.designation}</span>}
             </div>

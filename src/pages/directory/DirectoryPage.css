@@ -360,11 +360,17 @@
 }
 
 .card-code {
-  font-family: monospace;
+  font-family: var(--font-mono, 'JetBrains Mono', 'Fira Code', monospace);
   font-size: 0.75rem;
   font-weight: 600;
   color: #B89A74;
   letter-spacing: 0.05em;
+  background: rgba(184, 154, 116, 0.12);
+  border: 1px solid rgba(184, 154, 116, 0.28);
+  padding: 1px 6px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
 }
 
 .card-name {
