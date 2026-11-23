@@ -1215,7 +1215,7 @@ export function TasksPage() {
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((t) => (
+                filteredTasks.map((t, idx) => (
                   <tr key={t.id} className="task-data-row" onClick={() => setSelectedTask(t)}>
                     <td className="td-checkbox" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -1241,7 +1241,9 @@ export function TasksPage() {
                         <CheckCircle2 size={16} />
                       </button>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                        <span className="card-code-pill">{t.code || `TSK-${String(t.taskNumber || idx + 1).padStart(4, '0')}`}</span>
+                        <span className="card-code-pill">
+                          {t.code || `TSK-${String(t.taskNumber || idx + 1).padStart(4, '0')}`}
+                        </span>
                         <span className={`task-title-text ${t.status === 'DONE' ? 'completed' : ''}`}>
                           {t.title}
                         </span>
