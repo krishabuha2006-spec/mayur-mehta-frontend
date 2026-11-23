@@ -26,12 +26,11 @@ export const chatService = {
    */
   getThreads: async (params = {}) => {
     try {
-      const res = await apiClient.get('/chat/threads', { params });
+      const res = await apiClient.get('/chat/threads', { params, silent: true });
       const data = unwrapData(res);
       if (Array.isArray(data)) return data;
       return data?.threads || data?.items || [];
-    } catch (err) {
-      console.warn('Failed to fetch chat threads:', err?.message);
+    } catch {
       return [];
     }
   },
@@ -44,7 +43,7 @@ export const chatService = {
    */
   getMessages: async (scopeType, scopeId, params = {}) => {
     try {
-      const res = await apiClient.get(`/chat/${scopeType}/${scopeId}/messages`, { params });
+      const res = await apiClient.get(`/chat/${scopeType}/${scopeId}/messages`, { params, silent: true });
       const data = unwrapData(res);
       if (Array.isArray(data)) return { messages: data, hasMore: false };
       return {
@@ -52,8 +51,7 @@ export const chatService = {
         hasMore: !!data?.hasMore,
         lastSeq: data?.lastSeq ?? 0
       };
-    } catch (err) {
-      console.warn(`Failed to fetch messages for ${scopeType}:${scopeId}:`, err?.message);
+    } catch {
       return { messages: [], hasMore: false, lastSeq: 0 };
     }
   },

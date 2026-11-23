@@ -73,6 +73,11 @@ export function ChatPage() {
   const [initialMsgText, setInitialMsgText] = useState('');
 
   const messagesEndRef = useRef(null);
+  const activeThreadRef = useRef(null);
+
+  useEffect(() => {
+    activeThreadRef.current = activeThread;
+  }, [activeThread]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -105,13 +110,19 @@ export function ChatPage() {
       // Create a unified channels map
       const channelsMap = new Map();
 
+      // Set of valid project IDs from live database
+      const validProjectIds = new Set(rawProjects.map((p) => String(p._id || p.id)));
+
       // 1. First add existing active backend threads
       backendThreads.forEach((t) => {
-        const key = `${t.scopeType || (t.taskId ? 'task' : 'project')}_${t.scopeId || t.taskId || t.projectId}`;
+        const scope = t.scopeType || (t.taskId ? 'task' : 'project');
+        const id = t.scopeId || t.taskId || t.projectId;
+        if (!id) return;
+        const key = `${scope}_${id}`;
         channelsMap.set(key, {
-          scopeType: t.scopeType || (t.taskId ? 'task' : 'project'),
-          scopeId: t.scopeId || t.taskId || t.projectId,
-          title: t.title || t.name || (t.scopeType === 'task' ? 'Task Discussion' : 'Project Channel'),
+          scopeType: scope,
+          scopeId: id,
+          title: t.title || t.name || (scope === 'task' ? 'Task Discussion' : 'Project Channel'),
           snippet: t.lastMessage?.body || t.lastMessage?.content || t.snippet || '',
           time: t.lastMessage?.createdAt || t.updatedAt || t.createdAt,
           unreadCount: Number(t.unreadCount || 0),
@@ -119,7 +130,7 @@ export function ChatPage() {
         });
       });
 
-      // 2. Add Project channels from database if not already present
+      // 2. Add Project channels from database
       rawProjects.forEach((p) => {
         const pId = p._id || p.id;
         if (!pId) return;
@@ -142,10 +153,16 @@ export function ChatPage() {
         }
       });
 
-      // 3. Add Task channels from database if not already present
+      // 3. Add Task channels from database (only for tasks that belong to a valid project)
       rawTasks.forEach((t) => {
         const tId = t._id || t.id;
         if (!tId) return;
+        const taskProjId = t.projectId || (typeof t.project === 'object' ? t.project?._id || t.project?.id : t.project);
+        // Only include task channel if its parent project is valid and exists
+        if (taskProjId && !validProjectIds.has(String(taskProjId))) {
+          return;
+        }
+
         const key = `task_${tId}`;
         if (!channelsMap.has(key)) {
           channelsMap.set(key, {
@@ -170,15 +187,17 @@ export function ChatPage() {
           (c) => c.scopeType === preferredTarget.scopeType && String(c.scopeId) === String(preferredTarget.scopeId)
         );
         setActiveThread(found || preferredTarget);
-      } else if (!activeThread && mergedList.length > 0) {
-        setActiveThread(mergedList[0]);
+      } else if (!activeThreadRef.current && mergedList.length > 0) {
+        // Prefer live project channel first so user immediately lands on a working channel
+        const firstProject = mergedList.find((c) => c.scopeType === 'project');
+        setActiveThread(firstProject || mergedList[0]);
       }
     } catch (err) {
       console.warn('Failed to load studio chat channels:', err?.message);
     } finally {
       setLoading(false);
     }
-  }, [activeThread]);
+  }, []);
 
   // Initial load
   useEffect(() => {
