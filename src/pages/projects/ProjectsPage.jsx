@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Filter,
@@ -6,6 +6,8 @@ import {
   MoreVertical,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Plus,
   Eye,
   Edit,
@@ -25,6 +27,9 @@ import {
   Sparkles,
   ShieldCheck,
   Building,
+  Building2,
+  Link2,
+  Unlink,
   Sliders,
   Calendar,
   IndianRupee,
@@ -33,6 +38,8 @@ import {
   ArrowRight,
   ArrowLeft,
   User,
+  Phone,
+  Mail,
   Sun,
   HardHat,
   Wrench,
@@ -43,6 +50,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { projectService } from '../../services/projectService';
+import { directoryService } from '../../services/directoryService';
 import { masterService } from '../../services/masterService';
 import { teamService } from '../../services/teamService';
 import { logService } from '../../services/logService';
@@ -370,12 +378,24 @@ export function ProjectsPage() {
   const [trashedProjects, setTrashedProjects] = useState([]);
   const [statusModalProject, setStatusModalProject] = useState(null);
 
-  // Tab inside View Modal: 'overview' | 'stages' | 'team'
+  // Tab inside View Modal: 'overview' | 'stages' | 'team' | 'partners' | 'activity'
   const [modalTab, setModalTab] = useState('overview');
   const [stages, setStages] = useState([]);
   const [stagesLoading, setStagesLoading] = useState(false);
   const [newStageName, setNewStageName] = useState('');
+  const [projectActivity, setProjectActivity] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [newStageCode, setNewStageCode] = useState('');
+
+  // Directory Partners & Client Integration inside View Modal (Module M2.4)
+  const [projectPartners, setProjectPartners] = useState([]);
+  const [allDirectoryClients, setAllDirectoryClients] = useState([]);
+  const [allDirectoryPartners, setAllDirectoryPartners] = useState([]);
+  const [selectedPartnerToAdd, setSelectedPartnerToAdd] = useState('');
+  const [partnerRoleToAdd, setPartnerRoleToAdd] = useState('');
+  const [partnerNoteToAdd, setPartnerNoteToAdd] = useState('');
+  const [selectedClientToLink, setSelectedClientToLink] = useState('');
+  const [copyClientAddressToSite, setCopyClientAddressToSite] = useState(true);
 
   // Team management inside View Modal
   const [selectedUserToAdd, setSelectedUserToAdd] = useState('');
@@ -569,6 +589,95 @@ export function ProjectsPage() {
     }
   };
 
+  // Project Directory Integration (Module M2.4 & Swagger /projects/:id)
+  const loadDirectoryLookups = async () => {
+    try {
+      const [clientsRes, partnersRes] = await Promise.allSettled([
+        directoryService.getClients({ limit: 100 }),
+        directoryService.getPartners({ limit: 100 })
+      ]);
+      if (clientsRes.status === 'fulfilled') {
+        setAllDirectoryClients(Array.isArray(clientsRes.value) ? clientsRes.value : []);
+      }
+      if (partnersRes.status === 'fulfilled') {
+        setAllDirectoryPartners(Array.isArray(partnersRes.value) ? partnersRes.value : []);
+      }
+    } catch (e) {
+      console.warn('Directory lookups notice:', e);
+    }
+  };
+
+  const handleLinkClientToProject = async (e) => {
+    if (e) e.preventDefault();
+    if (!viewModalProject || !selectedClientToLink) {
+      showToast('Please select a directory client to link', 'error');
+      return;
+    }
+    const projId = viewModalProject._id || viewModalProject.id;
+    try {
+      await projectService.linkClient(projId, {
+        clientId: selectedClientToLink,
+        copyAddressToSite: copyClientAddressToSite
+      });
+      showToast('Directory client linked to project successfully', 'success');
+      const fresh = await projectService.getProjectById(projId);
+      if (fresh) setViewModalProject(fresh);
+      setSelectedClientToLink('');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to link client to project'), 'error');
+    }
+  };
+
+  const handleUnlinkClientFromProject = async () => {
+    if (!viewModalProject) return;
+    const projId = viewModalProject._id || viewModalProject.id;
+    try {
+      await projectService.unlinkClient(projId);
+      showToast('Client unlinked from project', 'success');
+      const fresh = await projectService.getProjectById(projId);
+      if (fresh) setViewModalProject(fresh);
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to unlink client'), 'error');
+    }
+  };
+
+  const handleAddPartnerToProject = async (e) => {
+    if (e) e.preventDefault();
+    if (!viewModalProject || !selectedPartnerToAdd) {
+      showToast('Please select an ACVC partner to associate', 'error');
+      return;
+    }
+    const projId = viewModalProject._id || viewModalProject.id;
+    try {
+      await projectService.addPartner(projId, {
+        partnerId: selectedPartnerToAdd,
+        role: partnerRoleToAdd.trim() || undefined,
+        note: partnerNoteToAdd.trim() || undefined
+      });
+      showToast('ACVC Partner associated with project', 'success');
+      const freshPartners = await projectService.getPartners(projId);
+      setProjectPartners(Array.isArray(freshPartners) ? freshPartners : []);
+      setSelectedPartnerToAdd('');
+      setPartnerRoleToAdd('');
+      setPartnerNoteToAdd('');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to associate partner'), 'error');
+    }
+  };
+
+  const handleRemovePartnerFromProject = async (partnerId) => {
+    if (!viewModalProject || !partnerId) return;
+    const projId = viewModalProject._id || viewModalProject.id;
+    try {
+      await projectService.removePartner(projId, partnerId);
+      showToast('Partner removed from project', 'success');
+      const freshPartners = await projectService.getPartners(projId);
+      setProjectPartners(Array.isArray(freshPartners) ? freshPartners : []);
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to remove partner from project'), 'error');
+    }
+  };
+
   // 2. Fetch Project Summary Flow (GET /projects/summary)
   const loadSummary = async () => {
     try {
@@ -661,24 +770,39 @@ export function ProjectsPage() {
     return () => clearTimeout(timer);
   }, [authLoading, isAuthenticated, searchTerm, statusFilter, priorityFilter, categoryFilter]);
 
+  const loadProjectActivity = async (projId) => {
+    if (!projId) return;
+    setActivityLoading(true);
+    try {
+      const logs = await projectService.getProjectActivity(projId, { limit: 50 });
+      setProjectActivity(Array.isArray(logs) ? logs : []);
+    } catch {
+      setProjectActivity([]);
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
   // View Modal Flow: GET /projects/:id + GET /projects/:id/stages + GET /projects/:id/members
   const handleOpenViewModal = async (project) => {
     const projId = project._id || project.id;
     setViewModalProject(project);
     setManualProgressInput(project.progress?.percent || 0);
     setModalTab('overview');
+    setProjectActivity([]);
     setStagesLoading(true);
 
     try {
-      const [freshRes, stagesRes, membersRes] = await Promise.allSettled([
+      const [freshRes, stagesRes, membersRes, partnersRes] = await Promise.allSettled([
         projectService.getProjectById(projId),
         projectService.getProjectStages(projId),
-        projectService.getProjectMembers(projId)
+        projectService.getProjectMembers(projId),
+        projectService.getPartners(projId)
       ]);
 
       if (freshRes.status === 'fulfilled' && freshRes.value) {
         const full = freshRes.value;
-        setViewModalProject(full);
+        setViewModalProject((prev) => (prev ? full : null));
         setManualProgressInput(full.progress?.percent || 0);
       }
 
@@ -691,12 +815,59 @@ export function ProjectsPage() {
           prev ? { ...prev, members: membersRes.value, memberCount: membersRes.value.length } : prev
         );
       }
+
+      if (partnersRes.status === 'fulfilled') {
+        const pList = Array.isArray(partnersRes.value) ? partnersRes.value : [];
+        setProjectPartners(pList);
+      }
     } catch (err) {
       console.warn('View modal data load notice:', err);
     } finally {
       setStagesLoading(false);
     }
   };
+
+  const initialUrlProjectChecked = useRef(false);
+
+  // Close view modal safely and remove ?projectId= from URL
+  const handleCloseViewModal = useCallback(() => {
+    initialUrlProjectChecked.current = true;
+    setViewModalProject(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('projectId');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  // Sync viewModalProject with ?projectId= in URL query params
+  useEffect(() => {
+    if (!initialUrlProjectChecked.current && !viewModalProject) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (viewModalProject) {
+        next.set('projectId', viewModalProject.projectCode || viewModalProject._id || viewModalProject.id);
+      } else {
+        next.delete('projectId');
+      }
+      return next;
+    }, { replace: true });
+  }, [viewModalProject, setSearchParams]);
+
+  // Auto-open project if ?projectId= is in URL on initial mount only
+  useEffect(() => {
+    if (initialUrlProjectChecked.current) return;
+    const projIdParam = searchParams.get('projectId');
+    if (projIdParam && projects.length > 0) {
+      initialUrlProjectChecked.current = true;
+      const matched = projects.find(
+        (p) => String(p.projectCode) === String(projIdParam) || String(p._id) === String(projIdParam) || String(p.id) === String(projIdParam)
+      );
+      if (matched) {
+        handleOpenViewModal(matched);
+      }
+    }
+  }, [projects, searchParams]);
 
   // Row selection
   const handleSelectAll = (e) => {
@@ -768,15 +939,32 @@ export function ProjectsPage() {
     }
     payload.client = clientData;
 
-    // Site location object (Recognized keys: city, state, pincode)
+    // Site location object (Recognized keys: line1, city, state, pincode)
     const siteData = {
       city: formData.city?.trim() || 'Ahmedabad',
       state: formData.state?.trim() || 'Gujarat'
     };
+    if (formData.address?.trim()) {
+      siteData.line1 = formData.address.trim();
+    }
     if (formData.pincode?.trim() && /^\d{6}$/.test(formData.pincode.trim())) {
       siteData.pincode = formData.pincode.trim();
     }
     payload.site = siteData;
+
+    // Timeline dates (Recognized keys: startDate, expectedEndDate)
+    if (formData.plannedStartDate) {
+      try {
+        payload.startDate = new Date(formData.plannedStartDate).toISOString().slice(0, 10);
+      } catch {}
+    } else {
+      payload.startDate = new Date().toISOString().slice(0, 10);
+    }
+    if (formData.plannedEndDate) {
+      try {
+        payload.expectedEndDate = new Date(formData.plannedEndDate).toISOString().slice(0, 10);
+      } catch {}
+    }
 
     // Budget: budgetPaise (integer in Paise >= 0)
     if (formData.budgetRupees) {
@@ -1228,6 +1416,44 @@ export function ProjectsPage() {
       showToast('Stage removed', 'success');
     } catch (err) {
       showToast(extractErrorMessage(err, 'Cannot delete stage'), 'error');
+    }
+  };
+
+  // Reorder Stages Flow (PUT /projects/:id/stages/reorder)
+  const handleReorderStages = async (currentIndex, targetIndex) => {
+    if (!viewModalProject || targetIndex < 0 || targetIndex >= stages.length) return;
+    const projId = viewModalProject._id || viewModalProject.id;
+    const newStages = [...stages];
+    const [moved] = newStages.splice(currentIndex, 1);
+    newStages.splice(targetIndex, 0, moved);
+    setStages(newStages);
+
+    try {
+      const stageIds = newStages.map((s) => s._id || s.id);
+      await projectService.reorderProjectStages(projId, stageIds);
+      showToast('Drawing stages reordered', 'success');
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to reorder stages'), 'error');
+      const freshStages = await projectService.getProjectStages(projId).catch(() => null);
+      if (freshStages) setStages(freshStages);
+    }
+  };
+
+  // Team Member Role Update (PATCH /projects/:id/members/:userId)
+  const handleUpdateMemberRole = async (userId, newRole) => {
+    if (!viewModalProject) return;
+    const projId = viewModalProject._id || viewModalProject.id;
+    try {
+      await projectService.updateProjectMemberRole(projId, userId, newRole);
+      const updatedMembers = await projectService.getProjectMembers(projId);
+      setViewModalProject({
+        ...viewModalProject,
+        members: updatedMembers
+      });
+      showToast(`Member role updated to ${newRole}`, 'success');
+      loadProjects(pagination.page);
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to update member role'), 'error');
     }
   };
 
@@ -1773,11 +1999,17 @@ export function ProjectsPage() {
                         </button>
                         <Dropdown
                           align="right"
-                          trigger={
-                            <button type="button" className="row-btn" title="More actions">
+                          trigger={({ isOpen }) => (
+                            <button
+                              type="button"
+                              className={`row-btn ${isOpen ? 'active' : ''}`}
+                              title="More actions"
+                              aria-haspopup="true"
+                              aria-expanded={isOpen}
+                            >
                               <MoreVertical size={15} />
                             </button>
-                          }
+                          )}
                         >
                           <button
                             type="button"
@@ -1794,6 +2026,17 @@ export function ProjectsPage() {
                           >
                             <Archive size={15} className="dropdown-item-icon" />
                             <span>{proj.isArchived ? 'Unarchive' : 'Archive Project'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            className="dropdown-item"
+                            onClick={() => {
+                              setStatusModalProject(proj);
+                              setTargetStatus(proj.status || 'IN_PROGRESS');
+                            }}
+                          >
+                            <ShieldCheck size={15} className="dropdown-item-icon" />
+                            <span>Change Status</span>
                           </button>
                           <div className="dropdown-divider" />
                           <button
@@ -2200,19 +2443,16 @@ export function ProjectsPage() {
           className="subview-modal-form"
         >
           <div className="form-group">
-            <label className="form-label">Project *</label>
-            <select
+            <Select
+              label="Project *"
+              id="new-photo-project"
               value={newPhotoForm.project}
               onChange={(e) => setNewPhotoForm({ ...newPhotoForm, project: e.target.value })}
-              className="form-select"
+              options={projects.length > 0 ? projects.map((p) => ({ value: p.name, label: p.name })) : [
+                { value: 'General Project Site', label: 'General Project Site' }
+              ]}
               required
-            >
-              {projects.map((p) => (
-                <option key={p._id || p.id} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           <Input
@@ -2282,55 +2522,77 @@ export function ProjectsPage() {
       {viewModalProject && (
         <Modal
           isOpen={Boolean(viewModalProject)}
-          onClose={() => setViewModalProject(null)}
-          title={`Project Record: ${viewModalProject.projectCode}`}
+          onClose={handleCloseViewModal}
+          title={
+            <div className="pmodal-header-nav">
+              <span className="pmodal-header-name">{viewModalProject.name}</span>
+              <span className="pmodal-header-code">{viewModalProject.projectCode}</span>
+            </div>
+          }
           maxWidth="940px"
         >
           <div className="project-detail-modal-body">
             {/* Architectural Hero Card */}
             <div className="project-detail-hero">
               <div className="detail-hero-left">
-                <div className="hero-badge-row">
-                  <span className="hero-code-pill">
-                    <Building size={12} />
-                    {viewModalProject.projectCode}
+                <div className="hero-status-row">
+                  <span className={`pmodal-status-badge status-${(viewModalProject.status || 'not_started').toLowerCase().replace(/\s+/g, '_')}`}>
+                    <span className="status-dot-indicator" />
+                    {viewModalProject.status ? viewModalProject.status.replace(/_/g, ' ') : 'Not Started'}
                   </span>
-                  <Badge variant={getStatusBadgeVariant(viewModalProject.status)}>
-                    {viewModalProject.status ? viewModalProject.status.replace('_', ' ') : 'NOT STARTED'}
-                  </Badge>
-                  <Badge variant={getPriorityBadgeVariant(viewModalProject.priority)}>
+                  <span className="pmodal-priority-pill">
                     {viewModalProject.priority || 'MEDIUM'} PRIORITY
-                  </Badge>
+                  </span>
+                  {[resolveCategory(viewModalProject), resolveTypology(viewModalProject)].filter(Boolean).length > 0 && (
+                    <span className="pmodal-type-pill">
+                      {[resolveCategory(viewModalProject), resolveTypology(viewModalProject)].filter(Boolean).join(' • ')}
+                    </span>
+                  )}
                 </div>
-                <h3 className="hero-project-name">{viewModalProject.name}</h3>
+
+                <h2 className="hero-project-name">{viewModalProject.name}</h2>
+
                 <div className="hero-meta-row">
-                  <span className="hero-meta-item">
+                  <div className="hero-meta-item">
                     <User size={13} className="hero-meta-icon" />
-                    <strong>{viewModalProject.client?.name || 'Private Client'}</strong>
-                  </span>
+                    <strong className="capitalize">{viewModalProject.client?.name || 'Private Client'}</strong>
+                  </div>
                   <span className="hero-meta-divider">•</span>
-                  <span className="hero-meta-item">
+                  <div className="hero-meta-item">
                     <MapPin size={13} className="hero-meta-icon" />
-                    <span>{viewModalProject.site?.city || 'Location N/A'}</span>
-                  </span>
-                  <span className="hero-meta-divider">•</span>
-                  <span className="hero-meta-item">
-                    <Layers size={13} className="hero-meta-icon" />
-                    <span>{viewModalProject.area?.value ? `${viewModalProject.area.value} ${viewModalProject.area?.unit || 'sq.ft'}` : 'Scale N/A'}</span>
-                  </span>
+                    <span className="capitalize">{[viewModalProject.site?.city, viewModalProject.site?.state].filter(Boolean).join(', ') || 'Location N/A'}</span>
+                  </div>
+                  {extractArea(viewModalProject) && (
+                    <>
+                      <span className="hero-meta-divider">•</span>
+                      <div className="hero-meta-item">
+                        <Layers size={13} className="hero-meta-icon" />
+                        <span>{extractArea(viewModalProject)}</span>
+                      </div>
+                    </>
+                  )}
+                  {formatBudget(viewModalProject) && (
+                    <>
+                      <span className="hero-meta-divider">•</span>
+                      <div className="hero-meta-item hero-budget-item">
+                        <IndianRupee size={12} className="hero-meta-icon" />
+                        <span>{formatBudget(viewModalProject)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Client Portal Link */}
+              {/* Client Portal Access Card */}
               <div className="detail-portal-card">
                 <div className="portal-header-row">
-                  <span className="portal-code-label">CLIENT PORTAL ACCESS</span>
-                  <span className="portal-chip-secure">External</span>
+                  <div className="portal-live-tag">
+                    <span className="portal-live-dot" />
+                    <span>Client Portal</span>
+                  </div>
+                  <span className="portal-chip-secure">Guest Access</span>
                 </div>
                 <div className="portal-action-group">
-                  <div className="portal-code-preview" title="Public Portal Identifier">
-                    <code>{viewModalProject.projectCode}</code>
-                  </div>
                   <button
                     type="button"
                     className={`copy-portal-btn ${linkCopied ? 'copied' : ''}`}
@@ -2340,11 +2602,10 @@ export function ProjectsPage() {
                       setTimeout(() => setLinkCopied(false), 2500);
                     }}
                   >
-                    {linkCopied ? <Check size={13} color="#2E6945" /> : <Copy size={13} />}
-                    <span>{linkCopied ? 'Link Copied' : 'Copy Link'}</span>
+                    {linkCopied ? <Check size={13} /> : <Copy size={13} />}
+                    <span>{linkCopied ? 'Portal Link Copied' : 'Copy Client Link'}</span>
                   </button>
                 </div>
-                <span className="portal-note-sub">Zero-seat secured link for clients & consultants.</span>
               </div>
             </div>
 
@@ -2377,6 +2638,32 @@ export function ProjectsPage() {
                   <span>Team Members</span>
                   <span className="pmodal-count-pill">{viewModalProject.members?.length || 1}</span>
                 </button>
+                <button
+                  type="button"
+                  className={`pmodal-tab ${modalTab === 'partners' ? 'active' : ''}`}
+                  onClick={() => {
+                    setModalTab('partners');
+                    loadDirectoryLookups();
+                  }}
+                >
+                  <Building2 size={14} />
+                  <span>Directory Partners</span>
+                  <span className="pmodal-count-pill">{projectPartners.length}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`pmodal-tab ${modalTab === 'activity' ? 'active' : ''}`}
+                  onClick={() => {
+                    setModalTab('activity');
+                    loadProjectActivity(viewModalProject._id || viewModalProject.id);
+                  }}
+                >
+                  <Clock size={14} />
+                  <span>Activity</span>
+                  {projectActivity.length > 0 && (
+                    <span className="pmodal-count-pill">{projectActivity.length}</span>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -2385,7 +2672,7 @@ export function ProjectsPage() {
               <div className="pmodal-tab-content">
                 {/* 3 Cohesive Architectural Specification Cards */}
                 <div className="pmodal-specs-sections">
-                  {/* Group 1: Project Identity & Scale */}
+                  {/* Group 1: Project Identity & Typology */}
                   <div className="pmodal-spec-group">
                     <div className="spec-group-header">
                       <Building size={14} />
@@ -2393,12 +2680,8 @@ export function ProjectsPage() {
                     </div>
                     <div className="spec-group-body">
                       <div className="spec-item">
-                        <span className="spec-label">Project Code</span>
-                        <span className="spec-value-code">{viewModalProject.projectCode}</span>
-                      </div>
-                      <div className="spec-item">
                         <span className="spec-label">Typology / Category</span>
-                        <span className="spec-value">
+                        <span className="spec-value capitalize">
                           {[resolveCategory(viewModalProject), resolveTypology(viewModalProject)].filter(Boolean).join(' • ') || 'Architectural Design'}
                         </span>
                       </div>
@@ -2409,6 +2692,10 @@ export function ProjectsPage() {
                       <div className="spec-item">
                         <span className="spec-label">Estimated Budget</span>
                         <span className="spec-value-budget">{formatBudget(viewModalProject) || '—'}</span>
+                      </div>
+                      <div className="spec-item">
+                        <span className="spec-label">Client Portal Code</span>
+                        <span className="spec-value-code">{viewModalProject.projectCode}</span>
                       </div>
                     </div>
                   </div>
@@ -2422,26 +2709,36 @@ export function ProjectsPage() {
                     <div className="spec-group-body">
                       <div className="spec-item">
                         <span className="spec-label">Client Name</span>
-                        <span className="spec-value">{viewModalProject.client?.name || 'Private Client'}</span>
+                        <span className="spec-value capitalize">{viewModalProject.client?.name || 'Private Client'}</span>
                         {(viewModalProject.client?.contactPerson || extractContact(viewModalProject)) && (
                           <span className="spec-sub">Attn: {viewModalProject.client?.contactPerson || extractContact(viewModalProject)}</span>
                         )}
                       </div>
                       <div className="spec-item">
                         <span className="spec-label">Client Contact</span>
-                        <span className="spec-value">{viewModalProject.client?.phone || 'No phone'}</span>
-                        {viewModalProject.client?.email && (
-                          <span className="spec-sub">{viewModalProject.client.email}</span>
-                        )}
+                        <div className="spec-contact-links">
+                          {viewModalProject.client?.phone ? (
+                            <a href={`tel:${viewModalProject.client.phone}`} className="spec-contact-link">
+                              <Phone size={11} /> {viewModalProject.client.phone}
+                            </a>
+                          ) : (
+                            <span className="spec-sub">No phone provided</span>
+                          )}
+                          {viewModalProject.client?.email && (
+                            <a href={`mailto:${viewModalProject.client.email}`} className="spec-contact-link">
+                              <Mail size={11} /> {viewModalProject.client.email}
+                            </a>
+                          )}
+                        </div>
                       </div>
                       <div className="spec-item">
                         <span className="spec-label">Site Location</span>
-                        <span className="spec-value">{viewModalProject.site?.city || 'City N/A'}</span>
+                        <span className="spec-value capitalize">{viewModalProject.site?.city || 'City N/A'}</span>
                         <span className="spec-sub">{[viewModalProject.site?.state, viewModalProject.site?.pincode].filter(Boolean).join(' - ') || 'India'}</span>
                       </div>
                       <div className="spec-item">
                         <span className="spec-label">Site Address</span>
-                        <span className="spec-value">{viewModalProject.site?.address || extractSiteAddress(viewModalProject) || viewModalProject.site?.city || 'On file'}</span>
+                        <span className="spec-value">{viewModalProject.site?.line1 || viewModalProject.site?.address || extractSiteAddress(viewModalProject) || 'On file'}</span>
                       </div>
                     </div>
                   </div>
@@ -2462,20 +2759,34 @@ export function ProjectsPage() {
                       <div className="spec-item">
                         <span className="spec-label">Actual Status</span>
                         <span className="spec-value">
-                          {viewModalProject.status ? viewModalProject.status.replace('_', ' ') : 'Not started'}
+                          <span className={`pmodal-status-badge status-${(viewModalProject.status || 'not_started').toLowerCase().replace(/\s+/g, '_')}`}>
+                            <span className="status-dot-indicator" />
+                            {viewModalProject.status ? viewModalProject.status.replace(/_/g, ' ') : 'Not Started'}
+                          </span>
                         </span>
                       </div>
                       <div className="spec-item">
                         <span className="spec-label">Assigned Project Manager</span>
-                        <span className="spec-value">
-                          {resolveManager(viewModalProject)}
-                        </span>
+                        <div className="spec-manager-row">
+                          <span className="spec-manager-avatar">
+                            {(resolveManager(viewModalProject) || 'U').slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="spec-value capitalize">{resolveManager(viewModalProject)}</span>
+                        </div>
                       </div>
                       <div className="spec-item">
                         <span className="spec-label">Drawing Stage Progress</span>
                         <span className="spec-value">
                           {stages.length > 0 ? `${stages.filter((s) => s.status === 'DONE').length} of ${stages.length} milestones complete` : 'No stages configured'}
                         </span>
+                        {stages.length > 0 && (
+                          <div className="spec-mini-progress">
+                            <div
+                              className="spec-mini-progress-bar"
+                              style={{ width: `${Math.round((stages.filter((s) => s.status === 'DONE').length / stages.length) * 100)}%` }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2495,7 +2806,7 @@ export function ProjectsPage() {
                 {/* Tags Row */}
                 {viewModalProject.tags && viewModalProject.tags.length > 0 && (
                   <div className="pmodal-tags-section">
-                    <span className="pmodal-tags-label"><Tag size={12} /> Project Tags:</span>
+                    <span className="pmodal-tags-label"><Tag size={12} /> Tags:</span>
                     <div className="pmodal-tags-list">
                       {viewModalProject.tags.map((t, idx) => (
                         <span key={idx} className="pmodal-tag-chip">{t}</span>
@@ -2589,7 +2900,29 @@ export function ProjectsPage() {
                   ) : (
                     stages.map((stg, idx) => (
                       <div key={stg._id || stg.id} className="m17-stage-item">
-                        <div className="stage-order-num">{idx + 1}</div>
+                        <div className="stage-order-box" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span className="stage-order-num">{idx + 1}</span>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                            <button
+                              type="button"
+                              disabled={idx === 0}
+                              onClick={() => handleReorderStages(idx, idx - 1)}
+                              title="Move stage up"
+                              style={{ border: 'none', background: 'transparent', cursor: idx === 0 ? 'default' : 'pointer', opacity: idx === 0 ? 0.25 : 0.85, padding: 0 }}
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={idx === stages.length - 1}
+                              onClick={() => handleReorderStages(idx, idx + 1)}
+                              title="Move stage down"
+                              style={{ border: 'none', background: 'transparent', cursor: idx === stages.length - 1 ? 'default' : 'pointer', opacity: idx === stages.length - 1 ? 0.25 : 0.85, padding: 0 }}
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                          </div>
+                        </div>
                         <div className="stage-details">
                           <strong>{stg.name}</strong>
                           <span className="stage-code-text">{stg.code}</span>
@@ -2664,9 +2997,26 @@ export function ProjectsPage() {
                         <span className="member-email">{mem.email || 'Company User'}</span>
                       </div>
                       <div className="member-role-badge">
-                        <Badge variant={mem.role === 'MANAGER' ? 'primary' : mem.role === 'LEAD' ? 'warning' : 'neutral'}>
-                          {mem.role}
-                        </Badge>
+                        <select
+                          value={mem.role || 'MEMBER'}
+                          onChange={(e) => handleUpdateMemberRole(mem.userId || mem._id, e.target.value)}
+                          className="member-role-select"
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid #D1D5DB',
+                            background: mem.role === 'MANAGER' ? '#EAE5DF' : '#FFF',
+                            color: '#1E1A17',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <option value="MEMBER">MEMBER</option>
+                          <option value="LEAD">LEAD</option>
+                          <option value="VIEWER">VIEWER</option>
+                          <option value="MANAGER">MANAGER</option>
+                        </select>
                       </div>
                       <div className="member-actions">
                         {mem.role !== 'MANAGER' && (
@@ -2719,8 +3069,60 @@ export function ProjectsPage() {
               </div>
             )}
 
+            {/* Tab 5: Project Activity Logs (GET /projects/{id}/activity) */}
+            {modalTab === 'activity' && (
+              <div className="pmodal-tab-content">
+                {activityLoading ? (
+                  <div style={{ padding: '2rem', textAlign: 'center', color: '#7B6F62', fontSize: '13px' }}>
+                    Loading project activity logs...
+                  </div>
+                ) : projectActivity.length === 0 ? (
+                  <div style={{ padding: '2.5rem', textAlign: 'center', color: '#7B6F62', background: '#FAF8F5', border: '1px solid #E8E3DB', borderRadius: '10px' }}>
+                    <Clock size={24} style={{ margin: '0 auto 8px', opacity: 0.55 }} />
+                    <div style={{ fontWeight: 600, color: '#1E1A17', marginBottom: '4px' }}>No Activity Recorded Yet</div>
+                    <div style={{ fontSize: '12.5px' }}>Status transitions, stage updates, and member assignments will appear here.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '360px', overflowY: 'auto' }}>
+                    {projectActivity.map((act, idx) => (
+                      <div
+                        key={act._id || act.id || idx}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-start',
+                          gap: '12px',
+                          padding: '12px 14px',
+                          background: '#FAF8F5',
+                          border: '1px solid #E8E3DB',
+                          borderRadius: '10px'
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: 600, color: '#1E1A17' }}>
+                            {act.action || act.type || 'Project Update'}
+                          </div>
+                          <div style={{ fontSize: '12.5px', color: '#7B6F62', marginTop: '2px' }}>
+                            {act.description || act.message || act.summary || 'Activity logged'}
+                          </div>
+                          {(act.actorName || act.user?.name) && (
+                            <div style={{ fontSize: '11.5px', color: '#B89A74', fontWeight: 600, marginTop: '4px' }}>
+                              By {act.actorName || act.user?.name}
+                            </div>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '11.5px', color: '#7B6F62', whiteSpace: 'nowrap' }}>
+                          {act.createdAt ? new Date(act.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="pmodal-footer">
-              <Button variant="secondary" onClick={() => setViewModalProject(null)}>
+              <Button variant="secondary" onClick={handleCloseViewModal}>
                 Close Record
               </Button>
               <Button
@@ -2728,7 +3130,7 @@ export function ProjectsPage() {
                 icon={Edit}
                 onClick={() => {
                   const proj = viewModalProject;
-                  setViewModalProject(null);
+                  handleCloseViewModal();
                   handleOpenEdit(proj);
                 }}
               >
@@ -2770,18 +3172,18 @@ export function ProjectsPage() {
             </div>
 
             <div>
-              <label className="m17-field-label">Target Status</label>
-              <select
-                className="m17-select-input"
+              <Select
+                label="Target Status"
                 value={targetStatus}
                 onChange={(e) => setTargetStatus(e.target.value)}
-              >
-                <option value="NOT_STARTED">NOT_STARTED</option>
-                <option value="IN_PROGRESS">IN_PROGRESS (Sets actualStartDate)</option>
-                <option value="ON_HOLD">ON_HOLD (Requires reason)</option>
-                <option value="COMPLETED">COMPLETED (Sets actualEndDate)</option>
-                <option value="CANCELLED">CANCELLED (Requires reason)</option>
-              </select>
+                options={[
+                  { value: 'NOT_STARTED', label: 'Not Started', sublabel: 'Initial stage' },
+                  { value: 'IN_PROGRESS', label: 'In Progress', sublabel: 'Sets actual start date' },
+                  { value: 'ON_HOLD', label: 'On Hold', sublabel: 'Requires reason' },
+                  { value: 'COMPLETED', label: 'Completed', sublabel: 'Sets actual completion date' },
+                  { value: 'CANCELLED', label: 'Cancelled', sublabel: 'Requires reason' }
+                ]}
+              />
             </div>
 
             {(targetStatus === 'ON_HOLD' || targetStatus === 'CANCELLED') && (

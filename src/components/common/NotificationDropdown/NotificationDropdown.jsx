@@ -11,7 +11,8 @@ import {
   MessageSquare,
   Sparkles,
   ExternalLink,
-  X
+  X,
+  Mail
 } from 'lucide-react';
 import { Dropdown } from '../Dropdown/Dropdown';
 import { IconButton } from '../IconButton/IconButton';
@@ -64,6 +65,19 @@ export function NotificationDropdown() {
     }
   };
 
+  const handleMarkAsUnread = async (id, e) => {
+    e?.stopPropagation();
+    try {
+      await notificationService.markAsUnread(id);
+      setNotifications((prev) =>
+        prev.map((n) => ((n.id || n._id) === id ? { ...n, read: false, isRead: false } : n))
+      );
+      setUnreadCount((prev) => prev + 1);
+    } catch (err) {
+      console.warn('Mark as unread notice:', err);
+    }
+  };
+
   const handleMarkAllRead = async (e) => {
     e?.stopPropagation();
     try {
@@ -97,6 +111,17 @@ export function NotificationDropdown() {
       setNotifications((prev) => prev.filter((n) => !n.read && !n.isRead));
     } catch (err) {
       console.warn('Clear read notice:', err);
+    }
+  };
+
+  const handleClearAll = async (e) => {
+    e?.stopPropagation();
+    try {
+      await notificationService.clearAll();
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (err) {
+      console.warn('Clear all notice:', err);
     }
   };
 
@@ -250,6 +275,16 @@ export function NotificationDropdown() {
                     </span>
                   </div>
                   <div className="notif-actions-col">
+                    {isRead && (
+                      <button
+                        type="button"
+                        className="notif-delete-btn"
+                        title="Mark as unread"
+                        onClick={(e) => handleMarkAsUnread(id, e)}
+                      >
+                        <Mail size={13} />
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="notif-delete-btn"
@@ -267,13 +302,24 @@ export function NotificationDropdown() {
 
         {/* Footer */}
         <div className="notif-popup-footer">
-          <button
-            type="button"
-            className="notif-footer-link"
-            onClick={handleClearRead}
-          >
-            Clear read notifications
-          </button>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="notif-footer-link"
+              onClick={handleClearRead}
+            >
+              Clear read
+            </button>
+            {notifications.length > 0 && (
+              <button
+                type="button"
+                className="notif-footer-link"
+                onClick={handleClearAll}
+              >
+                Clear all
+              </button>
+            )}
+          </div>
           <button
             type="button"
             className="notif-footer-link highlight"

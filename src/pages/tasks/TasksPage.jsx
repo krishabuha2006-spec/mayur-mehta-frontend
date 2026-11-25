@@ -28,7 +28,10 @@ import {
   Sparkles,
   FileText,
   Bell,
-  GitCommit
+  GitCommit,
+  RefreshCw,
+  Download,
+  Paperclip
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
@@ -46,7 +49,9 @@ import { taskService } from '../../services/taskService';
 import { projectService } from '../../services/projectService';
 import { teamService } from '../../services/teamService';
 import { taskAdvancedService } from '../../services/taskAdvancedService';
+import { timeService } from '../../services/timeService';
 import { chatService } from '../../services/chatService';
+import { driveService } from '../../services/driveService';
 import { TaskTemplatesView } from './TaskTemplatesView';
 import { TaskGanttView } from './TaskGanttView';
 import {
@@ -121,6 +126,48 @@ export function TasksPage() {
   const [newChecklistText, setNewChecklistText] = useState('');
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerSeconds, setTimerSeconds] = useState(0);
+  const [pendingReviewsCount, setPendingReviewsCount] = useState(0);
+  const [timeSummary, setTimeSummary] = useState(null);
+  const [activeTimerTask, setActiveTimerTask] = useState(null);
+  const [timeReportModalOpen, setTimeReportModalOpen] = useState(false);
+  const [timeReportData, setTimeReportData] = useState([]);
+  const [timeReportGroupBy, setTimeReportGroupBy] = useState('day');
+  const [timeReportProjectId, setTimeReportProjectId] = useState('');
+  const [loadingTimeReport, setLoadingTimeReport] = useState(false);
+  const [taskFiles, setTaskFiles] = useState([]);
+  const [loadingTaskFiles, setLoadingTaskFiles] = useState(false);
+
+  // Sync live task detail (GET /tasks/{id}) & attached Drive files (GET /drive/tasks/{taskId}/files) when drawer opens
+  useEffect(() => {
+    const taskId = selectedTask?.id;
+    if (!taskId || !/^[0-9a-fA-F]{24}$/.test(String(taskId))) {
+      setTaskFiles([]);
+      return;
+    }
+    let active = true;
+    taskService.getTaskById(taskId)
+      .then((fresh) => {
+        if (!active || !fresh) return;
+        setSelectedTask((prev) => (prev && prev.id === taskId ? { ...prev, ...fresh, id: fresh._id || fresh.id || taskId } : prev));
+      })
+      .catch(() => {});
+
+    setLoadingTaskFiles(true);
+    driveService.getTaskFiles(taskId)
+      .then((files) => {
+        if (active) setTaskFiles(Array.isArray(files) ? files : []);
+      })
+      .catch(() => {
+        if (active) setTaskFiles([]);
+      })
+      .finally(() => {
+        if (active) setLoadingTaskFiles(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [selectedTask?.id]);
 
   // Chat & Discussion Thread State (Module M2.3)
   const [taskMessages, setTaskMessages] = useState([]);
@@ -168,10 +215,12 @@ export function TasksPage() {
     setTimeout(() => setToast(null), 4000);
   };
 
-  // 1. Fetch Task Summary (GET /tasks/summary)
+  // 1. Fetch Task Summary (GET /tasks/summary or GET /projects/{projectId}/tasks/summary)
   const fetchTaskSummary = useCallback(async () => {
     try {
-      const summary = await taskService.getTasksSummary();
+      const summary = selectedProjectFilter
+        ? await taskService.getProjectTaskSummary(selectedProjectFilter)
+        : await taskService.getTasksSummary();
       if (summary) {
         setSummaryStats({
           total: summary.total || summary.totalTasks || 0,
@@ -183,7 +232,7 @@ export function TasksPage() {
     } catch (err) {
       console.warn('Summary load notice:', err.message);
     }
-  }, []);
+  }, [selectedProjectFilter]);
 
   // 2. Fetch Tasks (GET /tasks or GET /projects/{projectId}/tasks or GET /tasks/my)
   const fetchTasks = useCallback(async () => {
@@ -376,6 +425,38 @@ export function TasksPage() {
     fetchTaskSummary();
   }, [activeTab, selectedProjectFilter, fetchTasks, fetchTaskSummary]);
 
+  // Live Timer & Summary sync from backend (M2.2)
+  const fetchTimeSummary = useCallback(async () => {
+    try {
+      const summary = await timeService.getTimeSummary();
+      if (summary) setTimeSummary(summary);
+    } catch {}
+    try {
+      const count = await taskAdvancedService.getPendingReviewCount();
+      if (typeof count === 'number') setPendingReviewsCount(count);
+    } catch {}
+  }, []);
+
+  const syncActiveTimer = useCallback(async () => {
+    try {
+      const active = await timeService.getActiveTimer();
+      if (active && (active.isRunning || active.startedAt || active.taskId)) {
+        setIsTimerRunning(true);
+        const elapsed = active.elapsedSeconds || (active.startedAt ? Math.max(0, Math.floor((Date.now() - new Date(active.startedAt).getTime()) / 1000)) : 0);
+        setTimerSeconds(elapsed);
+        setActiveTimerTask({
+          id: active.taskId,
+          title: active.taskTitle || active.task?.title || 'Active Task'
+        });
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    syncActiveTimer();
+    fetchTimeSummary();
+  }, [syncActiveTimer, fetchTimeSummary]);
+
   // Timer Tick
   useEffect(() => {
     let interval = null;
@@ -417,22 +498,14 @@ export function TasksPage() {
       showToast(`Task marked as ${TASK_STATUS_CONFIG[nextStatus]?.label || nextStatus}`, 'success');
       fetchTaskSummary();
     } catch (err) {
-      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
-      if (isNotFound) {
-        setTasks((prev) => prev.filter((item) => item.id !== t.id));
-        if (selectedTask?.id === t.id) setSelectedTask(null);
-        showToast('This task belongs to a project that was removed or is inaccessible. Task removed from board.', 'error');
-        fetchTasks();
-      } else {
-        // Revert optimistic update on other errors
-        setTasks((prev) =>
-          prev.map((item) => (item.id === t.id ? { ...item, status: prevStatus } : item))
-        );
-        if (selectedTask?.id === t.id) {
-          setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
-        }
-        showToast(extractErrorMessage(err) || 'Failed to update task status in backend', 'error');
+      // Revert optimistic update on failure
+      setTasks((prev) =>
+        prev.map((item) => (item.id === t.id ? { ...item, status: prevStatus } : item))
+      );
+      if (selectedTask?.id === t.id) {
+        setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
       }
+      showToast(extractErrorMessage(err) || 'Failed to update task status in backend', 'error');
     }
   };
 
@@ -453,25 +526,17 @@ export function TasksPage() {
       showToast(`Moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
       fetchTaskSummary();
     } catch (err) {
-      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
-      if (isNotFound) {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        if (selectedTask?.id === taskId) setSelectedTask(null);
-        showToast('This task belongs to an inaccessible or removed project.', 'error');
-        fetchTasks();
-      } else {
-        setTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus } : t))
-        );
-        if (selectedTask?.id === taskId) {
-          setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
-        }
-        showToast(extractErrorMessage(err) || 'Status update failed in backend', 'error');
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus } : t))
+      );
+      if (selectedTask?.id === taskId) {
+        setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
       }
+      showToast(extractErrorMessage(err) || 'Status update failed in backend', 'error');
     }
   };
 
-  // 4. Move Task in Kanban (PUT /tasks/{id}/move)
+  // 4. Move Task in Kanban (PUT /tasks/{id}/move with fallback to PUT /tasks/{id}/status)
   const handleKanbanMove = async (taskId, targetStatus) => {
     const normStatus = normalizeTaskStatus(targetStatus);
     const targetTask = tasks.find((t) => t.id === taskId);
@@ -479,36 +544,55 @@ export function TasksPage() {
 
     if (prevStatus === normStatus) return;
 
+    // Optimistically update status on the board
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: normStatus } : t))
     );
+    if (selectedTask?.id === taskId) {
+      setSelectedTask((prev) => ({ ...prev, status: normStatus }));
+    }
 
+    let moved = false;
     try {
       await taskService.moveTask(taskId, { status: normStatus });
-      showToast(`Task moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
-      fetchTaskSummary();
-    } catch (err) {
-      const isNotFound = err?.response?.status === 404 || err?.response?.data?.error?.code === 'NOT_FOUND';
-
-      // If 404 NOT_FOUND, the task or its project doesn't exist on server - DO NOT retry with status update!
-      if (isNotFound) {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
-        showToast('This task belongs to a project that was removed or is inaccessible. Removing from board.', 'error');
-        fetchTasks();
-        return;
-      }
-
-      // If move failed for another reason (e.g. 501 or route variant), fallback to updateTaskStatus
+      moved = true;
+    } catch (moveErr) {
+      // If move failed (e.g. 404 Project not found or project-level ordering restriction), fallback to status update
       try {
         await taskService.updateTaskStatus(taskId, normStatus);
-        showToast(`Task moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
-        fetchTaskSummary();
-      } catch (err2) {
+        moved = true;
+      } catch (statusErr) {
+        const isProjectMissing =
+          moveErr?.response?.status === 404 ||
+          statusErr?.response?.status === 404 ||
+          moveErr?.response?.data?.message === 'Project not found' ||
+          statusErr?.response?.data?.message === 'Project not found';
+
+        if (isProjectMissing) {
+          // Task belongs to a deleted/missing project: remove orphan task from board cleanly
+          setTasks((prev) => prev.filter((t) => t.id !== taskId));
+          if (selectedTask?.id === taskId) setSelectedTask(null);
+          showToast('Orphan task removed from board', 'info');
+          return;
+        }
+
+        // Both failed: revert to previous status on the board
         setTasks((prev) =>
           prev.map((t) => (t.id === taskId ? { ...t, status: prevStatus } : t))
         );
-        showToast(extractErrorMessage(err2 || err) || 'Failed to move task in backend', 'error');
+        if (selectedTask?.id === taskId) {
+          setSelectedTask((prev) => ({ ...prev, status: prevStatus }));
+        }
+        showToast(
+          extractErrorMessage(statusErr || moveErr) || 'Failed to move task',
+          'error'
+        );
       }
+    }
+
+    if (moved) {
+      showToast(`Task moved to ${TASK_STATUS_CONFIG[normStatus]?.label || normStatus}`, 'success');
+      fetchTaskSummary();
     }
   };
 
@@ -610,11 +694,7 @@ export function TasksPage() {
 
     try {
       const res = await taskService.deleteTask(taskId);
-      if (res?.alreadyDeleted) {
-        showToast('Task was already moved to trash', 'info');
-      } else {
-        showToast('Task moved to trash in backend', 'warning');
-      }
+      showToast('Task moved to trash', 'success');
       fetchTaskSummary();
     } catch (err) {
       setTasks(previousTasks);
@@ -768,60 +848,90 @@ export function TasksPage() {
     }
   };
 
-  // Live Backend Stopwatch Timer (POST /time/timer/start & POST /time/timer/stop)
-  const handleStartTimer = async () => {
-    if (!selectedTask) return;
+  // Live Backend Stopwatch Timer (M2.2: POST /time/timer/start & POST /time/timer/stop)
+  const handleStartTimer = async (targetTask = selectedTask) => {
+    if (!targetTask) return;
     try {
-      await taskAdvancedService.startTimer({
-        taskId: selectedTask.id,
-        projectId: selectedTask.projectId
+      await timeService.startTimer({
+        taskId: targetTask.id,
+        note: `Working on ${targetTask.title || 'task'}`
       });
       setIsTimerRunning(true);
       setTimerSeconds(0);
-      showToast('Live stopwatch timer started', 'success');
+      setActiveTimerTask({ id: targetTask.id, title: targetTask.title });
+      showToast('Live stopwatch timer started on server', 'success');
+      fetchTimeSummary();
     } catch {
       setIsTimerRunning(true);
       setTimerSeconds(0);
+      setActiveTimerTask({ id: targetTask.id, title: targetTask.title });
     }
   };
 
   const handleStopTimer = async () => {
-    if (!selectedTask) return;
     const elapsedMins = Math.max(1, Math.ceil(timerSeconds / 60));
     try {
-      const res = await taskAdvancedService.stopTimer({ note: 'Stopwatch time log' });
+      const res = await timeService.stopTimer({ note: 'Stopwatch time log' });
       const booked = res?.minutes || elapsedMins;
       const hours = +(booked / 60).toFixed(2);
-      const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
-      setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
-      setTasks((prev) =>
-        prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
-      );
-      setIsTimerRunning(false);
-      setTimerSeconds(0);
-      showToast(`Booked ${booked} mins (${hours} hrs) to server`, 'success');
-    } catch {
-      // Fallback to manual time booking
-      try {
-        await taskAdvancedService.logManualTime(selectedTask.id, {
-          minutes: elapsedMins,
-          workDate: new Date().toISOString(),
-          note: 'Timer logged'
-        });
-        const hours = +(elapsedMins / 60).toFixed(2);
+      if (selectedTask) {
         const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
         setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
         setTasks((prev) =>
           prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
         );
-        setIsTimerRunning(false);
-        setTimerSeconds(0);
-        showToast(`Booked ${elapsedMins} mins to server`, 'success');
-      } catch (err) {
-        setIsTimerRunning(false);
-        setTimerSeconds(0);
-        showToast(extractErrorMessage(err, 'Failed to book time'), 'error');
       }
+      setIsTimerRunning(false);
+      setTimerSeconds(0);
+      setActiveTimerTask(null);
+      showToast(`Booked ${booked} mins (${hours} hrs) to server`, 'success');
+      fetchTimeSummary();
+      fetchTasks();
+    } catch {
+      // Fallback to manual time booking
+      const targetTaskId = selectedTask?.id || activeTimerTask?.id;
+      if (targetTaskId) {
+        try {
+          await timeService.logManualTime(targetTaskId, {
+            minutes: elapsedMins,
+            date: new Date().toISOString().slice(0, 10),
+            note: 'Stopwatch time log'
+          });
+          const hours = +(elapsedMins / 60).toFixed(2);
+          if (selectedTask) {
+            const newLogged = +((selectedTask.loggedHours || 0) + hours).toFixed(2);
+            setSelectedTask((prev) => ({ ...prev, loggedHours: newLogged }));
+            setTasks((prev) =>
+              prev.map((t) => (t.id === selectedTask.id ? { ...t, loggedHours: newLogged } : t))
+            );
+          }
+          showToast(`Booked ${elapsedMins} mins to server`, 'success');
+          fetchTasks();
+          fetchTimeSummary();
+        } catch (err) {
+          showToast(extractErrorMessage(err, 'Failed to book time'), 'error');
+        }
+      }
+      setIsTimerRunning(false);
+      setTimerSeconds(0);
+      setActiveTimerTask(null);
+    }
+  };
+
+  const handleOpenTimeReport = async (groupBy = 'day', projectId = timeReportProjectId) => {
+    setTimeReportGroupBy(groupBy);
+    setTimeReportProjectId(projectId);
+    setTimeReportModalOpen(true);
+    setLoadingTimeReport(true);
+    try {
+      const rep = projectId
+        ? await timeService.getProjectTimeReport(projectId, { groupBy })
+        : await timeService.getMyTimeReport({ groupBy });
+      setTimeReportData(Array.isArray(rep) ? rep : (rep?.data || rep?.items || rep?.breakdown || []));
+    } catch {
+      setTimeReportData([]);
+    } finally {
+      setLoadingTimeReport(false);
     }
   };
 
@@ -890,10 +1000,66 @@ export function TasksPage() {
       if (activeTab === 'today') return matchSearch && t.status !== 'DONE' && t.status !== 'CANCELLED';
       if (activeTab === 'completed') return matchSearch && t.status === 'DONE';
       if (activeTab === 'in_progress') return matchSearch && t.status === 'IN_PROGRESS';
+      if (activeTab === 'review') return matchSearch && (t.status === 'IN_REVIEW' || t.status === 'REVIEW' || t.reviewStatus === 'PENDING');
       if (activeTab === 'my') return matchSearch && t.isMyTask;
       return matchSearch;
     });
   }, [tasks, trashTasks, searchTerm, activeTab]);
+
+  // Pagination for tasks table view
+  const [taskPage, setTaskPage] = useState(1);
+  const TASKS_PER_PAGE = 25;
+
+  useEffect(() => {
+    setTaskPage(1);
+  }, [searchTerm, activeTab, selectedProjectFilter]);
+
+  const totalTaskPages = Math.max(1, Math.ceil(filteredTasks.length / TASKS_PER_PAGE));
+  const safeTaskPage = Math.min(taskPage, totalTaskPages);
+  const displayedTasks = useMemo(() => {
+    const start = (safeTaskPage - 1) * TASKS_PER_PAGE;
+    return filteredTasks.slice(start, start + TASKS_PER_PAGE);
+  }, [filteredTasks, safeTaskPage]);
+
+  // Sync selectedTask with ?taskId= in URL query params
+  const hasInitializedFromUrl = useRef(false);
+
+  useEffect(() => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (selectedTask) {
+        next.set('taskId', selectedTask.code || selectedTask.id);
+      } else {
+        next.delete('taskId');
+      }
+      return next;
+    }, { replace: true });
+  }, [selectedTask, setSearchParams]);
+
+  // Auto-open task if ?taskId= is in URL on initial mount only
+  useEffect(() => {
+    if (hasInitializedFromUrl.current) return;
+    const taskIdParam = searchParams.get('taskId');
+    if (taskIdParam && tasks.length > 0) {
+      const matched = tasks.find(
+        (t) => String(t.id) === String(taskIdParam) || String(t.code) === String(taskIdParam)
+      );
+      if (matched) {
+        hasInitializedFromUrl.current = true;
+        setSelectedTask(matched);
+      }
+    }
+  }, [tasks, searchParams]);
+
+  const handleCloseDrawer = useCallback(() => {
+    hasInitializedFromUrl.current = true;
+    setSelectedTask(null);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('taskId');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // Map tasks to dates for quick day lookup in Calendar view
   const tasksByDate = useMemo(() => {
@@ -1094,15 +1260,43 @@ export function TasksPage() {
         </div>
       </div>
 
+      {/* Time Tracking Overview Strip (Image 3) */}
+      <div className="tasks-time-summary-strip">
+        <div className="tasks-time-summary-left">
+          <Clock size={16} className="time-strip-clock-icon" />
+          <span className="time-strip-label">Time Tracking</span>
+          <span className="time-strip-metric">
+            Today: <strong>{+((timeSummary?.todayHours ?? ((timeSummary?.todayMinutes || 0) / 60))).toFixed(1)}h</strong>
+          </span>
+          <span className="time-strip-dot">•</span>
+          <span className="time-strip-metric">
+            This Week: <strong>{+((timeSummary?.weekHours ?? timeSummary?.thisWeekHours ?? ((timeSummary?.weekMinutes || 0) / 60))).toFixed(1)}h</strong>
+          </span>
+          <span className="time-strip-dot">•</span>
+          <span className="time-strip-metric">
+            This Month: <strong>{+((timeSummary?.monthHours ?? timeSummary?.thisMonthHours ?? ((timeSummary?.monthMinutes || 0) / 60))).toFixed(1)}h</strong>
+          </span>
+        </div>
+        <button
+          type="button"
+          className="tasks-time-breakdown-btn"
+          onClick={() => handleOpenTimeReport('day')}
+        >
+          <Clock size={13} />
+          <span>My Time Log Breakdown</span>
+        </button>
+      </div>
+
       {/* 2. Status Segmented Tabs + Search + Project Filter */}
-      <div className="tasks-tabs-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
+      <div className="tasks-tabs-row" style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
         <div className="tasks-tabs-container">
           {[
-            { id: 'all', label: 'Team - Task (All)', count: summaryStats.total || tasks.length },
-            { id: 'my', label: 'User - Task (My)', count: tasks.filter((t) => t.isMyTask).length },
+            { id: 'all', label: 'All Tasks', count: summaryStats.total || tasks.length },
+            { id: 'my', label: 'My Tasks', count: tasks.filter((t) => t.isMyTask).length },
             { id: 'templates', label: 'Templates' },
             { id: 'in_progress', label: 'In Progress', count: summaryStats.inProgress || tasks.filter((t) => t.status === 'IN_PROGRESS').length },
-            { id: 'today', label: 'Actionable', count: tasks.filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED').length },
+            { id: 'review', label: 'In Review', count: pendingReviewsCount || tasks.filter((t) => t.status === 'IN_REVIEW').length },
+            { id: 'today', label: 'Active', count: tasks.filter((t) => t.status !== 'DONE' && t.status !== 'CANCELLED').length },
             { id: 'completed', label: 'Completed', count: summaryStats.completed || tasks.filter((t) => t.status === 'DONE').length },
             { id: 'trash', label: 'Trash', count: trashTasks.length }
           ].map((tab) => (
@@ -1121,35 +1315,27 @@ export function TasksPage() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap', flex: '1', justifyContent: 'flex-end' }}>
           {projectOptions.length > 0 && activeTab !== 'templates' && (
-            <select
-              value={selectedProjectFilter}
-              onChange={(e) => setSelectedProjectFilter(e.target.value)}
-              style={{
-                height: '38px',
-                borderRadius: '20px',
-                border: '1px solid var(--border)',
-                background: '#FFFFFF',
-                padding: '0 12px',
-                fontSize: '0.78rem',
-                color: 'var(--text)',
-                outline: 'none'
-              }}
-            >
-              <option value="">All Accessible Projects</option>
-              {projectOptions.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+            <div style={{ minWidth: 210 }}>
+              <Select
+                value={selectedProjectFilter}
+                onChange={(e) => setSelectedProjectFilter(e.target.value)}
+                placeholder="All Accessible Projects"
+                options={[
+                  { value: '', label: 'All Accessible Projects' },
+                  ...projectOptions
+                ]}
+              />
+            </div>
           )}
 
           {activeTab !== 'templates' && (
-            <div className="tasks-search-pill">
+            <div className="tasks-search-pill" style={{ minWidth: 240, maxWidth: 360 }}>
               <Search size={15} className="tasks-search-icon" />
               <input
                 type="text"
-                placeholder="Search tasks by title, project, or assignee..."
+                placeholder="Search tasks..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="tasks-search-input"
@@ -1215,7 +1401,7 @@ export function TasksPage() {
                   </td>
                 </tr>
               ) : (
-                filteredTasks.map((t, idx) => (
+                displayedTasks.map((t, idx) => (
                   <tr key={t.id} className="task-data-row" onClick={() => setSelectedTask(t)}>
                     <td className="td-checkbox" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -1242,7 +1428,7 @@ export function TasksPage() {
                       </button>
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                         <span className="card-code-pill">
-                          {t.code || `TSK-${String(t.taskNumber || idx + 1).padStart(4, '0')}`}
+                          {t.code || `TSK-${String(t.taskNumber || (safeTaskPage - 1) * TASKS_PER_PAGE + idx + 1).padStart(4, '0')}`}
                         </span>
                         <span className={`task-title-text ${t.status === 'DONE' ? 'completed' : ''}`}>
                           {t.title}
@@ -1311,6 +1497,37 @@ export function TasksPage() {
               )}
             </tbody>
           </table>
+
+          {totalTaskPages > 1 && (
+            <div className="studio-pagination-bar">
+              <div className="studio-pagination-info">
+                Showing <strong>{(safeTaskPage - 1) * TASKS_PER_PAGE + 1}</strong> –{' '}
+                <strong>{Math.min(safeTaskPage * TASKS_PER_PAGE, filteredTasks.length)}</strong> of{' '}
+                <strong>{filteredTasks.length}</strong> tasks
+              </div>
+              <div className="studio-pagination-controls">
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safeTaskPage <= 1}
+                  onClick={() => setTaskPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="studio-page-current">
+                  Page {safeTaskPage} of {totalTaskPages}
+                </span>
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safeTaskPage >= totalTaskPages}
+                  onClick={() => setTaskPage((p) => Math.min(totalTaskPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1612,7 +1829,7 @@ export function TasksPage() {
       {/* 6. TASK DETAIL DRAWER (Checklists, Comments, Time Tracking) */}
       <Drawer
         isOpen={!!selectedTask}
-        onClose={() => setSelectedTask(null)}
+        onClose={handleCloseDrawer}
         title={selectedTask?.title || 'Task Details'}
         subtitle={`${selectedTask?.project || ''} • Assigned to ${selectedTask?.assignee || ''}`}
         width="540px"
@@ -1708,23 +1925,17 @@ export function TasksPage() {
                   <span style={{ fontWeight: 600, color: '#4B5563', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <UserCheck size={15} /> Assignee:
                   </span>
-                  <select
-                    value={selectedTask.assigneeId || ''}
-                    onChange={(e) => handleReassignTask(e.target.value)}
-                    style={{
-                      padding: '5px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid #D1D5DB',
-                      background: '#FFFFFF',
-                      fontSize: '12px',
-                      maxWidth: '220px'
-                    }}
-                  >
-                    <option value="">Unassigned</option>
-                    {assigneeOptions.map((u) => (
-                      <option key={u.value} value={u.value}>{u.label}</option>
-                    ))}
-                  </select>
+                  <div style={{ width: '220px' }}>
+                    <Select
+                      value={selectedTask.assigneeId || ''}
+                      onChange={(e) => handleReassignTask(e.target.value)}
+                      options={[
+                        { value: '', label: 'Unassigned' },
+                        ...assigneeOptions
+                      ]}
+                      placeholder="Select assignee..."
+                    />
+                  </div>
                 </div>
 
                 {/* Subtask Checklist */}
@@ -1770,6 +1981,53 @@ export function TasksPage() {
                       Add
                     </Button>
                   </form>
+                </div>
+
+                {/* Attached Drive Files (GET /drive/tasks/{taskId}/files) */}
+                <div style={{ marginTop: '16px', paddingTop: '14px', borderTop: '1px solid #E8E3DB' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, color: '#1E1A17', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Paperclip size={14} color="#B89A74" /> Attached Drive Files
+                    </h4>
+                    <span style={{ fontSize: '11.5px', color: '#7B6F62' }}>{taskFiles.length} file(s)</span>
+                  </div>
+                  {loadingTaskFiles ? (
+                    <div style={{ fontSize: '12px', color: '#7B6F62' }}>Loading attached files...</div>
+                  ) : taskFiles.length === 0 ? (
+                    <div style={{ fontSize: '12px', color: '#7B6F62', background: '#FAF8F5', border: '1px solid #E8E3DB', borderRadius: '8px', padding: '10px 12px' }}>
+                      No Drive files linked to this task yet. Link files from Studio Storage.
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {taskFiles.map((f) => (
+                        <div
+                          key={f._id || f.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 10px',
+                            background: '#FAF8F5',
+                            border: '1px solid #E8E3DB',
+                            borderRadius: '8px',
+                            fontSize: '12.5px'
+                          }}
+                        >
+                          <span style={{ fontWeight: 500, color: '#1E1A17', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {f.name || f.originalName || 'Attached File'}
+                          </span>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={Download}
+                            onClick={() => driveService.downloadFile(f._id || f.id, f.name || 'file')}
+                          >
+                            Download
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1990,6 +2248,100 @@ export function TasksPage() {
         }}
         defaultProjectId={selectedProjectFilter || ''}
       />
+
+      {/* 8. Modal: My Time Log Breakdown (GET /time/my & GET /projects/{projectId}/time) */}
+      <Modal
+        isOpen={timeReportModalOpen}
+        onClose={() => setTimeReportModalOpen(false)}
+        title="My Time Log Breakdown"
+        size="lg"
+      >
+        <div style={{ padding: '4px 0' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              {['day', 'task', 'project'].map((grp) => (
+                <button
+                  key={grp}
+                  type="button"
+                  onClick={() => handleOpenTimeReport(grp)}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '9999px',
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    border: timeReportGroupBy === grp ? '1px solid #7B6F62' : '1px solid #E5E7EB',
+                    background: timeReportGroupBy === grp ? '#7B6F62' : '#FFF',
+                    color: timeReportGroupBy === grp ? '#FFF' : '#4B5563'
+                  }}
+                >
+                  Group by {grp.charAt(0).toUpperCase() + grp.slice(1)}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {projectOptions.length > 0 && (
+                <div style={{ minWidth: '185px' }}>
+                  <Select
+                    value={timeReportProjectId}
+                    onChange={(e) => handleOpenTimeReport(timeReportGroupBy, e.target.value)}
+                    options={[
+                      { value: '', label: 'My Personal Time' },
+                      ...projectOptions
+                    ]}
+                    placeholder="My Personal Time"
+                  />
+                </div>
+              )}
+              <Button size="sm" variant="secondary" icon={RefreshCw} onClick={() => handleOpenTimeReport(timeReportGroupBy, timeReportProjectId)}>
+                Refresh
+              </Button>
+            </div>
+          </div>
+
+          {loadingTimeReport ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#6B7280' }}>Loading report from server...</div>
+          ) : timeReportData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#9CA3AF', fontStyle: 'italic' }}>
+              No time logged yet in this grouping range on the database.
+            </div>
+          ) : (
+            <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12.5px' }}>
+                <thead>
+                  <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', textAlign: 'left' }}>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#374151' }}>
+                      {timeReportGroupBy === 'day' ? 'Date' : timeReportGroupBy === 'task' ? 'Task' : 'Project'}
+                    </th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#374151' }}>Logged Minutes</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#374151' }}>Hours</th>
+                    <th style={{ padding: '8px 12px', fontWeight: 600, color: '#374151' }}>Entries</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {timeReportData.map((row, idx) => {
+                    const rowKey = row.date || row.day || row.taskId || row.taskName || row.projectId || row.projectName || `row_${idx}`;
+                    const label = row.date || row.day || row.taskTitle || row.taskName || row.projectName || row.projectTitle || row._id || 'Entry';
+                    const mins = Number(row.minutes || row.totalMinutes || 0);
+                    const hrs = (mins / 60).toFixed(2);
+                    const count = row.count || row.entriesCount || 1;
+
+                    return (
+                      <tr key={rowKey} style={{ borderBottom: '1px solid #F3F4F6' }}>
+                        <td style={{ padding: '8px 12px', fontWeight: 500, color: '#111827' }}>{label}</td>
+                        <td style={{ padding: '8px 12px', color: '#4B5563' }}>{mins} mins</td>
+                        <td style={{ padding: '8px 12px', fontWeight: 600, color: '#047857' }}>{hrs} hrs</td>
+                        <td style={{ padding: '8px 12px', color: '#6B7280' }}>{count}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

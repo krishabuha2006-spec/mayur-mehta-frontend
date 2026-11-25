@@ -28,9 +28,11 @@ import {
   Globe,
   AlertTriangle,
   FolderKanban,
-  Sparkles
+  Sparkles,
+  X
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
+import { Select } from '../../components/common/Select/Select';
 import { directoryService } from '../../services/directoryService';
 import { masterService } from '../../services/masterService';
 import { projectService } from '../../services/projectService';
@@ -70,6 +72,26 @@ export function DirectoryPage() {
   const [clients, setClients] = useState([]);
   const [partners, setPartners] = useState([]);
   const [employees, setEmployees] = useState([]);
+
+  // Client Directory Pagination
+  const [clientPage, setClientPage] = useState(1);
+  const CLIENTS_PER_PAGE = 12;
+  const totalClientPages = Math.max(1, Math.ceil(clients.length / CLIENTS_PER_PAGE));
+  const safeClientPage = Math.min(clientPage, totalClientPages);
+  const displayedClients = useMemo(() => {
+    const start = (safeClientPage - 1) * CLIENTS_PER_PAGE;
+    return clients.slice(start, start + CLIENTS_PER_PAGE);
+  }, [clients, safeClientPage]);
+
+  // Partner Directory Pagination
+  const [partnerPage, setPartnerPage] = useState(1);
+  const PARTNERS_PER_PAGE = 12;
+  const totalPartnerPages = Math.max(1, Math.ceil(partners.length / PARTNERS_PER_PAGE));
+  const safePartnerPage = Math.min(partnerPage, totalPartnerPages);
+  const displayedPartners = useMemo(() => {
+    const start = (safePartnerPage - 1) * PARTNERS_PER_PAGE;
+    return partners.slice(start, start + PARTNERS_PER_PAGE);
+  }, [partners, safePartnerPage]);
   const [projectsList, setProjectsList] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [projectPartners, setProjectPartners] = useState([]);
@@ -100,6 +122,11 @@ export function DirectoryPage() {
 
   // Active item in modal
   const [editingItem, setEditingItem] = useState(null);
+
+  // Fast typeahead lookup autocomplete (GET /api/v1/directory/lookup)
+  const [lookupResults, setLookupResults] = useState([]);
+  const [isLookingUp, setIsLookingUp] = useState(false);
+  const [showLookupDropdown, setShowLookupDropdown] = useState(false);
   const [activeShareTarget, setActiveShareTarget] = useState(null);
   const [copiedText, setCopiedText] = useState(false);
   const [shareResult, setShareResult] = useState(null);
@@ -185,7 +212,7 @@ export function DirectoryPage() {
 
   const fetchClients = useCallback(async () => {
     try {
-      const params = {};
+      const params = { limit: 100 };
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (subFilter !== 'ALL') params.type = subFilter;
@@ -199,7 +226,7 @@ export function DirectoryPage() {
 
   const fetchPartners = useCallback(async () => {
     try {
-      const params = {};
+      const params = { limit: 100 };
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (subFilter !== 'ALL') params.acvcCategoryId = subFilter;
@@ -213,7 +240,7 @@ export function DirectoryPage() {
 
   const fetchEmployees = useCallback(async () => {
     try {
-      const params = {};
+      const params = { limit: 100 };
       if (searchTerm.trim()) params.search = searchTerm.trim();
       if (statusFilter !== 'ALL') params.status = statusFilter;
       if (subFilter !== 'ALL') params.employmentType = subFilter;
@@ -224,6 +251,28 @@ export function DirectoryPage() {
       showNotice(extractErrorMessage(err) || 'Failed to fetch employees', 'error');
     }
   }, [searchTerm, statusFilter, subFilter]);
+
+  // Fast Typeahead Autocomplete (GET /api/v1/directory/lookup)
+  useEffect(() => {
+    if (!searchTerm || searchTerm.trim().length < 2) {
+      setLookupResults([]);
+      setShowLookupDropdown(false);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsLookingUp(true);
+        const res = await directoryService.lookup(searchTerm.trim());
+        setLookupResults(Array.isArray(res) ? res : []);
+        setShowLookupDropdown(true);
+      } catch (e) {
+        console.warn('Typeahead lookup notice:', e);
+      } finally {
+        setIsLookingUp(false);
+      }
+    }, 220);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const fetchProjects = async () => {
     try {
@@ -366,7 +415,8 @@ export function DirectoryPage() {
     });
   };
 
-  const handleOpenEditClient = (client) => {
+  const handleOpenEditClient = async (client) => {
+    const clientId = client._id || client.id;
     setEditingItem(client);
     setClientForm({
       type: client.type || 'INDIVIDUAL',
@@ -385,12 +435,41 @@ export function DirectoryPage() {
       tags: Array.isArray(client.tags) ? client.tags.join(', ') : ''
     });
     setClientModalOpen(true);
+
+    try {
+      const fresh = await directoryService.getClient(clientId);
+      if (fresh) {
+        setEditingItem(fresh);
+        setClientForm({
+          type: fresh.type || 'INDIVIDUAL',
+          name: fresh.name || '',
+          phone: fresh.phones?.[0]?.number || '',
+          isWhatsApp: fresh.phones?.[0]?.isWhatsApp ?? true,
+          email: fresh.emails?.[0]?.address || '',
+          addressLine1: fresh.address?.line1 || '',
+          city: fresh.address?.city || '',
+          state: fresh.address?.state || '',
+          pincode: fresh.address?.pincode || '',
+          mapLink: fresh.mapLink || '',
+          relationshipManagerId: fresh.relationshipManagerId || '',
+          gstNumber: fresh.gstNumber || '',
+          notes: fresh.notes || '',
+          tags: Array.isArray(fresh.tags) ? fresh.tags.join(', ') : ''
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to fetch fresh client details by ID:', err);
+    }
   };
 
   const handleSubmitClient = async (e) => {
     e.preventDefault();
     if (!clientForm.name.trim()) {
       showNotice('Client name is required', 'error');
+      return;
+    }
+    if (!clientForm.phone.trim()) {
+      showNotice('Primary phone number is required for client record', 'error');
       return;
     }
 
@@ -1000,7 +1079,7 @@ export function DirectoryPage() {
         <div className="directory-header-actions">
           <Button
             variant="secondary"
-            size="md"
+            size="sm"
             icon={RotateCw}
             loading={refreshing}
             onClick={handleRefreshAll}
@@ -1013,7 +1092,7 @@ export function DirectoryPage() {
             <>
               <Button
                 variant="secondary"
-                size="md"
+                size="sm"
                 icon={Download}
                 onClick={handleExportCsv}
                 title="Export records to CSV"
@@ -1023,7 +1102,7 @@ export function DirectoryPage() {
 
               <Button
                 variant="secondary"
-                size="md"
+                size="sm"
                 icon={Upload}
                 onClick={() => {
                   setImportFile(null);
@@ -1040,7 +1119,7 @@ export function DirectoryPage() {
           {activeTab === 'clients' && (
             <Button
               variant="primary"
-              size="md"
+              size="sm"
               icon={Plus}
               onClick={handleOpenCreateClient}
             >
@@ -1051,7 +1130,7 @@ export function DirectoryPage() {
           {activeTab === 'partners' && (
             <Button
               variant="primary"
-              size="md"
+              size="sm"
               icon={Plus}
               onClick={handleOpenCreatePartner}
             >
@@ -1062,7 +1141,7 @@ export function DirectoryPage() {
           {activeTab === 'employees' && (
             <Button
               variant="primary"
-              size="md"
+              size="sm"
               icon={Plus}
               onClick={handleOpenCreateEmployee}
             >
@@ -1146,14 +1225,74 @@ export function DirectoryPage() {
       {/* Toolbar / Search / Filters (when not in project links view) */}
       {activeTab !== 'projects' && (
         <div className="directory-toolbar">
-          <div className="directory-search-box">
-            <Search size={16} color="#7B6F62" />
-            <input
-              type="text"
-              placeholder={`Search ${activeTab} by name, phone, email, city...`}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="directory-search-wrapper" style={{ position: 'relative', flex: 1, maxWidth: '440px' }}>
+            <div className="directory-search-box" style={{ width: '100%', maxWidth: 'none' }}>
+              <Search size={16} color="#7B6F62" />
+              <input
+                type="text"
+                className="directory-search-input search-input"
+                placeholder={`Search ${activeTab} by name, phone, email, city...`}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onFocus={() => { if (lookupResults.length > 0) setShowLookupDropdown(true); }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  outline: 'none',
+                  boxShadow: 'none',
+                  padding: 0,
+                  height: '100%',
+                  width: '100%'
+                }}
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#7B6F62', padding: '0 2px' }}
+                  onClick={() => { setSearchTerm(''); setLookupResults([]); setShowLookupDropdown(false); }}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            {showLookupDropdown && lookupResults.length > 0 && (
+              <div className="directory-typeahead-dropdown">
+                <div className="typeahead-header">
+                  <span>Fast Directory Autocomplete ({lookupResults.length} matches)</span>
+                  <button type="button" onClick={() => setShowLookupDropdown(false)} style={{ background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
+                </div>
+                {lookupResults.map((item) => {
+                  const itemId = item._id || item.id;
+                  const itemKind = (item.kind || 'contact').toLowerCase();
+                  return (
+                    <div
+                      key={itemId}
+                      className="typeahead-item"
+                      onClick={() => {
+                        setSearchTerm(item.name);
+                        setShowLookupDropdown(false);
+                        if (itemKind === 'client') setActiveTab('clients');
+                        else if (itemKind === 'partner') setActiveTab('partners');
+                        else if (itemKind === 'employee') setActiveTab('employees');
+                      }}
+                    >
+                      <div className="typeahead-item-main">
+                        <strong>{item.name}</strong>
+                        <span className="typeahead-item-sub">
+                          {item.code ? `${item.code} • ` : ''}
+                          {item.phones?.[0]?.number || item.phone || item.emails?.[0]?.address || item.city || ''}
+                        </span>
+                      </div>
+                      <span className={`typeahead-badge ${itemKind}`}>
+                        {itemKind.toUpperCase()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="directory-filter-group">
@@ -1245,24 +1384,45 @@ export function DirectoryPage() {
           ) : clients.length === 0 ? (
             <div className="directory-empty-card">
               <div className="directory-empty-icon">
-                <Users size={32} />
+                <Users size={26} strokeWidth={1.6} />
               </div>
-              <h3 className="directory-empty-title">No Clients Found</h3>
+              <h3 className="directory-empty-title">
+                {searchTerm || statusFilter !== 'ALL' || subFilter !== 'ALL'
+                  ? 'No Matching Clients Found'
+                  : 'No Clients in Directory Yet'}
+              </h3>
               <p className="directory-empty-desc">
-                Add your architectural and interior clients to manage contact cards, vCards, and project assignments.
+                {searchTerm || statusFilter !== 'ALL' || subFilter !== 'ALL'
+                  ? 'No clients match your current filters. Try resetting search or status filters.'
+                  : 'Add residential, commercial, and interior clients to manage contact cards, vCards, and project assignments.'}
               </p>
-              <Button
-                variant="primary"
-                size="md"
-                icon={Plus}
-                onClick={handleOpenCreateClient}
-              >
-                Add First Client
-              </Button>
+              {searchTerm || statusFilter !== 'ALL' || subFilter !== 'ALL' ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  icon={RotateCw}
+                  onClick={() => {
+                    setSearchTerm('');
+                    setStatusFilter('ALL');
+                    setSubFilter('ALL');
+                  }}
+                >
+                  Reset Filters
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Plus}
+                  onClick={handleOpenCreateClient}
+                >
+                  Add First Client
+                </Button>
+              )}
             </div>
           ) : viewMode === 'grid' ? (
             <div className="directory-grid">
-              {clients.map((c) => {
+              {displayedClients.map((c) => {
                 const phone = getPrimaryPhone(c);
                 const email = getPrimaryEmail(c);
                 const isAnon = Boolean(c.isAnonymised);
@@ -1415,7 +1575,7 @@ export function DirectoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {clients.map((c) => {
+                  {displayedClients.map((c) => {
                     const phone = getPrimaryPhone(c);
                     const email = getPrimaryEmail(c);
                     const isAnon = Boolean(c.isAnonymised);
@@ -1467,6 +1627,37 @@ export function DirectoryPage() {
               </table>
             </div>
           )}
+
+          {totalClientPages > 1 && (
+            <div className="studio-pagination-bar" style={{ marginTop: '16px' }}>
+              <div className="studio-pagination-info">
+                Showing <strong>{(safeClientPage - 1) * CLIENTS_PER_PAGE + 1}</strong> –{' '}
+                <strong>{Math.min(safeClientPage * CLIENTS_PER_PAGE, clients.length)}</strong> of{' '}
+                <strong>{clients.length}</strong> clients
+              </div>
+              <div className="studio-pagination-controls">
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safeClientPage <= 1}
+                  onClick={() => setClientPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="studio-page-current">
+                  Page {safeClientPage} of {totalClientPages}
+                </span>
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safeClientPage >= totalClientPages}
+                  onClick={() => setClientPage((p) => Math.min(totalClientPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1497,7 +1688,7 @@ export function DirectoryPage() {
             </div>
           ) : viewMode === 'grid' ? (
             <div className="directory-grid">
-              {partners.map((p) => {
+              {displayedPartners.map((p) => {
                 const phone = getPrimaryPhone(p);
                 const email = getPrimaryEmail(p);
                 const isAnon = Boolean(p.isAnonymised);
@@ -1650,7 +1841,7 @@ export function DirectoryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {partners.map((p) => {
+                  {displayedPartners.map((p) => {
                     const phone = getPrimaryPhone(p);
                     const email = getPrimaryEmail(p);
                     const isAnon = Boolean(p.isAnonymised);
@@ -1701,6 +1892,37 @@ export function DirectoryPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {totalPartnerPages > 1 && (
+            <div className="studio-pagination-bar" style={{ marginTop: '16px' }}>
+              <div className="studio-pagination-info">
+                Showing <strong>{(safePartnerPage - 1) * PARTNERS_PER_PAGE + 1}</strong> –{' '}
+                <strong>{Math.min(safePartnerPage * PARTNERS_PER_PAGE, partners.length)}</strong> of{' '}
+                <strong>{partners.length}</strong> partners
+              </div>
+              <div className="studio-pagination-controls">
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safePartnerPage <= 1}
+                  onClick={() => setPartnerPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                <span className="studio-page-current">
+                  Page {safePartnerPage} of {totalPartnerPages}
+                </span>
+                <button
+                  type="button"
+                  className="studio-page-btn"
+                  disabled={safePartnerPage >= totalPartnerPages}
+                  onClick={() => setPartnerPage((p) => Math.min(totalPartnerPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -1975,45 +2197,49 @@ export function DirectoryPage() {
       {activeTab === 'projects' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {/* Project Selector Bar */}
-          <div className="directory-toolbar" style={{ justifyContent: 'flex-start', gap: '16px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 600, color: '#1E1A17' }}>Select Project:</span>
-            <select
-              className="directory-select-filter"
-              style={{ minWidth: '320px' }}
-              value={selectedProjectId}
-              onChange={(e) => {
-                setSelectedProjectId(e.target.value);
-                fetchProjectDetailsAndPartners(e.target.value);
-              }}
-            >
-              {projectsList.map((p) => (
-                <option key={p._id || p.id} value={p._id || p.id}>
-                  {p.code ? `[${p.code}] ` : ''}{p.name}
-                </option>
-              ))}
-            </select>
+          <div className="directory-project-selector-bar">
+            <div className="project-select-label-wrap">
+              <FolderKanban size={16} className="project-select-icon" />
+              <span className="project-select-label">Select Project:</span>
+            </div>
+            <div className="project-select-dropdown-wrap">
+              <Select
+                value={selectedProjectId}
+                onChange={(e) => {
+                  setSelectedProjectId(e.target.value);
+                  fetchProjectDetailsAndPartners(e.target.value);
+                }}
+                options={projectsList.map((p) => ({
+                  value: p._id || p.id,
+                  label: p.name,
+                  sublabel: p.code ? `[${p.code}]` : null
+                }))}
+                placeholder="Choose a project..."
+              />
+            </div>
 
             <Button
               variant="secondary"
               size="md"
               icon={Share2}
               onClick={() => handleShareProjectSite('whatsapp')}
+              className="project-share-btn"
             >
               Share Site Details (WhatsApp)
             </Button>
           </div>
 
           {/* Project Overview Cards */}
-          <div className="form-grid-2">
+          <div className="project-link-cards-grid">
             {/* Linked Client Card */}
-            <div className="directory-entry-card">
+            <div className="directory-entry-card project-linked-client-card">
               <div className="card-top-row">
                 <div className="card-title-group">
                   <div className="card-avatar gold">
                     <Users size={22} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '16px' }}>Project Linked Client</h3>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#1E1A17' }}>Project Linked Client</h3>
                     <p style={{ margin: 0, fontSize: '12px', color: '#7B6F62' }}>Synced client snapshot & site coordinates</p>
                   </div>
                 </div>
@@ -2031,89 +2257,90 @@ export function DirectoryPage() {
               </div>
 
               {projectDetails?.client?.name ? (
-                <div className="card-meta-list" style={{ marginTop: '10px' }}>
-                  <div className="meta-item">
-                    <strong>{projectDetails.client.name}</strong>
+                <div className="linked-client-body">
+                  <div className="card-meta-list" style={{ marginTop: '12px' }}>
+                    <div className="meta-item" style={{ paddingBottom: '4px', borderBottom: '1px solid #EAE5DE' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 600, color: '#1E1A17' }}>{projectDetails.client.name}</span>
+                      <span className="linked-client-tag">Linked Client</span>
+                    </div>
+                    {projectDetails.client.phone && (
+                      <div className="meta-item">
+                        <Phone size={14} className="meta-icon" />
+                        <span className="meta-val">{projectDetails.client.phone}</span>
+                      </div>
+                    )}
+                    {projectDetails.client.email && (
+                      <div className="meta-item">
+                        <Mail size={14} className="meta-icon" />
+                        <span className="meta-val">{projectDetails.client.email}</span>
+                      </div>
+                    )}
+                    {projectDetails.site?.mapLink ? (
+                      <div className="meta-item">
+                        <MapPin size={14} className="meta-icon" />
+                        <a href={projectDetails.site.mapLink} target="_blank" rel="noreferrer" className="meta-link">
+                          View Site on Maps <ExternalLink size={11} />
+                        </a>
+                      </div>
+                    ) : (
+                      <div className="meta-item" style={{ color: '#8C7E70', fontSize: '12px' }}>
+                        <MapPin size={14} className="meta-icon" />
+                        <span>Coordinates synced with project</span>
+                      </div>
+                    )}
                   </div>
-                  {projectDetails.client.phone && (
-                    <div className="meta-item">
-                      <Phone size={13} /> {projectDetails.client.phone}
-                    </div>
-                  )}
-                  {projectDetails.client.email && (
-                    <div className="meta-item">
-                      <Mail size={13} /> {projectDetails.client.email}
-                    </div>
-                  )}
-                  {projectDetails.site?.mapLink && (
-                    <div className="meta-item">
-                      <MapPin size={13} />
-                      <a href={projectDetails.site.mapLink} target="_blank" rel="noreferrer" className="meta-link">
-                        View Site on Maps <ExternalLink size={10} />
-                      </a>
-                    </div>
-                  )}
                 </div>
               ) : (
-                <div style={{ padding: '20px 0', textAlign: 'center', color: '#7B6F62', fontSize: '13px' }}>
-                  No directory client linked to this project.
-                  <div style={{ marginTop: '12px' }}>
-                    <select
-                      className="directory-select-filter"
-                      style={{ width: '100%', marginBottom: '10px' }}
+                <div className="linked-client-empty">
+                  <p style={{ color: '#7B6F62', fontSize: '13px', margin: '0 0 12px' }}>
+                    No directory client linked to this project yet.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                    <Select
                       id="linkClientSelect"
-                    >
-                      <option value="">-- Choose Client to Link --</option>
-                      {clients.map((cl) => (
-                        <option key={cl._id || cl.id} value={cl._id || cl.id}>
-                          {cl.name} ({cl.code})
-                        </option>
-                      ))}
-                    </select>
-                    <Button
-                      variant="primary"
-                      size="md"
-                      icon={Link}
-                      onClick={() => {
-                        const sel = document.getElementById('linkClientSelect');
-                        if (sel?.value) handleLinkClientToProject(sel.value, true);
+                      placeholder="Choose Client to Link..."
+                      options={clients.map((cl) => ({
+                        value: cl._id || cl.id,
+                        label: cl.name,
+                        sublabel: cl.code || null
+                      }))}
+                      onChange={(e) => {
+                        if (e.target.value) handleLinkClientToProject(e.target.value, true);
                       }}
-                    >
-                      Link Client & Sync Site Address
-                    </Button>
+                    />
                   </div>
                 </div>
               )}
             </div>
 
             {/* Associate ACVC Partner Card */}
-            <div className="directory-entry-card">
+            <div className="directory-entry-card associate-partner-card">
               <div className="card-top-row">
                 <div className="card-title-group">
                   <div className="card-avatar stone">
                     <Building2 size={22} />
                   </div>
                   <div>
-                    <h3 style={{ margin: 0, fontSize: '16px' }}>Associate ACVC Partner</h3>
+                    <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#1E1A17' }}>Associate ACVC Partner</h3>
                     <p style={{ margin: 0, fontSize: '12px', color: '#7B6F62' }}>Assign contractor, vendor or consultant to project</p>
                   </div>
                 </div>
               </div>
 
-              <form onSubmit={handleAddPartnerToProject} style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
-                <select
-                  className="form-select"
-                  value={assocPartnerForm.partnerId}
-                  onChange={(e) => setAssocPartnerForm({ ...assocPartnerForm, partnerId: e.target.value })}
-                  required
-                >
-                  <option value="">-- Select Partner --</option>
-                  {partners.map((p) => (
-                    <option key={p._id || p.id} value={p._id || p.id}>
-                      {p.name} ({p.code} - {p.acvcCategoryId?.name || 'Partner'})
-                    </option>
-                  ))}
-                </select>
+              <form onSubmit={handleAddPartnerToProject} className="associate-partner-form">
+                <div className="partner-select-wrap">
+                  <Select
+                    value={assocPartnerForm.partnerId}
+                    onChange={(e) => setAssocPartnerForm({ ...assocPartnerForm, partnerId: e.target.value })}
+                    options={partners.map((p) => ({
+                      value: p._id || p.id,
+                      label: p.name,
+                      sublabel: `${p.code ? `[${p.code}] ` : ''}${p.acvcCategoryId?.name || p.kind || 'Partner'}`
+                    }))}
+                    placeholder="-- Select ACVC Partner --"
+                    required
+                  />
+                </div>
 
                 <input
                   type="text"
@@ -2136,6 +2363,7 @@ export function DirectoryPage() {
                   variant="primary"
                   size="md"
                   icon={Plus}
+                  style={{ width: '100%', marginTop: '4px' }}
                 >
                   Add Partner to Project
                 </Button>

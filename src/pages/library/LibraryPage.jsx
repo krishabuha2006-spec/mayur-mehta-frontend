@@ -24,7 +24,10 @@ import {
   RotateCcw,
   HardDrive,
   FolderArchive,
-  ArrowRight
+  ArrowRight,
+  X,
+  Filter,
+  Edit2
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
@@ -70,6 +73,8 @@ export function LibraryPage() {
 
   // Modals & Panels
   const [createItemModalOpen, setCreateItemModalOpen] = useState(false);
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [tagSuggestions, setTagSuggestions] = useState([]);
   const [createBoardModalOpen, setCreateBoardModalOpen] = useState(false);
   const [detailModalItem, setDetailModalItem] = useState(null);
   const [uploadModalItem, setUploadModalItem] = useState(null);
@@ -116,6 +121,34 @@ export function LibraryPage() {
     description: '',
     status: 'ACTIVE'
   });
+
+  const resetItemForm = useCallback(() => {
+    setItemForm({
+      kind: activeTab === 'BOARDS' || activeTab === 'TRASH' ? 'MATERIAL' : activeTab,
+      title: '',
+      description: '',
+      category: activeTab === 'PORTFOLIO' ? 'Residential Architecture' : activeTab === 'REFERENCE' ? 'Facade & Fenestration' : 'Marble & Stone',
+      tags: '',
+      status: 'ACTIVE',
+      visibility: 'INTERNAL',
+      brand: '',
+      modelCode: '',
+      finish: 'Polished',
+      color: '#7B6F62',
+      size: '',
+      unit: 'SQFT',
+      indicativeRateRupees: '',
+      rateNote: '',
+      city: 'Ahmedabad',
+      state: 'Gujarat',
+      year: new Date().getFullYear(),
+      areaSqft: '',
+      role: 'Architecture + Interiors',
+      projectId: '',
+      sourceUrl: '',
+      sourceNote: ''
+    });
+  }, [activeTab]);
 
   const showToast = (message, type = 'success') => {
     setToastMessage({ message, type });
@@ -180,6 +213,10 @@ export function LibraryPage() {
 
     libraryService.getStorageUsage().then((res) => {
       if (res) setStorageUsage(res);
+    }).catch(() => {});
+
+    libraryService.getTags().then((tags) => {
+      if (Array.isArray(tags)) setTagSuggestions(tags);
     }).catch(() => {});
   }, []);
 
@@ -288,9 +325,15 @@ export function LibraryPage() {
 
     try {
       setActionLoading(true);
-      await libraryService.createItem(payload);
-      showToast(`Item "${payload.title}" created successfully.`);
+      if (editingItemId) {
+        await libraryService.updateItem(editingItemId, payload);
+        showToast(`Item "${payload.title}" updated successfully.`);
+      } else {
+        await libraryService.createItem(payload);
+        showToast(`Item "${payload.title}" created successfully.`);
+      }
       setCreateItemModalOpen(false);
+      setEditingItemId(null);
       setItemForm({
         kind: 'MATERIAL',
         title: '',
@@ -322,6 +365,39 @@ export function LibraryPage() {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Handle Open Edit Item (PATCH /library/items/{id})
+  const handleOpenEditItem = (item, e) => {
+    e?.stopPropagation();
+    const id = item._id || item.id;
+    setEditingItemId(id);
+    setItemForm({
+      kind: item.kind || 'MATERIAL',
+      title: item.title || '',
+      description: item.description || '',
+      category: item.material?.category || item.portfolio?.category || item.reference?.category || 'Marble & Stone',
+      tags: Array.isArray(item.tags) ? item.tags.join(', ') : '',
+      status: item.status || 'ACTIVE',
+      visibility: item.visibility || 'INTERNAL',
+      brand: item.material?.brand || '',
+      modelCode: item.material?.modelCode || '',
+      finish: item.material?.finish || 'Polished',
+      color: item.material?.color || '#7B6F62',
+      size: item.material?.size || '',
+      unit: item.material?.unit || 'SQFT',
+      indicativeRateRupees: item.material?.indicativeRatePaise ? String(item.material.indicativeRatePaise / 100) : '',
+      rateNote: item.material?.rateNote || '',
+      city: item.portfolio?.city || 'Ahmedabad',
+      state: item.portfolio?.state || 'Gujarat',
+      year: item.portfolio?.year || new Date().getFullYear(),
+      areaSqft: item.portfolio?.areaSqft ? String(item.portfolio.areaSqft) : '',
+      role: item.portfolio?.role || 'Architecture + Interiors',
+      projectId: item.portfolio?.projectId || '',
+      sourceUrl: item.reference?.sourceUrl || '',
+      sourceNote: item.reference?.sourceNote || ''
+    });
+    setCreateItemModalOpen(true);
   };
 
   // Handle Create Mood Board
@@ -457,39 +533,38 @@ export function LibraryPage() {
         </div>
       )}
 
-      {/* Header */}
+      {/* 1. STUDIO HEADER */}
       <div className="library-header-row">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="library-header-title-block">
+          <div className="library-header-title-line">
             <h1 className="library-heading">Design Library & Specifications</h1>
             {storageUsage && (
-              <span className="library-storage-badge" title="Unified storage quota with Drive">
-                <HardDrive size={12} />
-                {(storageUsage.totalBytes ? (storageUsage.totalBytes / (1024 * 1024)).toFixed(1) : '0')} MB
+              <span className="library-storage-badge" title="Unified studio storage quota with Drive">
+                <HardDrive size={12} strokeWidth={2} />
+                <span>Cloud {(storageUsage.totalBytes ? (storageUsage.totalBytes / (1024 * 1024)).toFixed(1) : '0')} MB</span>
               </span>
             )}
           </div>
           <p className="library-subheading">
-            Module M2.5 Centralized architectural asset management: materials, portfolio showcases, design references & mood boards
+            Curated architectural specifications, material samples, studio portfolio & client mood boards
           </p>
         </div>
 
         <div className="library-header-actions">
           <Button
-            variant={showFavouritesOnly ? 'primary' : 'secondary'}
-            icon={Star}
-            onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
-            title="Filter by starred items"
+            variant="secondary"
+            size="sm"
+            icon={Download}
+            onClick={handleExportCsv}
+            disabled={actionLoading}
+            title="Export Library to CSV"
           >
-            {showFavouritesOnly ? 'Favourites Only' : 'All Items'}
-          </Button>
-
-          <Button variant="secondary" icon={Download} onClick={handleExportCsv} disabled={actionLoading}>
             Export CSV
           </Button>
 
           <Button
             variant="secondary"
+            size="sm"
             icon={RefreshCw}
             onClick={() => {
               if (activeTab === 'BOARDS') fetchBoards();
@@ -497,107 +572,140 @@ export function LibraryPage() {
               else fetchItems();
             }}
             disabled={loading}
+            title="Refresh from Server"
           >
             Refresh
           </Button>
 
           {activeTab === 'BOARDS' ? (
-            <Button variant="primary" icon={Plus} onClick={() => setCreateBoardModalOpen(true)}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => setCreateBoardModalOpen(true)}
+            >
               New Mood Board
             </Button>
           ) : activeTab === 'TRASH' ? null : (
-            <Button variant="primary" icon={Plus} onClick={() => setCreateItemModalOpen(true)}>
+            <Button
+              variant="primary"
+              size="sm"
+              icon={Plus}
+              onClick={() => {
+                resetItemForm();
+                setCreateItemModalOpen(true);
+              }}
+            >
               Add {activeTab === 'MATERIAL' ? 'Material Spec' : activeTab === 'PORTFOLIO' ? 'Portfolio Project' : 'Design Reference'}
             </Button>
           )}
         </div>
       </div>
 
-      {/* Main Kind Tabs */}
-      <div className="library-main-tabs">
-        <button
-          type="button"
-          className={`lib-tab-btn ${activeTab === 'MATERIAL' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('MATERIAL'); setSelectedBoard(null); }}
-        >
-          <Layers size={16} />
-          <span>Material Specs</span>
-        </button>
-
-        <button
-          type="button"
-          className={`lib-tab-btn ${activeTab === 'PORTFOLIO' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('PORTFOLIO'); setSelectedBoard(null); }}
-        >
-          <Sparkles size={16} />
-          <span>Studio Portfolio</span>
-        </button>
-
-        <button
-          type="button"
-          className={`lib-tab-btn ${activeTab === 'REFERENCE' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('REFERENCE'); setSelectedBoard(null); }}
-        >
-          <Bookmark size={16} />
-          <span>Design References</span>
-        </button>
-
-        <button
-          type="button"
-          className={`lib-tab-btn ${activeTab === 'BOARDS' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('BOARDS'); setSelectedBoard(null); }}
-        >
-          <FolderPlus size={16} />
-          <span>Mood Boards</span>
-        </button>
-
-        <button
-          type="button"
-          className={`lib-tab-btn ${activeTab === 'TRASH' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('TRASH'); setSelectedBoard(null); }}
-        >
-          <FolderArchive size={16} />
-          <span>Retention Trash</span>
-        </button>
+      {/* 2. MAIN SEGMENTED NAVIGATION TABS */}
+      <div className="library-nav-bar">
+        <div className="library-main-tabs">
+          {[
+            { id: 'MATERIAL', label: 'Material Specs', icon: Layers },
+            { id: 'PORTFOLIO', label: 'Studio Portfolio', icon: Sparkles },
+            { id: 'REFERENCE', label: 'Design References', icon: Bookmark },
+            { id: 'BOARDS', label: 'Mood Boards', icon: FolderPlus, count: boards.length },
+            { id: 'TRASH', label: 'Retention Trash', icon: FolderArchive, count: trashItems.length }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                className={`lib-tab-btn ${isActive ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab(tab.id);
+                  setSelectedBoard(null);
+                }}
+              >
+                <Icon size={15} strokeWidth={isActive ? 2 : 1.6} />
+                <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className={`lib-tab-count ${isActive ? 'is-active' : ''}`}>{tab.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Controls & Filter Bar */}
+      {/* 3. COHESIVE STUDIO TOOLBAR (Search + Favourites + Status + Categories) */}
       {activeTab !== 'BOARDS' && activeTab !== 'TRASH' && (
-        <div className="library-controls-bar">
-          <div className="category-pills-row">
-            {DEFAULT_CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                className={`cat-pill ${activeCategory === cat ? 'active' : ''}`}
-                onClick={() => setActiveCategory(cat)}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="library-filter-inputs">
-            <div className="library-search-wrap">
-              <Search size={15} className="search-icon-inside" />
+        <div className="library-toolbar-card">
+          <div className="library-toolbar-top">
+            <div className="library-search-box">
+              <Search size={15} className="library-search-icon" />
               <input
                 type="text"
-                placeholder={`Search ${activeTab.toLowerCase()} by name, brand, or tag...`}
+                placeholder={`Search ${activeTab === 'MATERIAL' ? 'materials by name, brand, model, finish, or tag' : activeTab === 'PORTFOLIO' ? 'projects by title, city, or architect' : 'design references'}...`}
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="library-search-input"
+                className="library-search-input search-input"
+                style={{ border: 'none', background: 'transparent', outline: 'none', boxShadow: 'none' }}
               />
+              {searchTerm && (
+                <button
+                  type="button"
+                  className="library-search-clear-btn"
+                  onClick={() => setSearchTerm('')}
+                  title="Clear search"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="library-status-select"
-            >
-              <option value="ACTIVE">Active</option>
-              <option value="ARCHIVED">Archived</option>
-              <option value="ALL">All Statuses</option>
-            </select>
+            <div className="library-toolbar-controls">
+              <button
+                type="button"
+                className={`library-fav-toggle-btn ${showFavouritesOnly ? 'is-active' : ''}`}
+                onClick={() => setShowFavouritesOnly(!showFavouritesOnly)}
+                title="Filter starred favourites"
+              >
+                <Star size={13} fill={showFavouritesOnly ? '#B89A74' : 'none'} color={showFavouritesOnly ? '#B89A74' : '#7B6F62'} />
+                <span>{showFavouritesOnly ? 'Favourites Only' : 'All Items'}</span>
+              </button>
+
+              <div className="library-status-select-wrap">
+                <Select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  options={[
+                    { value: 'ACTIVE', label: 'Active Specs' },
+                    { value: 'ARCHIVED', label: 'Archived Specs' },
+                    { value: 'ALL', label: 'All Statuses' }
+                  ]}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="library-categories-scroll-bar">
+            <div className="library-cat-label-wrap">
+              <Filter size={12} className="library-cat-icon" />
+              <span className="library-cat-label">Categories</span>
+            </div>
+            <div className="library-cat-pills-list">
+              {DEFAULT_CATEGORIES.map((cat) => {
+                const isActive = activeCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`library-category-pill ${isActive ? 'is-active' : ''}`}
+                    onClick={() => setActiveCategory(cat)}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}
@@ -612,9 +720,13 @@ export function LibraryPage() {
         /* Retention Trash Tab */
         trashItems.length === 0 ? (
           <div className="library-empty-box">
-            <FolderArchive size={44} strokeWidth={1.2} />
-            <h3>Trash is Empty</h3>
-            <p>Soft-deleted library specifications and photos reside here within the 30-day retention window.</p>
+            <div className="library-empty-icon-outer-ring">
+              <div className="library-empty-icon-circle">
+                <FolderArchive size={26} strokeWidth={1.8} />
+              </div>
+            </div>
+            <h3 className="library-empty-title">Retention Trash is Empty</h3>
+            <p className="library-empty-desc">Soft-deleted specifications and references will reside here for 30 days before permanent purging.</p>
           </div>
         ) : (
           <div className="materials-grid">
@@ -689,9 +801,13 @@ export function LibraryPage() {
               </div>
             ) : !selectedBoard.entries || selectedBoard.entries.length === 0 ? (
               <div className="library-empty-box">
-                <Layers size={40} strokeWidth={1.2} />
-                <h3>No Items on this Board Yet</h3>
-                <p>Pin materials or design reference inspiration to curate this presentation.</p>
+                <div className="library-empty-icon-outer-ring">
+                  <div className="library-empty-icon-circle">
+                    <Layers size={26} strokeWidth={1.8} />
+                  </div>
+                </div>
+                <h3 className="library-empty-title">No Items Curated on this Board</h3>
+                <p className="library-empty-desc">Pin material finishes, stone swatches, and lighting references to prepare client presentation boards.</p>
                 <Button variant="primary" icon={Plus} onClick={() => setAddEntryModalOpen(true)}>
                   Pin First Material
                 </Button>
@@ -729,9 +845,13 @@ export function LibraryPage() {
           </div>
         ) : boards.length === 0 ? (
           <div className="library-empty-box">
-            <FolderPlus size={44} strokeWidth={1.2} />
-            <h3>No Mood Boards Found</h3>
-            <p>Create visual mood boards to curate materials and finishes for architectural presentations.</p>
+            <div className="library-empty-icon-outer-ring">
+              <div className="library-empty-icon-circle">
+                <FolderPlus size={26} strokeWidth={1.8} />
+              </div>
+            </div>
+            <h3 className="library-empty-title">No Mood Boards Created</h3>
+            <p className="library-empty-desc">Create client presentation mood boards to curate finishes, hardware palettes, and spatial schemes.</p>
             <Button variant="primary" icon={Plus} onClick={() => setCreateBoardModalOpen(true)}>
               Create First Mood Board
             </Button>
@@ -763,16 +883,60 @@ export function LibraryPage() {
         /* Items Grid (Materials, Portfolio, Reference) */
         items.length === 0 ? (
           <div className="library-empty-box">
-            <Layers size={44} strokeWidth={1.2} />
-            <h3>No {activeTab === 'MATERIAL' ? 'Materials' : activeTab === 'PORTFOLIO' ? 'Portfolio Projects' : 'References'} Found</h3>
-            <p>
+            <div className="library-empty-icon-outer-ring">
+              <div className="library-empty-icon-circle">
+                <Layers size={28} strokeWidth={1.8} />
+              </div>
+            </div>
+            <h3 className="library-empty-title">
               {searchTerm || activeCategory !== 'All' || showFavouritesOnly
-                ? 'No items match your active search filters.'
-                : `Add curated ${activeTab.toLowerCase()} items to store specifications directly in the database.`}
+                ? 'No Matching Specifications Found'
+                : `No ${activeTab === 'MATERIAL' ? 'Material Specifications' : activeTab === 'PORTFOLIO' ? 'Portfolio Projects' : 'Design References'} Found`}
+            </h3>
+            <p className="library-empty-desc">
+              {searchTerm || activeCategory !== 'All' || showFavouritesOnly
+                ? 'No library items match your current filter criteria. Try resetting your search or category filter.'
+                : `Store curated ${activeTab === 'MATERIAL' ? 'material specifications, physical samples, and finishes' : activeTab === 'PORTFOLIO' ? 'completed architectural projects' : 'design inspiration'} directly in your studio cloud.`}
             </p>
-            <Button variant="primary" icon={Plus} onClick={() => setCreateItemModalOpen(true)}>
-              Add {activeTab === 'MATERIAL' ? 'First Material' : 'First Item'}
-            </Button>
+            {searchTerm || activeCategory !== 'All' || showFavouritesOnly ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={RefreshCw}
+                onClick={() => {
+                  setSearchTerm('');
+                  setActiveCategory('All');
+                  setShowFavouritesOnly(false);
+                  setStatusFilter('ACTIVE');
+                }}
+              >
+                Reset Filters
+              </Button>
+            ) : (
+              <div className="library-empty-actions-col">
+                <Button
+                  variant="primary"
+                  icon={Plus}
+                  onClick={() => {
+                    resetItemForm();
+                    setCreateItemModalOpen(true);
+                  }}
+                >
+                  Add {activeTab === 'MATERIAL' ? 'First Material Spec' : activeTab === 'PORTFOLIO' ? 'First Project' : 'First Reference'}
+                </Button>
+                {activeTab === 'MATERIAL' && (
+                  <div className="library-empty-features-hint">
+                    <span className="hint-pill">Physical Samples</span>
+                    <span className="dot-sep">&bull;</span>
+                    <span className="hint-pill">High-Res Textures</span>
+                    <span className="dot-sep">&bull;</span>
+                    <span className="hint-pill">Data Sheets</span>
+                    <span className="dot-sep">&bull;</span>
+                    <span className="hint-pill">Vendor Rates</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="materials-grid">
@@ -879,6 +1043,14 @@ export function LibraryPage() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        icon={Edit2}
+                        onClick={(e) => handleOpenEditItem(item, e)}
+                        title="Edit Item"
+                      />
+
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         icon={Copy}
                         onClick={(e) => handleCloneItem(item, e)}
                         title="Clone Item"
@@ -900,11 +1072,14 @@ export function LibraryPage() {
         )
       )}
 
-      {/* Modal: Create Item */}
+      {/* Modal: Create / Edit Item */}
       <Modal
         isOpen={createItemModalOpen}
-        onClose={() => setCreateItemModalOpen(false)}
-        title={`Add New ${activeTab === 'MATERIAL' ? 'Material Specification' : activeTab === 'PORTFOLIO' ? 'Portfolio Project' : 'Design Reference'}`}
+        onClose={() => {
+          setCreateItemModalOpen(false);
+          setEditingItemId(null);
+        }}
+        title={`${editingItemId ? 'Edit' : 'Add New'} ${activeTab === 'MATERIAL' ? 'Material Specification' : activeTab === 'PORTFOLIO' ? 'Portfolio Project' : 'Design Reference'}`}
         size="lg"
       >
         <form onSubmit={handleCreateItemSubmit} className="lib-modal-form">
@@ -924,12 +1099,45 @@ export function LibraryPage() {
               options={DEFAULT_CATEGORIES.filter((c) => c !== 'All').map((c) => ({ value: c, label: c }))}
             />
 
-            <Input
-              label="Tags (Comma separated)"
-              placeholder="e.g. marble, luxury, flooring"
-              value={itemForm.tags}
-              onChange={(e) => setItemForm({ ...itemForm, tags: e.target.value })}
-            />
+            <div>
+              <Input
+                label="Tags (Comma separated)"
+                placeholder="e.g. marble, luxury, flooring"
+                value={itemForm.tags}
+                onChange={(e) => setItemForm({ ...itemForm, tags: e.target.value })}
+              />
+              {tagSuggestions.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                  {tagSuggestions.slice(0, 8).map((tagObj) => {
+                    const tName = typeof tagObj === 'string' ? tagObj : (tagObj.tag || tagObj.name || tagObj._id);
+                    if (!tName) return null;
+                    return (
+                      <button
+                        key={tName}
+                        type="button"
+                        onClick={() => {
+                          const existing = itemForm.tags.split(',').map((s) => s.trim()).filter(Boolean);
+                          if (!existing.includes(tName)) {
+                            setItemForm({ ...itemForm, tags: [...existing, tName].join(', ') });
+                          }
+                        }}
+                        style={{
+                          fontSize: '11px',
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          background: '#FAF8F5',
+                          border: '1px solid #E8E3DB',
+                          color: '#7B6F62',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        + {tName}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="form-field-group">
@@ -1209,7 +1417,76 @@ export function LibraryPage() {
               </div>
             )}
 
+            {(detailModalItem.photos || []).length > 0 && (
+              <div className="detail-specs-table" style={{ marginTop: '12px' }}>
+                <h4>Photos &amp; Original Assets</h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '8px' }}>
+                  {detailModalItem.photos.map((ph, idx) => {
+                    const fileId = ph.fileId || ph._id || ph.id;
+                    return (
+                      <div
+                        key={fileId || idx}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          padding: '8px',
+                          background: '#FAF8F5',
+                          border: '1px solid #E8E3DB',
+                          borderRadius: '8px',
+                          width: '130px'
+                        }}
+                      >
+                        {fileId && (
+                          <img
+                            src={libraryService.getThumbUrl(fileId)}
+                            alt={ph.caption || 'Asset'}
+                            style={{ width: '100%', height: '80px', objectFit: 'cover', borderRadius: '6px' }}
+                          />
+                        )}
+                        {fileId && (
+                          <a
+                            href={libraryService.getDownloadUrl(fileId)}
+                            download={ph.name || `asset_${idx + 1}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px',
+                              fontSize: '11.5px',
+                              fontWeight: 600,
+                              color: '#1E1A17',
+                              textDecoration: 'none',
+                              padding: '4px 6px',
+                              borderRadius: '6px',
+                              background: '#FFFFFF',
+                              border: '1px solid #E8E3DB'
+                            }}
+                          >
+                            <Download size={12} /> Download
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="modal-actions-bar">
+              <Button
+                variant="secondary"
+                icon={Edit2}
+                onClick={(e) => {
+                  const it = detailModalItem;
+                  setDetailModalItem(null);
+                  handleOpenEditItem(it, e);
+                }}
+              >
+                Edit Item
+              </Button>
               <Button variant="secondary" onClick={() => setDetailModalItem(null)}>
                 Close
               </Button>

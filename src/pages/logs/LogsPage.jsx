@@ -52,13 +52,18 @@ export function LogsPage() {
         if (projsRes.status === 'fulfilled') {
           const rawProjs = projsRes.value?.data || (Array.isArray(projsRes.value) ? projsRes.value : []);
           const formatted = rawProjs.map((p) => ({
+            id: p.id || p._id,
             value: p.name || p.title || p.code,
             label: p.name || p.title || p.code,
             sublabel: `${p.site?.city || p.city || 'Site'} • ${p.category?.name || p.type || 'Project'}`
           }));
           setProjectsList(formatted);
           if (formatted.length > 0) {
-            setNewLog((prev) => ({ ...prev, project: formatted[0].value }));
+            setNewLog((prev) => ({
+              ...prev,
+              project: formatted[0].value,
+              projectId: formatted[0].id
+            }));
           }
         }
       } catch (err) {
@@ -134,34 +139,56 @@ export function LogsPage() {
       </div>
 
       {/* Timeline of Logs */}
-      <div className="logs-list">
-        {logs.map((log) => (
-          <div key={log.id} className="log-entry-card">
-            <div className="log-entry-header">
-              <div className="log-project-title-wrap">
-                <MapPin size={18} color="var(--color-primary)" />
-                <h3 className="log-project-title">{log.project}</h3>
-                <span className="log-engineer-tag">by {log.engineer}</span>
-              </div>
-              <span className="log-date-tag">{formatDate(log.date)}</span>
-            </div>
-
-            <p className="log-summary-text">{log.summary}</p>
-
-            <div className="log-details-strip">
-              <div className="detail-item">
-                <Sun size={15} /> <span>{log.weather}</span>
-              </div>
-              <div className="detail-item">
-                <Users size={15} /> <span>{log.laborCount} Laborers ({log.tradeBreakdown})</span>
-              </div>
-              <div className="detail-item">
-                <Clock size={15} /> <span>{log.hoursWorked} hrs recorded</span>
-              </div>
+      {loading ? (
+        <div className="logs-loading-state">
+          <span className="btn-spinner" style={{ width: '28px', height: '28px', borderWidth: '3px' }} />
+          <span>Loading site logs from studio database...</span>
+        </div>
+      ) : logs.length === 0 ? (
+        <div className="logs-empty-box">
+          <div className="logs-empty-icon-outer-ring">
+            <div className="logs-empty-icon-circle">
+              <FileText size={26} strokeWidth={1.8} />
             </div>
           </div>
-        ))}
-      </div>
+          <h3 className="logs-empty-title">No Daily Site Logs Recorded</h3>
+          <p className="logs-empty-desc">
+            Record daily on-site visits, labor attendance, weather conditions, contractor hours, and photographic milestones.
+          </p>
+          <Button variant="primary" icon={Plus} onClick={() => setCreateModalOpen(true)}>
+            Log First Daily Site Entry
+          </Button>
+        </div>
+      ) : (
+        <div className="logs-list">
+          {logs.map((log) => (
+            <div key={log.id} className="log-entry-card">
+              <div className="log-entry-header">
+                <div className="log-project-title-wrap">
+                  <MapPin size={18} color="var(--color-primary)" />
+                  <h3 className="log-project-title">{log.project}</h3>
+                  <span className="log-engineer-tag">by {log.engineer}</span>
+                </div>
+                <span className="log-date-tag">{formatDate(log.date)}</span>
+              </div>
+
+              <p className="log-summary-text">{log.summary}</p>
+
+              <div className="log-details-strip">
+                <div className="detail-item">
+                  <Sun size={15} /> <span>{log.weather}</span>
+                </div>
+                <div className="detail-item">
+                  <Users size={15} /> <span>{log.laborCount} Laborers ({log.tradeBreakdown})</span>
+                </div>
+                <div className="detail-item">
+                  <Clock size={15} /> <span>{log.hoursWorked} hrs recorded</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* New Log Modal */}
       <Modal isOpen={createModalOpen} onClose={() => setCreateModalOpen(false)} title="Log Daily Site Entry">
@@ -172,7 +199,11 @@ export function LogsPage() {
                 label="Project *"
                 id="log-proj"
                 value={newLog.project}
-                onChange={(e) => setNewLog({ ...newLog, project: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const item = projectsList.find((p) => p.value === val);
+                  setNewLog({ ...newLog, project: val, projectId: item?.id });
+                }}
                 options={projectsList.length > 0 ? projectsList : [
                   { value: 'Studio Project', label: 'Studio Architecture Project' }
                 ]}

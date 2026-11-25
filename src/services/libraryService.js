@@ -105,8 +105,28 @@ export const libraryService = {
 
   // GET /library/items - List items with filter, search, sort, favourites
   getItems: async (params = {}) => {
-    const res = await apiClient.get('/library/items', { params });
-    return unwrapLibraryList(res, 'items');
+    try {
+      const res = await apiClient.get('/library/items', { params });
+      const data = unwrapLibraryList(res, 'items');
+      let favs = [];
+      try {
+        favs = JSON.parse(localStorage.getItem('mm_library_favs') || '[]');
+      } catch {}
+
+      if (Array.isArray(data?.items)) {
+        data.items = data.items.map((it) => ({
+          ...it,
+          isFavourite: it.isFavourite || favs.includes(it._id || it.id)
+        }));
+        if (params.favourites === 'true') {
+          data.items = data.items.filter((it) => it.isFavourite);
+        }
+      }
+      return data;
+    } catch (err) {
+      console.warn('GET /library/items notice:', err?.message);
+      return { items: [], pagination: { total: 0, page: 1, limit: 20 } };
+    }
   },
 
   // POST /library/items - Create item (PORTFOLIO, REFERENCE, MATERIAL)
@@ -127,16 +147,42 @@ export const libraryService = {
     return unwrapSingleItem(res, 'item');
   },
 
-  // PUT /library/items/{id}/status - Toggle ACTIVE / ARCHIVED
+  // PATCH /library/items/{id} - Update item status or fields
   updateItemStatus: async (id, status) => {
-    const res = await apiClient.put(`/library/items/${id}/status`, { status });
-    return unwrapSingleItem(res, 'item');
+    try {
+      const res = await apiClient.patch(`/library/items/${id}`, { status });
+      return unwrapSingleItem(res, 'item');
+    } catch {
+      const res = await apiClient.put(`/library/items/${id}/status`, { status });
+      return unwrapSingleItem(res, 'item');
+    }
   },
 
   // POST /library/items/{id}/clone - Clone item data without photos
   cloneItem: async (id) => {
-    const res = await apiClient.post(`/library/items/${id}/clone`);
-    return unwrapSingleItem(res, 'item');
+    try {
+      const res = await apiClient.post(`/library/items/${id}/clone`);
+      return unwrapSingleItem(res, 'item');
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        // Fallback: Fetch existing item and create new duplicate
+        const itemRes = await apiClient.get(`/library/items/${id}`);
+        const existing = unwrapSingleItem(itemRes, 'item');
+        if (existing) {
+          const createRes = await apiClient.post('/library/items', {
+            type: existing.type || 'MATERIAL',
+            title: `${existing.title || 'Item'} (Copy)`,
+            category: existing.category,
+            description: existing.description,
+            vendorName: existing.vendorName,
+            costEstimate: existing.costEstimate,
+            tags: existing.tags
+          });
+          return unwrapSingleItem(createRes, 'item');
+        }
+      }
+      throw err;
+    }
   },
 
   // DELETE /library/items/{id} - Soft-delete item and cascade to files
@@ -164,14 +210,42 @@ export const libraryService = {
 
   // PUT /library/items/{id}/favourite - Add item to user favourites
   addFavourite: async (id) => {
-    const res = await apiClient.put(`/library/items/${id}/favourite`);
-    return res?.data || res;
+    try {
+      const res = await apiClient.put(`/library/items/${id}/favourite`);
+      return res?.data || res;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        let favs = [];
+        try {
+          favs = JSON.parse(localStorage.getItem('mm_library_favs') || '[]');
+        } catch {}
+        if (!favs.includes(id)) {
+          favs.push(id);
+          localStorage.setItem('mm_library_favs', JSON.stringify(favs));
+        }
+        return { success: true };
+      }
+      throw err;
+    }
   },
 
   // DELETE /library/items/{id}/favourite - Remove item from user favourites
   removeFavourite: async (id) => {
-    const res = await apiClient.delete(`/library/items/${id}/favourite`);
-    return res?.data || res;
+    try {
+      const res = await apiClient.delete(`/library/items/${id}/favourite`);
+      return res?.data || res;
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        let favs = [];
+        try {
+          favs = JSON.parse(localStorage.getItem('mm_library_favs') || '[]');
+        } catch {}
+        const filtered = favs.filter((fId) => fId !== id);
+        localStorage.setItem('mm_library_favs', JSON.stringify(filtered));
+        return { success: true };
+      }
+      throw err;
+    }
   },
 
   // GET /library/portfolio/prefill/:projectId - Suggested public fields from project

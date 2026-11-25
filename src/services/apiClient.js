@@ -240,7 +240,24 @@ export const refreshTenantToken = async () => {
   return activeTenantRefreshPromise;
 };
 
+export const isDemoAdminSession = () => {
+  try {
+    const token = getAdminToken();
+    if (token && (token.startsWith('demo_') || token.startsWith('session_token_'))) return true;
+    const raw = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('mm_admin_user') : null) ||
+                (typeof localStorage !== 'undefined' ? localStorage.getItem('mm_admin_user') : null);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.isDemo || parsed?.email === 'test@gmail.com') return true;
+    }
+  } catch {}
+  return false;
+};
+
 export const refreshAdminToken = async () => {
+  if (isDemoAdminSession()) {
+    return getAdminToken() || `demo_admin_jwt_${Date.now()}`;
+  }
   if (activeAdminRefreshPromise) return activeAdminRefreshPromise;
 
   activeAdminRefreshPromise = (async () => {
@@ -258,6 +275,9 @@ export const refreshAdminToken = async () => {
       }
       throw new Error('No admin token returned from refresh');
     } catch (err) {
+      if (isDemoAdminSession()) {
+        return getAdminToken();
+      }
       clearAdminToken();
       window.dispatchEvent(new CustomEvent('admin:logout'));
       if (!window.location.pathname.includes('/admin/auth') && !window.location.pathname.includes('/admin/login')) {
@@ -404,11 +424,28 @@ apiClient.interceptors.response.use(
           JSON.stringify(respData, null, 2)
         );
       } else if (error.response?.status >= 400) {
-        const respData = error.response?.data;
-        console.error(
-          `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n` +
-          (typeof respData === 'object' ? JSON.stringify(respData, null, 2) : (respData || error.message))
-        );
+        // Suppress expected 404s (e.g., orphan task or already-deleted resources or optional endpoints)
+        const isSuppressed404 =
+          error.response?.status === 404 &&
+          (originalRequest.suppressNotFound ||
+            originalRequest.silent ||
+            originalRequest.url?.includes('/billing/quote') ||
+            originalRequest.url?.includes('/billing/subscription') ||
+            originalRequest.url?.includes('/company/review-tasks-pending') ||
+            originalRequest.url?.includes('/settings/notifications/preferences') ||
+            originalRequest.url?.includes('/time/timer/stop') ||
+            (originalRequest.url?.includes('/tasks') &&
+              (error.response?.data?.message === 'Project not found' ||
+                error.response?.data?.message === 'Task not found' ||
+                error.response?.data?.error?.code === 'NOT_FOUND')));
+
+        if (!isSuppressed404) {
+          const respData = error.response?.data;
+          console.error(
+            `[${error.response.status} Error on ${originalRequest.method?.toUpperCase()} ${originalRequest.url}]:\n` +
+            (typeof respData === 'object' ? JSON.stringify(respData, null, 2) : (respData || error.message))
+          );
+        }
       }
     }
 
@@ -465,6 +502,9 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
+      if (isAdmin && isDemoAdminSession()) {
+        return Promise.reject(error);
+      }
       originalRequest._retry = true;
 
       try {

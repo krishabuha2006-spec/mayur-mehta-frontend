@@ -8,7 +8,6 @@ import {
   FolderArchive,
   CreditCard,
   Settings,
-  FileText,
   Compass,
   X,
   ArrowRight,
@@ -29,7 +28,6 @@ const QUICK_PAGES = [
   { id: 'p_dir', title: 'Directory & CRM', category: 'Page', route: ROUTES.DIRECTORY, icon: BookOpen, sub: 'Clients & consultants' },
   { id: 'p_team', title: 'Studio Team', category: 'Page', route: ROUTES.TEAM, icon: Users, sub: 'Team members & seats' },
   { id: 'p_bill', title: 'Billing & Invoices', category: 'Page', route: ROUTES.BILLING, icon: CreditCard, sub: 'Invoices & subscription' },
-  { id: 'p_rep', title: 'Reports', category: 'Page', route: ROUTES.REPORTS, icon: FileText, sub: 'Practice analytics' },
   { id: 'p_sett', title: 'Settings', category: 'Page', route: ROUTES.SETTINGS, icon: Settings, sub: 'Company & master categories' }
 ];
 

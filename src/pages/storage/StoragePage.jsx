@@ -277,32 +277,34 @@ export function StoragePage() {
       selectedUploadFiles.map((file) => normalizeFileForUpload(file))
     );
 
-    const formData = new FormData();
-    const uploadQueryParams = {};
-
-    // 1. Metadata fields MUST be appended FIRST so Multer parses req.body before processing the binary file stream
-    if (activeSpace === 'PROJECT' && selectedProjectId) {
-      formData.append('projectId', selectedProjectId);
-      uploadQueryParams.projectId = selectedProjectId;
-    }
-    if (currentFolderId) {
-      formData.append('folderId', currentFolderId);
-      uploadQueryParams.folderId = currentFolderId;
-    }
-
-    // 2. Binary file stream appended after metadata
-    filesToUpload.forEach((file) => {
-      formData.append('files', file);
-    });
+    // Backend enforces max 10 files per POST /drive/files request; batch in chunks of 10 automatically
+    const BATCH_SIZE = 10;
+    const totalFiles = filesToUpload.length;
 
     try {
-      await driveService.uploadFiles(
-        formData,
-        (percent) => {
-          setUploadProgress(percent);
-        },
-        uploadQueryParams
-      );
+      for (let i = 0; i < totalFiles; i += BATCH_SIZE) {
+        const batch = filesToUpload.slice(i, i + BATCH_SIZE);
+        const formData = new FormData();
+
+        if (activeSpace === 'PROJECT' && selectedProjectId) {
+          formData.append('projectId', String(selectedProjectId).trim());
+        }
+        if (currentFolderId && typeof currentFolderId === 'string' && currentFolderId.trim()) {
+          formData.append('folderId', currentFolderId.trim());
+        }
+
+        batch.forEach((file) => {
+          formData.append('files', file);
+        });
+
+        await driveService.uploadFiles(
+          formData,
+          (percent) => {
+            const overall = Math.round(((i + (percent / 100) * batch.length) / totalFiles) * 100);
+            setUploadProgress(Math.min(100, overall));
+          }
+        );
+      }
       showToast(`${selectedUploadFiles.length} file(s) uploaded successfully`);
       setUploadModalOpen(false);
       setSelectedUploadFiles([]);
@@ -312,35 +314,13 @@ export function StoragePage() {
       const freshUsage = await driveService.getUsage().catch(() => null);
       if (freshUsage) setUsage(freshUsage);
     } catch (err) {
-      if (err?.response?.status >= 500) {
-        // Resilient fallback for serverless environments where local disk write is restricted
-        const localCreatedFiles = selectedUploadFiles.map((file, idx) => ({
-          _id: `file_session_${Date.now()}_${idx}`,
-          id: `file_session_${Date.now()}_${idx}`,
-          name: file.name,
-          sizeBytes: file.size,
-          size: file.size,
-          mimeType: file.type || 'application/octet-stream',
-          uploadedBy: { name: 'Krisha Buha' },
-          uploadedAt: new Date().toISOString(),
-          createdAt: new Date().toISOString(),
-          localBlobUrl: URL.createObjectURL(file),
-          projectId: activeSpace === 'PROJECT' ? selectedProjectId : null,
-          folderId: currentFolderId || null
-        }));
-
-        setFiles((prev) => [...localCreatedFiles, ...prev]);
-        setUploadModalOpen(false);
-        setSelectedUploadFiles([]);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        showToast(
-          `${localCreatedFiles.length} file(s) uploaded successfully`,
-          'success'
-        );
-      } else {
-        const errorMsg = extractErrorMessage(err);
-        showToast(errorMsg, 'error');
-      }
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error?.message ||
+        (err?.response?.status === 500
+          ? 'Cloud storage provider encountered an internal error storing this file. Please verify file integrity, format, and storage quota.'
+          : extractErrorMessage(err) || 'Failed to upload files to server');
+      showToast(errorMsg, 'error');
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -535,6 +515,11 @@ export function StoragePage() {
   // 13. Task Attachment Flow (PUT /drive/files/:id/task & GET /drive/tasks/:taskId/files)
   const handleOpenLinkTask = async (file, e) => {
     e?.stopPropagation();
+    const fileId = file?._id || file?.id;
+    if (!fileId || typeof fileId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(fileId)) {
+      showToast('Cannot link unsaved local file. Please ensure file is stored on the server database first.', 'warning');
+      return;
+    }
     if (!selectedProjectId) {
       showToast('Select an architectural project first', 'warning');
       return;
@@ -561,6 +546,12 @@ export function StoragePage() {
   const handleLinkTaskSubmit = async (e) => {
     e.preventDefault();
     if (!fileToLink) return;
+
+    const fileId = fileToLink._id || fileToLink.id;
+    if (!fileId || typeof fileId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(fileId)) {
+      showToast('Cannot link unsaved local file to task. File must be on the server.', 'error');
+      return;
+    }
 
     try {
       const isDetaching = !selectedTaskId || selectedTaskId === 'DETACH';

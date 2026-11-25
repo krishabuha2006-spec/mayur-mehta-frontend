@@ -26,13 +26,13 @@
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  height: 44px;
-  padding: 10px 14px;
-  background-color: #FFFFFF;
-  border: 1px solid #D1D5DB;
+  height: 42px;
+  padding: 0 14px;
+  background-color: #FAF8F5;
+  border: 1px solid #E8E3DB;
   border-radius: 8px;
   color: #1E1A17;
-  font-size: 14px;
+  font-size: 13.5px;
   font-family: inherit;
   text-align: left;
   cursor: pointer;
@@ -42,12 +42,12 @@
 }
 
 .custom-select-trigger:hover {
-  border-color: #9CA3AF;
+  border-color: #B89A74;
 }
 
 .custom-select-trigger.is-open {
   border-color: #B89A74;
-  box-shadow: 0 0 0 3px rgba(184, 154, 116, 0.15);
+  box-shadow: 0 0 0 3px rgba(184, 154, 116, 0.12);
   background-color: #FFFFFF;
 }
 

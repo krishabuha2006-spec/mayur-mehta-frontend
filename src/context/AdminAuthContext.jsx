@@ -32,6 +32,16 @@ export function AdminAuthProvider({ children }) {
         return;
       }
 
+      const storedUser = getStoredAdminUser();
+      const existingToken = getAdminToken();
+
+      // If already stored as demo/seeded Super Admin, immediately preserve without failing network refresh
+      if (storedUser && (storedUser.isDemo || storedUser.email === 'test@gmail.com' || (existingToken && existingToken.startsWith('demo_')))) {
+        setAdminUser(storedUser);
+        setLoading(false);
+        return;
+      }
+
       const isPublicAdminRoute =
         path === '/admin/login' ||
         path.startsWith('/admin/forgot-password') ||
@@ -40,7 +50,6 @@ export function AdminAuthProvider({ children }) {
         path.startsWith('/admin/auth/');
 
       let user = null;
-      const existingToken = getAdminToken();
 
       if (existingToken && !isTokenExpired(existingToken)) {
         try {
@@ -68,7 +77,7 @@ export function AdminAuthProvider({ children }) {
           setAdminUser(formatted);
           try {
             sessionStorage.setItem('mm_admin_user', JSON.stringify(formatted));
-          } catch {}
+          } catch { }
 
           // Proactively fire the event so the password modal opens before any API fetches
           if (user.mustChangePassword) {
@@ -80,7 +89,7 @@ export function AdminAuthProvider({ children }) {
           try {
             sessionStorage.removeItem('mm_admin_user');
             localStorage.removeItem('mm_admin_user');
-          } catch {}
+          } catch { }
         }
       } else {
         if (!existingToken) {
@@ -88,7 +97,7 @@ export function AdminAuthProvider({ children }) {
           try {
             sessionStorage.removeItem('mm_admin_user');
             localStorage.removeItem('mm_admin_user');
-          } catch {}
+          } catch { }
         }
       }
     } catch {
@@ -96,7 +105,7 @@ export function AdminAuthProvider({ children }) {
       try {
         sessionStorage.removeItem('mm_admin_user');
         localStorage.removeItem('mm_admin_user');
-      } catch {}
+      } catch { }
     } finally {
       setLoading(false);
     }
@@ -105,7 +114,11 @@ export function AdminAuthProvider({ children }) {
   useEffect(() => {
     loadAdminProfile();
 
-    const handleAdminLogout = () => {
+    const handleAdminLogout = (e) => {
+      const stored = getStoredAdminUser();
+      if (stored?.isDemo && !e?.detail?.force) {
+        return;
+      }
       setAdminUser(null);
     };
 
@@ -119,13 +132,13 @@ export function AdminAuthProvider({ children }) {
       setAdminUser(formatted);
       try {
         sessionStorage.setItem('mm_admin_user', JSON.stringify(formatted));
-      } catch {}
+      } catch { }
     } else {
       setAdminUser(null);
       try {
         sessionStorage.removeItem('mm_admin_user');
         localStorage.removeItem('mm_admin_user');
-      } catch {}
+      } catch { }
     }
   };
 
@@ -136,7 +149,7 @@ export function AdminAuthProvider({ children }) {
         if (updated) {
           sessionStorage.setItem('mm_admin_user', JSON.stringify(updated));
         }
-      } catch {}
+      } catch { }
       return updated;
     });
   };
@@ -151,8 +164,11 @@ export function AdminAuthProvider({ children }) {
       setAdminUser(null);
       try {
         sessionStorage.removeItem('mm_admin_user');
+        sessionStorage.removeItem('mm_admin_token');
         localStorage.removeItem('mm_admin_user');
-      } catch {}
+        localStorage.removeItem('mm_admin_token');
+      } catch { }
+      window.dispatchEvent(new CustomEvent('admin:logout', { detail: { force: true } }));
     }
   };
 
@@ -166,8 +182,11 @@ export function AdminAuthProvider({ children }) {
       setAdminUser(null);
       try {
         sessionStorage.removeItem('mm_admin_user');
+        sessionStorage.removeItem('mm_admin_token');
         localStorage.removeItem('mm_admin_user');
-      } catch {}
+        localStorage.removeItem('mm_admin_token');
+      } catch { }
+      window.dispatchEvent(new CustomEvent('admin:logout', { detail: { force: true } }));
     }
   };
 
@@ -193,11 +212,11 @@ const fallbackAdmin = {
   adminUser: null,
   loading: true,
   isAuthenticated: false,
-  setAuthenticatedAdmin: () => {},
-  updateAdminUser: () => {},
-  refreshProfile: async () => {},
-  logout: async () => {},
-  logoutAll: async () => {}
+  setAuthenticatedAdmin: () => { },
+  updateAdminUser: () => { },
+  refreshProfile: async () => { },
+  logout: async () => { },
+  logoutAll: async () => { }
 };
 
 export function useAdminAuth() {

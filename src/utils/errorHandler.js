@@ -280,3 +280,24 @@ export function extractRequestId(err) {
   return err.response?.data?.requestId || err.response?.headers?.['x-request-id'] || null;
 }
 
+export function extractFieldErrors(err) {
+  if (!err) return {};
+  const data = err.response?.data;
+  const errors = {};
+  const details = data?.error?.details || data?.details;
+  if (Array.isArray(details)) {
+    details.forEach((item) => {
+      const field = item.field || item.param || item.path || (item.context && item.context.key);
+      const msg = item.message || item.msg || item.error;
+      if (field && msg) {
+        errors[field] = sanitizeErrorMessage(msg);
+      }
+    });
+  } else if (details && typeof details === 'object') {
+    Object.keys(details).forEach((key) => {
+      errors[key] = sanitizeErrorMessage(String(details[key]));
+    });
+  }
+  return errors;
+}
+

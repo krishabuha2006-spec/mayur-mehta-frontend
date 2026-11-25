@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { Shield, Mail, ArrowRight, RotateCw, AlertCircle, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { adminAuthService } from '../../services/adminAuthService';
 import { extractErrorMessage } from '../../utils/errorHandler';
@@ -9,7 +9,8 @@ import { isValidEmail } from '../../utils/validators';
 import './AdminLoginPage.css';
 
 export function AdminForgotPasswordPage() {
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const [email, setEmail] = useState(location.state?.email || '');
   const [loading, setLoading] = useState(false);
   const [serverError, setServerError] = useState('');
   const [submittedEmail, setSubmittedEmail] = useState('');

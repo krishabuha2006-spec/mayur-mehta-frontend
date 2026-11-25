@@ -104,6 +104,9 @@ export function BillingPage() {
     notes: ''
   });
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [showBankDetails, setShowBankDetails] = useState(false);
 
   const showToast = (message, type = 'success') => {
     setToastMessage({ message, type });
@@ -171,15 +174,35 @@ export function BillingPage() {
     loadBillingData();
   }, [authLoading, isAuthenticated, loadBillingData]);
 
-  // 2. Dynamic Price Quote calculation (synchronous deterministic formula with 0ms delay and zero network error)
+  // 2. Dynamic Price Quote calculation: live GET /billing/quote with instant local fallback
   useEffect(() => {
-    const quoteRes = billingService.getQuote({
+    let active = true;
+    const instant = billingService.getQuote({
       seats: desiredSeats,
       billingCycle: billingCycle,
       isUpgrade: subscription.plan !== 'FREE'
     });
-    setQuote(quoteRes);
-    setQuoteLoading(false);
+    setQuote(instant);
+
+    const timer = setTimeout(async () => {
+      try {
+        const live = await billingService.fetchLiveQuote({
+          seats: desiredSeats,
+          billingCycle: billingCycle,
+          isUpgrade: subscription.plan !== 'FREE'
+        });
+        if (active && live) {
+          setQuote(live);
+        }
+      } catch {
+        // Keep instant quote
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [desiredSeats, billingCycle, subscription.plan]);
 
   // Modal estimate quote
@@ -207,21 +230,16 @@ export function BillingPage() {
     e.preventDefault();
     setActionLoading(true);
     try {
-      const created = await billingService.createBillingRequest({
+      await billingService.createBillingRequest({
         type: requestForm.type,
         desiredSeats: Number(requestForm.desiredSeats),
-        desiredCycle: requestForm.desiredCycle
+        desiredCycle: requestForm.desiredCycle,
+        notes: requestForm.notes?.trim() || undefined
       });
-
-      if (created?.id && requestForm.notes?.trim()) {
-        try {
-          localStorage.setItem(`mm_req_note_${created.id}`, requestForm.notes.trim());
-        } catch {}
-      }
 
       showToast('Billing request submitted to Super Admin team successfully.');
       setIsRequestModalOpen(false);
-      // Reload requests
+      // Reload requests dynamically from live database
       const reqList = await billingService.getBillingRequests().catch(() => []);
       setBillingRequests(Array.isArray(reqList) ? reqList : (reqList?.requests || []));
       setActiveTab('requests');
@@ -261,6 +279,31 @@ export function BillingPage() {
     } catch (err) {
       showToast('Unable to download PDF. Please try again.', 'error');
     }
+  };
+
+  // 6. Live Detail Fetchers (GET /billing/invoices/{id}, /payments/{id}, /requests/{id})
+  const handleOpenInvoiceDetail = async (inv) => {
+    setSelectedInvoice(inv);
+    try {
+      const detail = await billingService.getInvoice(inv._id || inv.id);
+      if (detail) setSelectedInvoice((prev) => ({ ...(prev || {}), ...detail }));
+    } catch {}
+  };
+
+  const handleOpenPaymentDetail = async (pmt) => {
+    setSelectedPayment(pmt);
+    try {
+      const detail = await billingService.getPayment(pmt._id || pmt.id);
+      if (detail) setSelectedPayment((prev) => ({ ...(prev || {}), ...detail }));
+    } catch {}
+  };
+
+  const handleOpenRequestDetail = async (req) => {
+    setSelectedRequest(req);
+    try {
+      const detail = await billingService.getBillingRequest(req._id || req.id);
+      if (detail) setSelectedRequest((prev) => ({ ...(prev || {}), ...detail }));
+    } catch {}
   };
 
   // Calculations & Filtering
@@ -569,89 +612,139 @@ export function BillingPage() {
       {/* TAB 1: OVERVIEW & CAPACITY CALCULATOR */}
       {activeTab === 'overview' && (
         <div className="billing-tab-content">
-          {/* Streamlined Permanent Quota Note */}
-          <div className="billing-compact-strip">
-            <div className="strip-left">
-              <CheckCircle size={15} className="strip-icon" />
-              <span>
-                <strong>10 Permanent Free Seats:</strong> Studio free tier includes 10 permanent licenses with zero subscription charges. Pro expansions scale from the 11th seat at ₹500/seat/mo.
-              </span>
+          {/* Simple 3-Step Billing Guide */}
+          <div className="billing-easy-steps-bar">
+            <div className="easy-step-item">
+              <span className="easy-step-num">1</span>
+              <div>
+                <strong>Choose Seats &amp; Cycle</strong>
+                <p>Use the calculator below to see exact cost + 18% GST.</p>
+              </div>
             </div>
-            <span className="strip-gst-tag">100% GST Compliant • SAC 998315</span>
+            <ChevronRight size={16} className="easy-step-arrow" />
+            <div className="easy-step-item">
+              <span className="easy-step-num">2</span>
+              <div>
+                <strong>Send Upgrade Request</strong>
+                <p>Click &ldquo;Request Upgrade&rdquo; to generate your GST invoice.</p>
+              </div>
+            </div>
+            <ChevronRight size={16} className="easy-step-arrow" />
+            <div className="easy-step-item">
+              <span className="easy-step-num">3</span>
+              <div>
+                <strong>Pay &amp; Activate</strong>
+                <p>Transfer via Bank/UPI; Admin activates seats immediately.</p>
+              </div>
+            </div>
           </div>
 
-          {/* Clean Side-by-Side Plans Comparison */}
+          {/* Dynamic Plans Catalogue */}
           <div className="plans-clean-grid">
-            {/* Free Tier Card */}
-            <div className={`plan-tier-card ${subscription.plan === 'FREE' ? 'is-active-tier' : ''}`}>
-              <div className="plan-card-header">
-                <div className="plan-name-row">
-                  <h3 className="plan-tier-name">Studio Free</h3>
-                  {subscription.plan === 'FREE' && <span className="plan-active-chip">Current Active Plan</span>}
+            {(plans && plans.length > 0 ? plans : [
+              {
+                id: 'plan_free',
+                code: 'FREE',
+                name: 'Studio Free Tier',
+                seats: 10,
+                priceMonthlyPaise: 0,
+                storageQuotaGB: 5,
+                features: [
+                  '10 Team Seats included free forever',
+                  '5 GB High-speed drawing cloud storage',
+                  'Unlimited projects, logs, and tasks',
+                  'Client and contractor review portals'
+                ]
+              },
+              {
+                id: 'plan_pro',
+                code: 'PRO',
+                name: 'Studio Pro Expansion',
+                seats: 500,
+                priceMonthlyPaise: 50000,
+                storageQuotaGB: 100,
+                features: [
+                  '11 to 500 scalable studio seats',
+                  '100 GB cloud storage quota',
+                  'Official GST tax invoices with ITC',
+                  'Priority multi-site coordination'
+                ]
+              }
+            ]).map((planItem) => {
+              const codeUpper = String(planItem.code || planItem.name || '').toUpperCase();
+              const isPaid = codeUpper.includes('PRO') || codeUpper.includes('PAID');
+              const isCurrent = isPaid ? subscription.plan !== 'FREE' : subscription.plan === 'FREE';
+              const pricePerMonth = planItem.priceMonthlyPaise ? (planItem.priceMonthlyPaise / 100) : (isPaid ? 500 : 0);
+
+              return (
+                <div key={planItem.id || planItem.code} className={`plan-tier-card ${isPaid ? 'highlight-tier' : ''} ${isCurrent ? 'is-active-tier' : ''}`}>
+                  <div className="plan-card-header">
+                    <div className="plan-name-row">
+                      <h3 className="plan-tier-name">{planItem.name || (isPaid ? 'Studio Pro Expansion' : 'Studio Free')}</h3>
+                      {isCurrent ? (
+                        <span className="plan-active-chip">Current Active Plan</span>
+                      ) : isPaid ? (
+                        <span className="plan-upgrade-chip">Expansion Tier</span>
+                      ) : null}
+                    </div>
+                    <div className="plan-price-block">
+                      <span className="plan-currency">₹</span>
+                      <span className="plan-amount">{pricePerMonth}</span>
+                      <span className="plan-period">{isPaid ? '/ seat / month (+18% GST)' : '/ month'}</span>
+                    </div>
+                    <p className="plan-tier-desc">
+                      {isPaid 
+                        ? 'Scale capacity for growing firms managing multi-site teams and large BIM files.'
+                        : 'Essential toolkit for boutique practices and emerging architecture studios.'}
+                    </p>
+                  </div>
+
+                  <div className="plan-divider" />
+
+                  <ul className="plan-features-list">
+                    {(planItem.features || (isPaid ? [
+                      '11 to 500 scalable studio seats',
+                      `${planItem.storageQuotaGB || 100} GB cloud storage quota`,
+                      'Official GST tax invoices with ITC',
+                      'Priority multi-site coordination'
+                    ] : [
+                      `${planItem.seats || 10} Team Seats included free forever`,
+                      `${planItem.storageQuotaGB || 5} GB High-speed drawing cloud storage`,
+                      'Unlimited projects, logs, and tasks',
+                      'Client and contractor review portals'
+                    ])).map((feat, idx) => (
+                      <li key={idx}><Check size={15} className="feat-check" /> <span>{feat}</span></li>
+                    ))}
+                  </ul>
+
+                  <div className="plan-tier-footer">
+                    {isCurrent ? (
+                      <Button variant="secondary" disabled style={{ width: '100%' }}>
+                        Currently Active Tier
+                      </Button>
+                    ) : isPaid ? (
+                      <Button
+                        variant="primary"
+                        icon={Send}
+                        onClick={() => handleOpenRequestModal('UPGRADE')}
+                        style={{ width: '100%' }}
+                      >
+                        Request Pro Upgrade
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="secondary"
+                        icon={Send}
+                        onClick={() => handleOpenRequestModal('REDUCE_SEATS')}
+                        style={{ width: '100%' }}
+                      >
+                        Switch to Base Free
+                      </Button>
+                    )}
+                  </div>
                 </div>
-                <div className="plan-price-block">
-                  <span className="plan-currency">₹</span>
-                  <span className="plan-amount">0</span>
-                  <span className="plan-period">/ month</span>
-                </div>
-                <p className="plan-tier-desc">Essential toolkit for boutique practices and emerging architecture studios.</p>
-              </div>
-
-              <div className="plan-divider" />
-
-              <ul className="plan-features-list">
-                <li><Check size={15} className="feat-check" /> <span><strong>10 Team Seats</strong> included free forever</span></li>
-                <li><Check size={15} className="feat-check" /> <span><strong>5 GB</strong> High-speed drawing cloud storage</span></li>
-                <li><Check size={15} className="feat-check" /> <span>Unlimited projects, logs, and tasks</span></li>
-                <li><Check size={15} className="feat-check" /> <span>Client and contractor review portals</span></li>
-              </ul>
-
-              <div className="plan-tier-footer">
-                <Button variant="secondary" disabled style={{ width: '100%' }}>
-                  {subscription.plan === 'FREE' ? 'Currently Active Tier' : 'Base 10 Seats Included'}
-                </Button>
-              </div>
-            </div>
-
-            {/* Pro Tier Card */}
-            <div className={`plan-tier-card highlight-tier ${subscription.plan !== 'FREE' ? 'is-active-tier' : ''}`}>
-              <div className="plan-card-header">
-                <div className="plan-name-row">
-                  <h3 className="plan-tier-name">Studio Pro Expansion</h3>
-                  {subscription.plan !== 'FREE' ? (
-                    <span className="plan-active-chip">Current Active Plan</span>
-                  ) : (
-                    <span className="plan-upgrade-chip">Expansion Tier</span>
-                  )}
-                </div>
-                <div className="plan-price-block">
-                  <span className="plan-currency">₹</span>
-                  <span className="plan-amount">500</span>
-                  <span className="plan-period">/ seat / month (+18% GST)</span>
-                </div>
-                <p className="plan-tier-desc">Scale capacity for growing firms managing multi-site teams and large BIM files.</p>
-              </div>
-
-              <div className="plan-divider" />
-
-              <ul className="plan-features-list">
-                <li><Check size={15} className="feat-check" /> <span><strong>11 to 500</strong> scalable studio seats</span></li>
-                <li><Check size={15} className="feat-check" /> <span><strong>100 GB</strong> cloud storage quota</span></li>
-                <li><Check size={15} className="feat-check" /> <span>Official GST tax invoices with ITC</span></li>
-                <li><Check size={15} className="feat-check" /> <span>Priority multi-site coordination</span></li>
-              </ul>
-
-              <div className="plan-tier-footer">
-                <Button
-                  variant="primary"
-                  icon={Send}
-                  onClick={() => handleOpenRequestModal(subscription.plan === 'FREE' ? 'UPGRADE' : 'ADD_SEATS')}
-                  style={{ width: '100%' }}
-                >
-                  {subscription.plan === 'FREE' ? 'Request Pro Upgrade' : 'Request More Seats'}
-                </Button>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           {/* Interactive Capacity & Quote Calculator */}
@@ -692,8 +785,36 @@ export function BillingPage() {
               {/* Left Column: Seats Slider & Quick Presets */}
               <div className="calc-controls-col">
                 <div className="slider-label-row">
-                  <span className="slider-title">Team Seats Needed:</span>
-                  <span className="slider-current-val">{desiredSeats} Seats</span>
+                  <span className="slider-title">Team Seats Needed</span>
+                  <div className="seat-stepper">
+                    <button
+                      type="button"
+                      className="seat-stepper-btn"
+                      onClick={() => setDesiredSeats((s) => Math.max(11, (Number(s) || 11) - 1))}
+                      aria-label="Decrease seats"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min="11"
+                      max="500"
+                      value={desiredSeats}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        setDesiredSeats(isNaN(val) ? 11 : Math.max(11, Math.min(500, val)));
+                      }}
+                      className="seat-number-input"
+                    />
+                    <button
+                      type="button"
+                      className="seat-stepper-btn"
+                      onClick={() => setDesiredSeats((s) => Math.min(500, (Number(s) || 11) + 1))}
+                      aria-label="Increase seats"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
 
                 <input
@@ -701,7 +822,7 @@ export function BillingPage() {
                   min="11"
                   max="100"
                   step="1"
-                  value={desiredSeats}
+                  value={Math.min(100, desiredSeats)}
                   onChange={(e) => setDesiredSeats(Number(e.target.value))}
                   className="seat-range-slider"
                 />
@@ -715,9 +836,10 @@ export function BillingPage() {
                       className={`calc-chip-btn ${desiredSeats === num ? 'is-active' : ''}`}
                       onClick={() => setDesiredSeats(num)}
                     >
-                      {num} Seats
+                      {num}
                     </button>
                   ))}
+                  <span className="calc-chips-unit">seats</span>
                 </div>
               </div>
 
@@ -766,19 +888,30 @@ export function BillingPage() {
             </div>
           </section>
 
-          {/* Compact Verified Banking Credentials */}
+          {/* Collapsible Verified Banking Credentials */}
           <div className="offline-payment-guide-card">
-            <div className="guide-header">
-              <div className="guide-icon-box">
-                <Building2 size={18} />
+            <button
+              type="button"
+              className="guide-header guide-toggle-btn"
+              onClick={() => setShowBankDetails((prev) => !prev)}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="guide-icon-box">
+                  <Building2 size={18} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <h3 className="guide-title">Bank &amp; UPI Payment Details</h3>
+                  <p className="guide-subtitle">Official NEFT, RTGS, IMPS, and corporate UPI details for offline transfer</p>
+                </div>
               </div>
-              <div>
-                <h3 className="guide-title">Verified Bank & Payment Credentials</h3>
-                <p className="guide-subtitle">Official banking details for NEFT, RTGS, IMPS, or corporate UPI offline transfers</p>
-              </div>
-            </div>
+              <span className="guide-toggle-pill">
+                {showBankDetails ? 'Hide Details' : 'View Details'}
+              </span>
+            </button>
 
-            <div className="bank-details-grid">
+            {showBankDetails && (
+              <>
+                <div className="bank-details-grid">
               <div className="bank-detail-item">
                 <div className="bank-item-head">
                   <span className="bank-label">BENEFICIARY</span>
@@ -847,6 +980,8 @@ export function BillingPage() {
                 After completing the transfer, notify us via billing request for immediate reconciliation.
               </span>
             </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -980,7 +1115,7 @@ export function BillingPage() {
                               size="sm"
                               variant="secondary"
                               icon={Eye}
-                              onClick={() => setSelectedInvoice(inv)}
+                              onClick={() => handleOpenInvoiceDetail(inv)}
                               title="View Invoice Details"
                             >
                               Details
@@ -1069,6 +1204,7 @@ export function BillingPage() {
                       <th>INVOICE NUMBER</th>
                       <th>STATUS</th>
                       <th>NOTES</th>
+                      <th style={{ textAlign: 'right' }}>ACTION</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1114,6 +1250,16 @@ export function BillingPage() {
                         </td>
                         <td className="payment-notes-cell">
                           {pmt.notes || 'Direct bank transfer credited'}
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            icon={Eye}
+                            onClick={() => handleOpenPaymentDetail(pmt)}
+                          >
+                            Receipt
+                          </Button>
                         </td>
                       </tr>
                     ))}
@@ -1211,9 +1357,9 @@ export function BillingPage() {
                           </span>
                         </td>
                         <td className="request-details-cell">
-                          {(req.notes || localStorage.getItem(`mm_req_note_${req.id || req._id}`)) && (
+                          {(req.notes || req.details?.notes) && (
                             <div className="request-user-note">
-                              {req.notes || localStorage.getItem(`mm_req_note_${req.id || req._id}`)}
+                              {req.notes || req.details?.notes}
                             </div>
                           )}
                           {req.resolutionNotes && (
@@ -1226,20 +1372,30 @@ export function BillingPage() {
                               <strong>Reason:</strong> {req.rejectionReason}
                             </div>
                           )}
-                          {!req.notes && !req.resolutionNotes && !req.rejectionReason && (
+                          {!req.notes && !req.details?.notes && !req.resolutionNotes && !req.rejectionReason && (
                             <span className="text-muted">—</span>
                           )}
                         </td>
                         <td style={{ textAlign: 'right' }}>
-                          {req.status === 'PENDING' && (
+                          <div className="table-action-btns">
                             <Button
                               size="sm"
                               variant="secondary"
-                              onClick={() => handleCancelRequest(req._id || req.id)}
+                              icon={Eye}
+                              onClick={() => handleOpenRequestDetail(req)}
                             >
-                              Cancel
+                              View
                             </Button>
-                          )}
+                            {req.status === 'PENDING' && (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => handleCancelRequest(req._id || req.id)}
+                              >
+                                Cancel
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1475,6 +1631,118 @@ export function BillingPage() {
               >
                 Close
               </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 3: PAYMENT RECEIPT DETAILS */}
+      <Modal
+        isOpen={Boolean(selectedPayment)}
+        onClose={() => setSelectedPayment(null)}
+        title="Payment Receipt Details"
+        maxWidth="540px"
+      >
+        {selectedPayment && (
+          <div className="invoice-detail-body">
+            <div className="inv-meta-grid">
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">AMOUNT CREDITED</span>
+                <strong className="text-success" style={{ fontSize: '18px' }}>{formatPaise(selectedPayment.amountPaise)}</strong>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">METHOD</span>
+                <span className="method-chip">{selectedPayment.method}</span>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">UTR / REFERENCE</span>
+                <strong className="mono-val">{selectedPayment.reference || '—'}</strong>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">RECORDED DATE</span>
+                <span>{selectedPayment.recordedAt ? new Date(selectedPayment.recordedAt).toLocaleString('en-IN') : '—'}</span>
+              </div>
+            </div>
+            {selectedPayment.invoiceNumber && (
+              <div className="inv-total-summary">
+                <div className="summary-line">
+                  <span>Applied to Invoice:</span>
+                  <strong>{selectedPayment.invoiceNumber}</strong>
+                </div>
+                <div className="summary-line">
+                  <span>Notes:</span>
+                  <span>{selectedPayment.notes || 'Direct bank transfer credited'}</span>
+                </div>
+              </div>
+            )}
+            <div className="modal-actions-row" style={{ marginTop: '1.25rem' }}>
+              <Button variant="secondary" onClick={() => setSelectedPayment(null)}>Close</Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* MODAL 4: BILLING REQUEST DETAILS */}
+      <Modal
+        isOpen={Boolean(selectedRequest)}
+        onClose={() => setSelectedRequest(null)}
+        title="Billing Request Details"
+        maxWidth="540px"
+      >
+        {selectedRequest && (
+          <div className="invoice-detail-body">
+            <div className="inv-meta-grid">
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">REQUEST TYPE</span>
+                <strong>{selectedRequest.type}</strong>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">STATUS</span>
+                <span className={`request-badge request-badge-${(selectedRequest.status || 'PENDING').toLowerCase()}`}>
+                  {selectedRequest.status}
+                </span>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">DESIRED SEATS</span>
+                <span>{selectedRequest.desiredSeats ? `${selectedRequest.desiredSeats} Seats` : '—'}</span>
+              </div>
+              <div className="inv-meta-col">
+                <span className="inv-meta-label">BILLING CYCLE</span>
+                <span>{selectedRequest.desiredCycle || '—'}</span>
+              </div>
+            </div>
+            <div className="inv-total-summary">
+              <div className="summary-line">
+                <span>Your Notes:</span>
+                <span>{selectedRequest.notes || selectedRequest.details?.notes || '—'}</span>
+              </div>
+              {selectedRequest.resolutionNotes && (
+                <div className="summary-line" style={{ color: '#1E6B37' }}>
+                  <span>Admin Resolution:</span>
+                  <span>{selectedRequest.resolutionNotes}</span>
+                </div>
+              )}
+              {selectedRequest.rejectionReason && (
+                <div className="summary-line" style={{ color: '#C62828' }}>
+                  <span>Rejection Reason:</span>
+                  <span>{selectedRequest.rejectionReason}</span>
+                </div>
+              )}
+            </div>
+            <div className="modal-actions-row" style={{ marginTop: '1.25rem' }}>
+              {selectedRequest.status === 'PENDING' && (
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    const id = selectedRequest._id || selectedRequest.id;
+                    setSelectedRequest(null);
+                    handleCancelRequest(id);
+                  }}
+                >
+                  Cancel Request
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => setSelectedRequest(null)}>Close</Button>
             </div>
           </div>
         )}

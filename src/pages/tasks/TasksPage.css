@@ -778,21 +778,28 @@ input[type="text"].tasks-search-input,
 }
 
 .status-btn {
-  padding: 0.3rem 0.65rem;
-  font-size: 0.72rem;
+  padding: 0.38rem 0.8rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  border-radius: var(--radius-xs);
-  border: 1px solid var(--border);
-  background: var(--surface-alt);
-  color: var(--text-muted);
+  border-radius: 6px;
+  border: 1px solid #E5E0D8;
+  background: #FAF8F5;
+  color: #6B7280;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
+}
+
+.status-btn:hover {
+  background: #F3EFE9;
+  color: #1E1A17;
+  border-color: #D6CEBE;
 }
 
 .status-btn.is-active {
-  background: var(--primary);
+  background: #1E1A17;
   color: #FFFFFF;
-  border-color: var(--primary);
+  border-color: #1E1A17;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 /* Time Widget */
@@ -921,12 +928,27 @@ input[type="text"].tasks-search-input,
 .add-checklist-form {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
 }
 
 .add-subtask-input {
   flex: 1;
-  height: 34px !important;
-  font-size: 0.76rem !important;
+  height: 38px !important;
+  font-size: 0.82rem !important;
+  border-radius: 6px !important;
+  border: 1px solid #E5E0D8 !important;
+  padding: 0 12px !important;
+  background: #FAF8F5 !important;
+  color: #1E1A17 !important;
+  transition: all 0.15s ease !important;
+}
+
+.add-subtask-input:focus {
+  border-color: #B89A74 !important;
+  background: #FFFFFF !important;
+  box-shadow: 0 0 0 2px rgba(184, 154, 116, 0.15) !important;
+  outline: none !important;
 }
 
 /* Comments Section */
@@ -1272,4 +1294,74 @@ input[type="text"].tasks-search-input,
 .template-card-actions {
   margin-top: auto;
   padding-top: 6px;
+}
+
+/* Time Tracking Overview Strip (Image 3) */
+.tasks-time-summary-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  border-radius: 10px;
+  padding: 10px 16px;
+  margin-bottom: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tasks-time-summary-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #5A524A;
+  flex-wrap: wrap;
+}
+
+.time-strip-clock-icon {
+  color: #10B981;
+  flex-shrink: 0;
+}
+
+.time-strip-label {
+  font-weight: 600;
+  color: #1E1A17;
+  margin-right: 4px;
+}
+
+.time-strip-metric {
+  color: #5A524A;
+}
+
+.time-strip-metric strong {
+  color: #1E1A17;
+  font-weight: 700;
+}
+
+.time-strip-dot {
+  color: #C4BBB0;
+  font-size: 14px;
+}
+
+.tasks-time-breakdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background-color: #FFFFFF;
+  border: 1px solid #D5CECE;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.tasks-time-breakdown-btn:hover {
+  background-color: #FAF8F5;
+  border-color: #B89A74;
+  color: #1E1A17;
 }

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { IconButton } from '../IconButton/IconButton';
 import './Modal.css';
@@ -14,7 +15,7 @@ export function Modal({
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        onClose?.();
       }
     };
 
@@ -31,8 +32,15 @@ export function Modal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
+  const modalNode = (
+    <div
+      className="modal-backdrop"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
       <div
         className="modal-container"
         style={{ maxWidth }}
@@ -46,7 +54,10 @@ export function Modal({
           {showClose && (
             <IconButton
               icon={X}
-              onClick={onClose}
+              onClick={(e) => {
+                e?.stopPropagation?.();
+                onClose?.();
+              }}
               title="Close modal"
               ariaLabel="Close modal"
               size="sm"
@@ -57,4 +68,6 @@ export function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modalNode, document.body);
 }

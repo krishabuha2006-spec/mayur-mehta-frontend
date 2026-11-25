@@ -198,10 +198,121 @@ export const projectService = {
   },
 
   /**
+   * Helper to sanitize project payload according to backend Zod schema
+   */
+  sanitizeProjectPayload: (input) => {
+    if (!input || typeof input !== 'object') return input;
+    const payload = {};
+
+    if (input.name) payload.name = String(input.name).trim();
+    if (input.priority) {
+      const validPriorities = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
+      const p = String(input.priority).toUpperCase();
+      if (validPriorities.includes(p)) payload.priority = p;
+    }
+
+    // Description & Contact person handling
+    let desc = typeof input.description === 'string' ? input.description.trim() : '';
+    const contact = input.client?.contactPerson || input.contactPerson;
+    if (contact && !desc.includes(contact.trim())) {
+      desc = desc ? `${desc} | Contact: ${contact.trim()}` : `Contact: ${contact.trim()}`;
+    }
+    if (desc) payload.description = desc.slice(0, 2000);
+
+    // Client (Strictly allowed: name, phone, email, company, address)
+    if (input.client && typeof input.client === 'object') {
+      const c = {};
+      if (input.client.name) c.name = String(input.client.name).trim();
+      if (input.client.phone) c.phone = String(input.client.phone).trim();
+      if (input.client.email) c.email = String(input.client.email).trim();
+      if (input.client.company) c.company = String(input.client.company).trim();
+      if (input.client.address) c.address = String(input.client.address).trim();
+      if (Object.keys(c).length > 0) payload.client = c;
+    }
+
+    // Site (Strictly allowed: line1, line2, city, state, pincode, country, mapLink)
+    if (input.site && typeof input.site === 'object') {
+      const s = {};
+      const line1 = input.site.line1 || input.site.address;
+      if (line1) s.line1 = String(line1).trim();
+      if (input.site.line2) s.line2 = String(input.site.line2).trim();
+      if (input.site.city) s.city = String(input.site.city).trim();
+      if (input.site.state) s.state = String(input.site.state).trim();
+      if (input.site.pincode) s.pincode = String(input.site.pincode).trim();
+      if (input.site.country) s.country = String(input.site.country).trim();
+      if (input.site.mapLink) s.mapLink = String(input.site.mapLink).trim();
+      if (Object.keys(s).length > 0) payload.site = s;
+    }
+
+    // Dates (Strictly: startDate, expectedEndDate)
+    const startDate = input.startDate || input.plannedStartDate;
+    if (startDate) {
+      try {
+        payload.startDate = new Date(startDate).toISOString().slice(0, 10);
+      } catch {}
+    }
+    const expectedEndDate = input.expectedEndDate || input.plannedEndDate || input.targetDate;
+    if (expectedEndDate) {
+      try {
+        payload.expectedEndDate = new Date(expectedEndDate).toISOString().slice(0, 10);
+      } catch {}
+    }
+
+    // Area (Strictly: { value: number, unit: 'SQFT' | 'SQM' })
+    if (input.area && typeof input.area === 'object') {
+      const val = Number(input.area.value ?? input.area.builtUp);
+      if (!isNaN(val) && val > 0) {
+        const u = String(input.area.unit || 'SQFT').toUpperCase();
+        payload.area = {
+          value: val,
+          unit: u.includes('M') ? 'SQM' : 'SQFT'
+        };
+      }
+    }
+
+    // Budget
+    if (input.budgetPaise !== undefined) {
+      const bp = Number(input.budgetPaise);
+      if (!isNaN(bp) && bp >= 0) payload.budgetPaise = Math.round(bp);
+    } else if (input.budgetRupees !== undefined) {
+      const br = Number(String(input.budgetRupees).replace(/[^0-9.]/g, ''));
+      if (!isNaN(br) && br >= 0) payload.budgetPaise = Math.round(br * 100);
+    }
+
+    // Category & Typology (Only 24-character hex ObjectId)
+    const isObjectId = (val) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val.trim());
+    if (isObjectId(input.projectCategoryId)) payload.projectCategoryId = input.projectCategoryId.trim();
+    if (isObjectId(input.projectTypeId)) payload.projectTypeId = input.projectTypeId.trim();
+
+    // Tags
+    if (Array.isArray(input.tags) && input.tags.length > 0) {
+      payload.tags = input.tags.map((t) => String(t).trim().slice(0, 30)).filter(Boolean).slice(0, 20);
+    }
+
+    // Members
+    if (Array.isArray(input.members) && input.members.length > 0) {
+      payload.members = input.members.filter((m) => isObjectId(m.userId));
+    }
+
+    // Default stages
+    if (input.applyDefaultStages === true || input.applyDefaultStagesOnInit === true) {
+      payload.applyDefaultStages = true;
+    }
+
+    // Version for optimistic locking on update
+    if (input.expectedVersion !== undefined) {
+      payload.expectedVersion = input.expectedVersion;
+    }
+
+    return payload;
+  },
+
+  /**
    * 5. POST /projects — Create project
    */
   createProject: async (projectData) => {
-    const response = await apiClient.post('/projects', projectData);
+    const cleanPayload = projectService.sanitizeProjectPayload(projectData);
+    const response = await apiClient.post('/projects', cleanPayload);
     return unwrapSingleItem(response);
   },
 
@@ -217,7 +328,8 @@ export const projectService = {
    * 7. PATCH /projects/:id — Update project
    */
   updateProject: async (id, projectData) => {
-    const response = await apiClient.patch(`/projects/${id}`, projectData);
+    const cleanPayload = projectService.sanitizeProjectPayload(projectData);
+    const response = await apiClient.patch(`/projects/${id}`, cleanPayload);
     return unwrapSingleItem(response);
   },
 

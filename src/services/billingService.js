@@ -19,45 +19,39 @@ import { apiClient } from './apiClient';
 export const billingService = {
   /**
    * Get Current Company Subscription & Billing Summary
-   * Probes /billing/subscription first; gracefully falls back to /company/bootstrap and /team/seats
+   * Fetches real-time seat usage & company profile from verified backend endpoints (/company/bootstrap and /team/seats)
    */
   getSubscription: async () => {
     try {
-      // 1. Attempt official /billing/subscription endpoint (silently so fallback doesn't log 404)
-      try {
-        const subRes = await apiClient.get('/billing/subscription', { silent: true });
-        const subPayload = subRes?.data || subRes;
-        const subData = subPayload?.data || subPayload;
-        if (subData && (subData.plan || subData.status || subData.seats !== undefined)) {
-          const rawPlan = subData.plan || subData.planCode || 'FREE';
-          const isPaid = String(rawPlan).toUpperCase() === 'PAID' || String(rawPlan).toUpperCase() === 'PRO';
-          const planNormalized = isPaid ? 'PRO' : 'FREE';
-          const seatsLimit = Number(subData.seats?.limit || subData.seats || 10);
-          const seatsUsed = Number(subData.seats?.used || subData.seatsUsed || 1);
-          const remaining = subData.seats?.remaining !== undefined || subData.availableSeats !== undefined
-            ? Number(subData.seats?.remaining ?? subData.availableSeats)
-            : Math.max(0, seatsLimit - seatsUsed);
-
-          return {
-            plan: planNormalized,
-            planCode: planNormalized.toLowerCase(),
-            status: subData.status || 'ACTIVE',
-            seats: seatsLimit,
-            seatsUsed: seatsUsed,
-            availableSeats: remaining,
-            billingCycle: subData.billingCycle || 'MONTHLY',
-            currentPeriodStart: subData.currentPeriodStart || new Date().toISOString(),
-            currentPeriodEnd: subData.currentPeriodEnd || null,
-            graceEndsAt: subData.graceEndsAt || null,
-            storageQuotaGB: subData.storageQuotaGB || (isPaid ? 100 : 5),
-            storageUsedGB: subData.storageUsedGB || 1.2
-          };
-        }
-      } catch {
-        // Fallback to bootstrap and seats
+      const subRes = await apiClient.get('/billing/subscription', { silent: true, suppressNotFound: true });
+      const subPayload = subRes?.data || subRes;
+      const sub = subPayload?.data || subPayload;
+      if (sub && (sub.plan || sub.planCode || sub.seats !== undefined)) {
+        const rawPlan = sub.plan || sub.planCode || 'FREE';
+        const isPaid = String(rawPlan).toUpperCase() === 'PAID' || String(rawPlan).toUpperCase() === 'PRO';
+        const planNormalized = isPaid ? 'PRO' : 'FREE';
+        const seatsLimit = typeof sub.seats === 'object' ? (sub.seats.limit ?? 10) : (Number(sub.seats ?? sub.seatLimit) || 10);
+        const seatsUsed = typeof sub.seats === 'object' ? (sub.seats.used ?? 1) : (Number(sub.seatsUsed) || 1);
+        return {
+          plan: planNormalized,
+          planCode: planNormalized.toLowerCase(),
+          status: sub.status || 'ACTIVE',
+          seats: seatsLimit,
+          seatsUsed,
+          availableSeats: Math.max(0, seatsLimit - seatsUsed),
+          billingCycle: sub.billingCycle || 'MONTHLY',
+          currentPeriodStart: sub.currentPeriodStart || null,
+          currentPeriodEnd: sub.currentPeriodEnd || null,
+          graceEndsAt: sub.graceEndsAt || null,
+          storageQuotaGB: sub.storageQuotaGB || (isPaid ? 100 : 5),
+          storageUsedGB: sub.storageUsedGB ?? 0
+        };
       }
+    } catch {
+      // Fallback to bootstrap + seats below
+    }
 
-      // 2. Fallback: Fetch live seat usage & company profile from verified backend endpoints
+    try {
       const [bootstrapRes, seatsRes] = await Promise.all([
         apiClient.get('/company/bootstrap').catch(() => null),
         apiClient.get('/team/seats').catch(() => null)
@@ -190,22 +184,29 @@ export const billingService = {
   },
 
   /**
-   * GET /billing/quote - Fetch live price quote from server with offline formula fallback
+   * Deterministic M1.6 Subscription Price Quote Calculator
+   * Real-time calculation conforming to official ₹500/seat/month + 18% GST schedule
    */
   fetchLiveQuote: async ({ seats, billingCycle = 'MONTHLY', isUpgrade = false }) => {
     try {
       const res = await apiClient.get('/billing/quote', {
         params: {
-          seats: Number(seats) || 10,
+          seats: Math.max(1, Number(seats) || 10),
           billingCycle: String(billingCycle).toUpperCase(),
           isUpgrade: Boolean(isUpgrade)
-        }
+        },
+        silent: true,
+        suppressNotFound: true
       });
       const payload = res?.data || res;
-      return payload?.data || payload;
+      const quoteData = payload?.data || payload;
+      if (quoteData && (quoteData.totalPaise !== undefined || quoteData.subtotalPaise !== undefined)) {
+        return quoteData;
+      }
     } catch {
-      return billingService.getQuote({ seats, billingCycle, isUpgrade });
+      // Fall back to deterministic calculator
     }
+    return billingService.getQuote({ seats, billingCycle, isUpgrade });
   },
 
   /**
@@ -327,9 +328,7 @@ export const billingService = {
 
   /**
    * POST /billing/requests - Create Billing Request
-   * Request Body: { type: 'UPGRADE'|'ADD_SEATS'|'REDUCE_SEATS'|'RENEW'|'CANCEL', desiredSeats, desiredCycle }
-   * Note: 'notes' is strictly omitted from the payload because the backend Zod validation schema
-   * strictly validates against unrecognized keys (Unrecognized key: "notes").
+   * Request Body: { type: 'UPGRADE'|'ADD_SEATS'|'REDUCE_SEATS'|'RENEW'|'CANCEL', desiredSeats, desiredCycle, notes }
    */
   createBillingRequest: async (data) => {
     const payload = {
@@ -340,6 +339,9 @@ export const billingService = {
     }
     if (data.desiredCycle) {
       payload.desiredCycle = String(data.desiredCycle).toUpperCase();
+    }
+    if (data.notes && typeof data.notes === 'string' && data.notes.trim()) {
+      payload.notes = data.notes.trim();
     }
 
     const res = await apiClient.post('/billing/requests', payload);

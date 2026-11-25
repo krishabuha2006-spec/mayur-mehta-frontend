@@ -101,8 +101,10 @@ export function TaskGanttView({
     .filter((d) => d && !isNaN(d.getTime()));
 
   const minDate = allDates.length > 0 ? new Date(Math.min(...allDates.map((d) => d.getTime()))) : new Date();
-  const maxDate = allDates.length > 0 ? new Date(Math.max(...allDates.map((d) => d.getTime()))) : new Date(Date.now() + 30 * 86400000);
-  const totalSpanDays = Math.max(14, Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 5);
+  const maxCalculatedDate = allDates.length > 0 ? new Date(Math.max(...allDates.map((d) => d.getTime()))) : new Date();
+  const rawDiff = Math.max(0, Math.ceil((maxCalculatedDate - minDate) / (1000 * 60 * 60 * 24)));
+  const totalSpanDays = Math.max(14, rawDiff + 5);
+  const maxDate = new Date(minDate.getTime() + totalSpanDays * 86400000);
 
   const getPositionPercent = (dateStr) => {
     if (!dateStr) return 0;
@@ -146,25 +148,14 @@ export function TaskGanttView({
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {projectOptions.length > 0 && (
-            <select
-              value={selectedProjectId || ''}
-              onChange={(e) => onSelectProject(e.target.value)}
-              style={{
-                height: '34px',
-                borderRadius: '8px',
-                border: '1px solid #D1D5DB',
-                padding: '0 10px',
-                fontSize: '12.5px',
-                fontWeight: 500,
-                background: '#FFFFFF',
-                outline: 'none'
-              }}
-            >
-              <option value="">Select Project for Gantt...</option>
-              {projectOptions.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
+            <div style={{ minWidth: 240 }}>
+              <Select
+                value={selectedProjectId || ''}
+                onChange={(e) => onSelectProject(e.target.value)}
+                placeholder="Select Project for Gantt..."
+                options={projectOptions}
+              />
+            </div>
           )}
 
           <Button
@@ -282,32 +273,42 @@ export function TaskGanttView({
                   </div>
 
                   {/* Right Timeline Bar */}
-                  <div style={{ position: 'relative', height: '28px', background: '#FAFAFA', borderRadius: '4px' }}>
+                  <div style={{ position: 'relative', height: '32px', background: '#FAFAFA', borderRadius: '6px', overflow: 'hidden' }}>
+                    <div style={{
+                      position: 'absolute',
+                      inset: 0,
+                      backgroundImage: 'repeating-linear-gradient(to right, transparent, transparent calc(100% / 4 - 1px), #F0EDE8 calc(100% / 4))',
+                      opacity: 0.7,
+                      pointerEvents: 'none'
+                    }} />
                     <div
                       style={{
                         position: 'absolute',
                         left: `${leftPercent}%`,
-                        width: `${widthPercent}%`,
-                        height: '20px',
+                        width: `${Math.max(4, widthPercent)}%`,
+                        minWidth: '28px',
+                        height: '24px',
                         top: '4px',
-                        borderRadius: '4px',
+                        borderRadius: '6px',
                         background: color,
                         color: '#FFFFFF',
                         fontSize: '11px',
                         fontWeight: 600,
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'space-between',
-                        padding: '0 6px',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                        justifyContent: widthPercent > 18 ? 'space-between' : 'center',
+                        padding: '0 8px',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
                         cursor: 'pointer',
-                        overflow: 'hidden',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        zIndex: 2
                       }}
                       title={`${title} (${formatDate(t.startDate)} – ${formatDate(t.dueDate)})`}
                       onClick={() => onSelectTask && onSelectTask(t)}
                     >
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
+                      {widthPercent > 18 && (
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', marginRight: '6px' }}>{title}</span>
+                      )}
                       <button
                         type="button"
                         onClick={(e) => {
@@ -316,19 +317,36 @@ export function TaskGanttView({
                           setShiftModalOpen(true);
                         }}
                         style={{
-                          background: 'rgba(255,255,255,0.25)',
+                          background: 'rgba(255,255,255,0.28)',
                           border: 'none',
                           color: '#fff',
-                          borderRadius: '3px',
+                          borderRadius: '4px',
                           cursor: 'pointer',
-                          padding: '1px 4px',
-                          fontSize: '10px'
+                          padding: '1px 5px',
+                          fontSize: '10px',
+                          fontWeight: 600
                         }}
                         title="Shift Schedule Dates"
                       >
                         Shift
                       </button>
                     </div>
+                    {widthPercent <= 18 && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          left: `calc(${leftPercent}% + ${Math.max(4, widthPercent)}% + 8px)`,
+                          top: '7px',
+                          fontSize: '11.5px',
+                          fontWeight: 500,
+                          color: '#374151',
+                          whiteSpace: 'nowrap',
+                          pointerEvents: 'none'
+                        }}
+                      >
+                        {title}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

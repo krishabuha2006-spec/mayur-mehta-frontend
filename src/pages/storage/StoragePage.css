@@ -227,10 +227,10 @@
 }
 
 .storage-project-dropdown {
-  height: 34px;
-  line-height: 32px;
-  padding: 0 28px 0 10px;
-  border-radius: 6px;
+  height: 38px;
+  line-height: normal !important;
+  padding: 0 32px 0 12px;
+  border-radius: 8px;
   border: 1px solid var(--color-border, #E8E3DB);
   font-size: 13px;
   color: #1E1A17;
@@ -239,33 +239,38 @@
   cursor: pointer;
   font-family: inherit;
   outline: none;
-  max-width: 280px;
+  max-width: 320px;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
 }
 
 .storage-project-dropdown:focus {
-  border-color: var(--color-primary, #7B6F62);
+  border-color: #B89A74;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(184, 154, 116, 0.12);
 }
 
 .storage-template-btn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 34px;
-  padding: 0 11px;
-  border-radius: 6px;
+  gap: 6px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 8px;
   border: 1px solid #E8E3DB;
-  background: transparent;
+  background: #FAF8F5;
   color: #7B6F62;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all 0.18s ease;
   font-family: inherit;
   white-space: nowrap;
 }
 
 .storage-template-btn:hover {
-  background: #F4F0E8;
+  background: #F3EFE9;
+  border-color: #B89A74;
   color: #1E1A17;
 }
 
@@ -273,13 +278,21 @@
 .storage-search-box {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   background: #FAF8F5;
   border: 1px solid var(--color-border, #E8E3DB);
-  border-radius: 6px;
-  padding: 0 10px;
-  width: 220px;
-  height: 34px;
+  border-radius: 8px;
+  padding: 0 12px;
+  width: 240px;
+  height: 38px;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.storage-search-box:focus-within {
+  border-color: #B89A74;
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 3px rgba(184, 154, 116, 0.12);
 }
 
 .storage-search-field {

@@ -113,6 +113,15 @@ function normalizeSummary(raw) {
   };
 }
 
+function normalizeDirectoryKind(rawKind) {
+  if (!rawKind) return 'client';
+  const k = String(rawKind).toLowerCase().trim();
+  if (k === 'clients' || k === 'client') return 'client';
+  if (k === 'partners' || k === 'partner') return 'partner';
+  if (k === 'employees' || k === 'employee') return 'employee';
+  return k;
+}
+
 /**
  * Directory Service (Module M2.4)
  * Comprehensive directory for Clients, ACVC Partners, Employees, Contact Sharing,
@@ -144,8 +153,13 @@ export const directoryService = {
   },
 
   updateClientStatus: async (id, status) => {
-    const res = await apiClient.patch(`/directory/clients/${id}/status`, { status });
-    return unwrapSingleItem(res, 'client');
+    try {
+      const res = await apiClient.patch(`/directory/clients/${id}`, { status });
+      return unwrapSingleItem(res, 'client');
+    } catch {
+      const res = await apiClient.patch(`/directory/clients/${id}/status`, { status });
+      return unwrapSingleItem(res, 'client');
+    }
   },
 
   deleteClient: async (id) => {
@@ -177,8 +191,13 @@ export const directoryService = {
   },
 
   updatePartnerStatus: async (id, status) => {
-    const res = await apiClient.patch(`/directory/partners/${id}/status`, { status });
-    return unwrapSingleItem(res, 'partner');
+    try {
+      const res = await apiClient.patch(`/directory/partners/${id}`, { status });
+      return unwrapSingleItem(res, 'partner');
+    } catch {
+      const res = await apiClient.patch(`/directory/partners/${id}/status`, { status });
+      return unwrapSingleItem(res, 'partner');
+    }
   },
 
   deletePartner: async (id) => {
@@ -210,8 +229,13 @@ export const directoryService = {
   },
 
   updateEmployeeStatus: async (id, status) => {
-    const res = await apiClient.patch(`/directory/employees/${id}/status`, { status });
-    return unwrapSingleItem(res, 'employee');
+    try {
+      const res = await apiClient.patch(`/directory/employees/${id}`, { status });
+      return unwrapSingleItem(res, 'employee');
+    } catch {
+      const res = await apiClient.patch(`/directory/employees/${id}/status`, { status });
+      return unwrapSingleItem(res, 'employee');
+    }
   },
 
   deleteEmployee: async (id) => {
@@ -268,14 +292,19 @@ export const directoryService = {
   // =========================================================================
   // 5. CONTACT SHARING & VCARD 3.0 (/api/v1/directory/{kind}/{id}/share & vcard)
   // =========================================================================
-  shareContact: async (kind, id, channel = 'whatsapp') => {
-    const res = await apiClient.post(`/directory/${kind}/${id}/share`, { channel });
-    const payload = res?.data || res;
-    return payload?.data || payload;
+  shareContact: async (kind, id, channelOrOptions = 'whatsapp') => {
+    const normKind = normalizeDirectoryKind(kind);
+    const payload = typeof channelOrOptions === 'string'
+      ? { channel: channelOrOptions }
+      : channelOrOptions;
+    const res = await apiClient.post(`/directory/${normKind}/${id}/share`, payload);
+    const resData = res?.data || res;
+    return resData?.data || resData;
   },
 
   downloadVCard: async (kind, id, filename = 'contact.vcf') => {
-    const res = await apiClient.get(`/directory/${kind}/${id}/vcard`, {
+    const normKind = normalizeDirectoryKind(kind);
+    const res = await apiClient.get(`/directory/${normKind}/${id}/vcard`, {
       responseType: 'blob'
     });
     const blob = new Blob([res.data || res], { type: 'text/vcard;charset=utf-8' });
@@ -293,14 +322,15 @@ export const directoryService = {
   // 6. CSV IMPORT & EXPORT (/api/v1/directory/{kind}/export & import)
   // =========================================================================
   exportCsv: async (kind) => {
-    const res = await apiClient.get(`/directory/${kind}/export`, {
+    const normKind = normalizeDirectoryKind(kind);
+    const res = await apiClient.get(`/directory/${normKind}/export`, {
       responseType: 'blob'
     });
     const blob = new Blob([res.data || res], { type: 'text/csv;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${kind}_directory_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${normKind}_directory_${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -308,14 +338,15 @@ export const directoryService = {
   },
 
   downloadImportTemplate: async (kind) => {
-    const res = await apiClient.get(`/directory/${kind}/import/template`, {
+    const normKind = normalizeDirectoryKind(kind);
+    const res = await apiClient.get(`/directory/${normKind}/import/template`, {
       responseType: 'blob'
     });
     const blob = new Blob([res.data || res], { type: 'text/csv;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${kind}_import_template.csv`;
+    a.download = `${normKind}_import_template.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -323,11 +354,12 @@ export const directoryService = {
   },
 
   importCsv: async (kind, file, dryRun = false) => {
+    const normKind = normalizeDirectoryKind(kind);
     const formData = new FormData();
     formData.append('file', file);
-    if (dryRun) formData.append('dryRun', 'true');
 
-    const res = await apiClient.post(`/directory/${kind}/import`, formData, {
+    const res = await apiClient.post(`/directory/${normKind}/import`, formData, {
+      params: { dryRun: Boolean(dryRun) },
       headers: { 'Content-Type': 'multipart/form-data' }
     });
     const payload = res?.data || res;
@@ -338,7 +370,8 @@ export const directoryService = {
   // 7. GDPR ANONYMISATION (/api/v1/directory/{kind}/{id}/anonymise)
   // =========================================================================
   anonymise: async (kind, id) => {
-    const res = await apiClient.post(`/directory/${kind}/${id}/anonymise`, { confirm: true });
+    const normKind = normalizeDirectoryKind(kind);
+    const res = await apiClient.post(`/directory/${normKind}/${id}/anonymise`, { confirm: true });
     const payload = res?.data || res;
     return payload?.data || payload;
   },

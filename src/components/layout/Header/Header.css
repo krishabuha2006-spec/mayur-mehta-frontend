@@ -267,6 +267,15 @@
   margin: 4px 6px;
 }
 
+.dropdown-item-warning {
+  color: #8C6239;
+}
+
+.dropdown-item-warning:hover {
+  background-color: rgba(184, 154, 116, 0.14);
+  color: #6E4A26;
+}
+
 .dropdown-item-danger {
   color: var(--color-danger);
 }

@@ -271,6 +271,8 @@ export const adminService = {
     return payload?.data || payload;
   },
 
+  getAdmin: async (id) => adminService.getAdminDetail(id),
+
   /**
    * PATCH /admin/admins/{id} - Update Super Admin Name
    */
@@ -279,6 +281,11 @@ export const adminService = {
       name: name?.trim()
     });
     return res?.data || res;
+  },
+
+  updateAdmin: async (id, payload) => {
+    const name = typeof payload === 'string' ? payload : payload?.name;
+    return adminService.updateAdminName(id, { name });
   },
 
   /**
@@ -352,6 +359,8 @@ export const adminService = {
     const payload = res?.data || res;
     return payload?.data || payload;
   },
+
+  getAuditLogEntry: async (id) => adminService.getAuditLogDetail(id),
 
   // =========================================================================
   // 5. SUPER ADMIN - BILLING & REVENUE (Module M1.6)

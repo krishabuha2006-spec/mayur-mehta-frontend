@@ -11,7 +11,8 @@ import {
   RotateCw,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Edit3
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Input } from '../../components/common/Input/Input';
@@ -377,7 +378,7 @@ export function TaskReviewHistoryWidget({ taskId }) {
 }
 
 /**
- * 4. TASK TIME LOGS WIDGET (GET & POST /tasks/:id/time, DELETE /time/:logId)
+ * 4. TASK TIME LOGS WIDGET (M2.2: GET & POST /tasks/:id/time, PATCH & DELETE /time/:logId)
  */
 export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
   const [logs, setLogs] = useState([]);
@@ -387,6 +388,13 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [expanded, setExpanded] = useState(false);
+
+  // Editing state for PATCH /time/{logId}
+  const [editingLogId, setEditingLogId] = useState(null);
+  const [editMinutes, setEditMinutes] = useState(30);
+  const [editDate, setEditDate] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const fetchLogs = useCallback(async () => {
     if (!taskId) return;
@@ -413,10 +421,10 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
     try {
       await taskAdvancedService.logManualTime(taskId, {
         minutes: minVal,
-        workDate: workDate ? new Date(workDate).toISOString() : new Date().toISOString(),
+        date: workDate ? String(workDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
         note: note.trim() || undefined
       });
-      showToast(`${minVal} minutes logged successfully`, 'success');
+      showToast(`${minVal} minutes logged to database`, 'success');
       setNote('');
       fetchLogs();
       if (onTimeLogged) onTimeLogged();
@@ -427,10 +435,46 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
     }
   };
 
+  const handleStartEdit = (item) => {
+    const lId = item.id || item._id;
+    setEditingLogId(lId);
+    setEditMinutes(Number(item.minutes) || 30);
+    setEditDate(item.workDate ? String(item.workDate).slice(0, 10) : new Date().toISOString().slice(0, 10));
+    setEditNote(item.note || '');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingLogId(null);
+    setEditMinutes(30);
+    setEditDate('');
+    setEditNote('');
+  };
+
+  const handleSaveEdit = async (logId) => {
+    const minVal = Number(editMinutes);
+    if (!minVal || minVal <= 0) return;
+    setIsUpdating(true);
+    try {
+      await taskAdvancedService.updateTimeLog(logId, {
+        minutes: minVal,
+        date: editDate ? String(editDate).slice(0, 10) : undefined,
+        note: editNote.trim()
+      });
+      showToast('Time entry updated successfully', 'success');
+      handleCancelEdit();
+      fetchLogs();
+      if (onTimeLogged) onTimeLogged();
+    } catch (err) {
+      showToast(extractErrorMessage(err, 'Failed to update time entry'), 'error');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handleDeleteLog = async (logId) => {
     try {
       await taskAdvancedService.deleteTimeLog(logId);
-      showToast('Time log removed', 'info');
+      showToast('Time entry removed from database', 'info');
       fetchLogs();
       if (onTimeLogged) onTimeLogged();
     } catch (err) {
@@ -439,28 +483,93 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
   };
 
   const totalMinutes = logs.reduce((acc, curr) => acc + (Number(curr.minutes) || 0), 0);
+  const presets = [15, 30, 45, 60, 120, 240];
 
   return (
     <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #E5E7EB' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
         <h4 style={{ margin: 0, fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
           <Clock size={14} style={{ color: '#10B981' }} /> Logged Work Hours
         </h4>
-        <span style={{ fontSize: '12px', fontWeight: 600, color: '#047857' }}>
-          {(totalMinutes / 60).toFixed(1)} hrs total
+        <span style={{ fontSize: '12px', fontWeight: 600, color: '#047857', background: '#ECFDF5', padding: '2px 8px', borderRadius: '9999px', border: '1px solid #A7F3D0' }}>
+          {(totalMinutes / 60).toFixed(1)} hrs total ({totalMinutes} mins)
         </span>
       </div>
 
       {loading ? (
-        <div style={{ fontSize: '12px', color: '#6B7280', padding: '4px 0' }}>Loading time entries...</div>
+        <div style={{ fontSize: '12px', color: '#6B7280', padding: '4px 0' }}>Loading time entries from server...</div>
       ) : logs.length === 0 ? (
-        <div style={{ fontSize: '12px', color: '#9CA3AF', fontStyle: 'italic', marginBottom: '8px' }}>
-          No manual hours logged yet on this task.
+        <div style={{ fontSize: '12px', color: '#9CA3AF', fontStyle: 'italic', marginBottom: '10px' }}>
+          No work hours logged yet on this task in the database.
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
-          {logs.slice(0, expanded ? logs.length : 3).map((item) => {
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
+          {logs.slice(0, expanded ? logs.length : 4).map((item) => {
             const lId = item.id || item._id;
+            const isEditing = editingLogId === lId;
+
+            if (isEditing) {
+              return (
+                <div
+                  key={lId}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    background: '#FEF3C7',
+                    border: '1px solid #FCD34D',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    fontSize: '12px'
+                  }}
+                >
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1440"
+                      value={editMinutes}
+                      onChange={(e) => setEditMinutes(e.target.value)}
+                      style={{ width: '65px', padding: '4px 6px', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                      title="Minutes"
+                    />
+                    <span style={{ color: '#6B7280' }}>mins</span>
+                    <input
+                      type="date"
+                      value={editDate}
+                      onChange={(e) => setEditDate(e.target.value)}
+                      style={{ padding: '4px 6px', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Note..."
+                      value={editNote}
+                      onChange={(e) => setEditNote(e.target.value)}
+                      style={{ flex: 1, padding: '4px 6px', borderRadius: '4px', border: '1px solid #D1D5DB' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                    <button
+                      type="button"
+                      onClick={handleCancelEdit}
+                      disabled={isUpdating}
+                      style={{ padding: '3px 8px', borderRadius: '4px', border: '1px solid #D1D5DB', background: '#FFF', cursor: 'pointer', fontSize: '11px' }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSaveEdit(lId)}
+                      disabled={isUpdating || !editMinutes}
+                      style={{ padding: '3px 8px', borderRadius: '4px', border: 'none', background: '#D97706', color: '#FFF', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+                    >
+                      {isUpdating ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={lId}
@@ -468,7 +577,7 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  padding: '5px 8px',
+                  padding: '6px 10px',
                   borderRadius: '6px',
                   background: '#F0FDF4',
                   border: '1px solid #DCFCE7',
@@ -478,22 +587,32 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
                 <div>
                   <strong style={{ color: '#065F46' }}>{item.minutes} mins</strong>
                   <span style={{ marginLeft: '6px', color: '#6B7280' }}>
-                    ({item.workDate ? formatDate(item.workDate) : 'Today'})
+                    ({item.workDate ? String(item.workDate).slice(0, 10) : 'Today'})
                   </span>
                   {item.note && <span style={{ marginLeft: '6px', color: '#374151' }}>— {item.note}</span>}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteLog(lId)}
-                  style={{ border: 'none', background: 'transparent', color: '#DC2626', cursor: 'pointer', padding: '2px' }}
-                  title="Delete log"
-                >
-                  <Trash2 size={12} />
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button
+                    type="button"
+                    onClick={() => handleStartEdit(item)}
+                    style={{ border: 'none', background: 'transparent', color: '#4B5563', cursor: 'pointer', padding: '2px 4px' }}
+                    title="Edit entry"
+                  >
+                    <Edit3 size={12} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteLog(lId)}
+                    style={{ border: 'none', background: 'transparent', color: '#DC2626', cursor: 'pointer', padding: '2px 4px' }}
+                    title="Delete entry"
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </div>
               </div>
             );
           })}
-          {logs.length > 3 && (
+          {logs.length > 4 && (
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
@@ -513,12 +632,36 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
         </div>
       )}
 
+      {/* Quick Preset Pills */}
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '11px', color: '#6B7280', marginRight: '2px' }}>Quick:</span>
+        {presets.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => setMinutes(p)}
+            style={{
+              padding: '2px 8px',
+              borderRadius: '9999px',
+              fontSize: '11px',
+              fontWeight: 500,
+              border: minutes === p ? '1px solid #10B981' : '1px solid #E5E7EB',
+              background: minutes === p ? '#ECFDF5' : '#F9FAFB',
+              color: minutes === p ? '#065F46' : '#4B5563',
+              cursor: 'pointer'
+            }}
+          >
+            {p < 60 ? `${p}m` : `${p / 60}h`}
+          </button>
+        ))}
+      </div>
+
       {/* Manual log form */}
       <form onSubmit={handleLogTime} style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
         <input
           type="number"
           min="1"
-          max="720"
+          max="1440"
           value={minutes}
           onChange={(e) => setMinutes(e.target.value)}
           placeholder="Mins"
@@ -560,7 +703,7 @@ export function TaskTimeLogsWidget({ taskId, onTimeLogged, showToast }) {
           }}
         />
         <Button size="sm" type="submit" variant="secondary" disabled={submitting || !minutes}>
-          Log
+          {submitting ? 'Logging...' : 'Log Time'}
         </Button>
       </form>
     </div>

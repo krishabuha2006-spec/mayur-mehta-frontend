@@ -104,19 +104,11 @@ export const APP_NAVIGATION = [
     permission: null
   },
   {
-    id: 'nav-11',
-    label: 'Reports',
-    iconKey: 'TrendingUp',
-    route: ROUTES.REPORTS,
-    order: 11,
-    permission: null
-  },
-  {
     id: 'nav-12',
     label: 'Settings',
     iconKey: 'Settings2',
     route: ROUTES.SETTINGS,
-    order: 12,
+    order: 11,
     permission: null
   }
 ];

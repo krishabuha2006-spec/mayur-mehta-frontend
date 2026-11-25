@@ -138,3 +138,60 @@
   align-items: center;
   gap: 6px;
 }
+
+/* Loading & Empty State */
+.logs-loading-state,
+.logs-empty-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 68px 24px;
+  text-align: center;
+  background: linear-gradient(180deg, #FFFFFF 0%, #FAF8F5 100%);
+  border: 1px solid var(--color-border, #E8E3DB);
+  border-radius: 14px;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(30, 26, 23, 0.02);
+}
+
+.logs-empty-icon-outer-ring {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background-color: rgba(184, 154, 116, 0.08);
+  border: 1px solid rgba(184, 154, 116, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 4px;
+  box-shadow: 0 0 24px rgba(184, 154, 116, 0.06);
+}
+
+.logs-empty-icon-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: #FAF8F5;
+  border: 1px solid rgba(184, 154, 116, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8C6F4B;
+}
+
+.logs-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text, #1E1A17);
+  letter-spacing: -0.015em;
+  margin: 0;
+}
+
+.logs-empty-desc {
+  font-size: 13.5px;
+  color: var(--color-text-muted, #7B6F62);
+  max-width: 480px;
+  line-height: 1.6;
+  margin: 0;
+}

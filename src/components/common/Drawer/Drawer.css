@@ -15,8 +15,13 @@
 }
 
 @keyframes fadeInOverlay {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .mm-drawer-sheet {
@@ -32,8 +37,13 @@
 }
 
 @keyframes slideInDrawer {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
 }
 
 .mm-drawer-header {
@@ -69,23 +79,30 @@
 }
 
 .mm-drawer-close-btn {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  width: 32px;
-  height: 32px;
+  background: #FAF8F5;
+  border: 1px solid #E5E0D8;
+  border-radius: 8px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  color: #7A6A58;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .mm-drawer-close-btn:hover {
-  background: var(--surface-alt);
-  color: var(--text);
-  border-color: var(--primary);
+  background: #EFECE6;
+  color: #1E1A17;
+  border-color: #B89A74;
+  transform: scale(1.04);
+}
+
+.mm-drawer-close-btn:active {
+  transform: scale(0.96);
 }
 
 .mm-drawer-body {
@@ -106,4 +123,3 @@
   justify-content: flex-end;
   gap: 0.75rem;
 }
-

@@ -52,10 +52,14 @@ export function Drawer({
           <button
             type="button"
             className="mm-drawer-close-btn"
-            onClick={onClose}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose?.();
+            }}
             aria-label="Close drawer"
           >
-            <X size={18} />
+            <X size={18} style={{ pointerEvents: 'none' }} />
           </button>
         </div>
 

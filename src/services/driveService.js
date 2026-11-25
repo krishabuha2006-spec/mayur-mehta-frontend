@@ -178,13 +178,13 @@ export const driveService = {
 
   /**
    * POST /drive/files - Upload one or more files (multipart/form-data)
+   * Strictly conforms to Swagger v1.3.0 schema:
+   * Body: multipart/form-data containing files (binary[]), projectId (string), folderId (string), taskId (string)
    * @param {FormData} formData - Contains projectId, folderId, files
    * @param {Function} onProgress - Upload progress callback
-   * @param {Object} queryParams - Optional query params e.g. { projectId, folderId }
    */
-  uploadFiles: async (formData, onProgress = null, queryParams = {}) => {
+  uploadFiles: async (formData, onProgress = null) => {
     const res = await apiClient.post('/drive/files', formData, {
-      params: queryParams,
       headers: {
         'Content-Type': undefined
       },
@@ -269,6 +269,9 @@ export const driveService = {
    * PUT /drive/files/{id}/task - Attach or detach a task to/from a project file
    */
   linkTask: async (fileId, taskId, action = 'ATTACH') => {
+    if (!fileId || typeof fileId !== 'string' || !/^[0-9a-fA-F]{24}$/.test(fileId)) {
+      throw new Error('Invalid file identifier. File must be stored on the cloud server before linking to task.');
+    }
     const res = await apiClient.put(`/drive/files/${fileId}/task`, { taskId, action });
     const result = res?.data || res;
     return result?.data || result;
@@ -300,18 +303,30 @@ export const driveService = {
    * PUT /drive/files/{id}/client-sharing - Share or unshare single file with external client
    */
   toggleFileClientSharing: async (fileId, sharedWithClient) => {
-    const res = await apiClient.put(`/drive/files/${fileId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
-    const result = res?.data || res;
-    return result?.data || result;
+    try {
+      const res = await apiClient.put(`/drive/files/${fileId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
+      const result = res?.data || res;
+      return result?.data || result;
+    } catch {
+      const res = await apiClient.patch(`/drive/files/${fileId}`, { sharedWithClient: !!sharedWithClient });
+      const result = res?.data || res;
+      return result?.data || result;
+    }
   },
 
   /**
    * PUT /drive/folders/{id}/client-sharing - Recursively toggle client sharing for folder & contents
    */
   toggleFolderClientSharing: async (folderId, sharedWithClient) => {
-    const res = await apiClient.put(`/drive/folders/${folderId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
-    const result = res?.data || res;
-    return result?.data || result;
+    try {
+      const res = await apiClient.put(`/drive/folders/${folderId}/client-sharing`, { sharedWithClient: !!sharedWithClient });
+      const result = res?.data || res;
+      return result?.data || result;
+    } catch {
+      const res = await apiClient.patch(`/drive/folders/${folderId}`, { sharedWithClient: !!sharedWithClient });
+      const result = res?.data || res;
+      return result?.data || result;
+    }
   },
 
   // ==========================================

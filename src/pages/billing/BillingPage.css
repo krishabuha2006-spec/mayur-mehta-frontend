@@ -5,11 +5,13 @@
 .billing-page {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-6, 24px);
-  padding-bottom: var(--spacing-10, 40px);
-  max-width: 1140px;
+  gap: 20px;
+  padding-bottom: 36px;
+  max-width: 1180px;
   margin: 0 auto;
   width: 100%;
+  font-family: var(--font-family-base, 'Inter', sans-serif);
+  color: #1E1A17;
 }
 
 /* Header */
@@ -61,19 +63,19 @@
 }
 
 .billing-title {
-  font-size: var(--font-size-2xl, 28px);
+  font-size: 22px;
   font-weight: 600;
-  color: var(--text, #2A241D);
+  color: #1E1A17;
   margin: 0;
   letter-spacing: -0.01em;
 }
 
 .billing-subtitle {
-  font-size: var(--font-size-sm, 13.5px);
-  color: var(--text-muted, #7B6F63);
+  font-size: 13px;
+  color: #7B6F62;
   margin: 4px 0 0 0;
-  max-width: 680px;
-  line-height: 1.5;
+  max-width: 640px;
+  line-height: 1.45;
 }
 
 .billing-header-actions {
@@ -338,13 +340,17 @@
   text-decoration: underline;
 }
 
-/* Tabs Navigation */
+/* Tabs Navigation - Luxury Segmented Pill Bar */
 .billing-tabs-nav {
   display: flex;
-  gap: 6px;
-  border-bottom: 2px solid var(--border, #E8E0D5);
-  padding-bottom: 2px;
-  margin-top: 4px;
+  align-items: center;
+  gap: 4px;
+  background-color: #F6F3EE;
+  padding: 4px;
+  border-radius: 10px;
+  width: fit-content;
+  max-width: 100%;
+  border: 1px solid #ECE7E0;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -352,30 +358,29 @@
 .billing-tab-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 18px;
+  gap: 7px;
+  padding: 7px 15px;
   background: transparent;
   border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -4px;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-muted, #7B6F63);
+  font-size: 13px;
+  font-weight: 500;
+  color: #7B6F62;
   cursor: pointer;
-  transition: all 0.15s ease-in-out;
-  border-radius: 8px 8px 0 0;
+  transition: all 0.16s ease;
+  border-radius: 7px;
   white-space: nowrap;
 }
 
 .billing-tab-btn:hover {
-  color: var(--text, #2A241D);
-  background-color: var(--surface-alt, #FBF8F4);
+  color: #1E1A17;
+  background-color: rgba(255, 255, 255, 0.65);
 }
 
 .billing-tab-btn.is-active {
-  color: var(--primary, #7A6A58);
-  border-bottom-color: var(--primary, #7A6A58);
-  background-color: var(--surface-alt, #FBF8F4);
+  color: #1E1A17;
+  font-weight: 600;
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.07);
 }
 
 .tab-count-pill {
@@ -523,9 +528,9 @@
 }
 
 .plan-amount {
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--text, #2A241D);
+  font-size: 26px;
+  font-weight: 700;
+  color: #1E1A17;
   line-height: 1;
 }
 
@@ -681,9 +686,60 @@
 
 .seat-range-slider {
   width: 100%;
-  accent-color: var(--primary, #7A6A58);
+  accent-color: #B89A74;
   cursor: pointer;
   height: 6px;
+}
+
+.seat-stepper {
+  display: inline-flex;
+  align-items: center;
+  background-color: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 36px;
+}
+
+.seat-stepper-btn {
+  width: 34px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #1E1A17;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.seat-stepper-btn:hover {
+  background-color: #EFEAE2;
+}
+
+.seat-stepper .seat-number-input {
+  width: 54px !important;
+  height: 100% !important;
+  border: none !important;
+  border-left: 1px solid #E8E3DB !important;
+  border-right: 1px solid #E8E3DB !important;
+  border-radius: 0 !important;
+  background: #FFFFFF !important;
+  padding: 0 4px !important;
+  text-align: center !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+  color: #1E1A17 !important;
+  box-shadow: none !important;
+}
+
+.calc-chips-unit {
+  font-size: 12px;
+  color: #7B6F62;
+  margin-left: 2px;
 }
 
 .calc-chips-row {
@@ -718,17 +774,17 @@
 }
 
 .calc-chip-btn.is-active {
-  background-color: var(--primary, #7A6A58);
-  border-color: var(--primary, #7A6A58);
-  color: #FFFFFF;
+  background-color: #1E1A17;
+  border-color: #1E1A17;
+  color: #FAF8F5;
 }
 
 /* Quote Box */
 .quote-box {
-  background-color: var(--surface-alt, #FBF8F4);
-  border: 1px solid var(--border, #E8E0D5);
-  border-radius: var(--radius-md, 12px);
-  padding: 16px;
+  background-color: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  border-radius: 12px;
+  padding: 18px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1618,5 +1674,94 @@
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+.guide-toggle-btn {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.guide-toggle-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7B6F62;
+  background: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  padding: 6px 14px;
+  border-radius: 9999px;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.guide-toggle-btn:hover .guide-toggle-pill {
+  border-color: #B89A74;
+  color: #1E1A17;
+}
+
+/* Simple 3-Step Billing Guide */
+.billing-easy-steps-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  background: #FAF8F5;
+  border: 1px solid #E8E3DB;
+  border-radius: 12px;
+  padding: 14px 20px;
+  flex-wrap: wrap;
+}
+
+.easy-step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 210px;
+}
+
+.easy-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #1E1A17;
+  color: #FAF8F5;
+  font-size: 13px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.easy-step-item strong {
+  display: block;
+  font-size: 13.5px;
+  color: #1E1A17;
+  margin-bottom: 2px;
+}
+
+.easy-step-item p {
+  margin: 0;
+  font-size: 12px;
+  color: #7B6F62;
+  line-height: 1.35;
+}
+
+.easy-step-arrow {
+  color: #B89A74;
+  flex-shrink: 0;
+}
+
+@media (max-width: 900px) {
+  .easy-step-arrow {
+    display: none;
   }
 }

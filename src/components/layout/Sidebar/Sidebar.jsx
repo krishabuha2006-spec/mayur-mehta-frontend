@@ -27,7 +27,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { MayurMehtaLogo } from '../../common/MayurMehtaLogo/MayurMehtaLogo';
 import { ROUTES } from '../../../constants/routes';
 import { APP_NAVIGATION } from '../../../constants/navigation';
-import { taskService } from '../../../services/taskService';
+import { taskService, taskAdvancedService } from '../../../services/taskService';
 import { approvalService } from '../../../services/approvalService';
 import './Sidebar.css';
 
@@ -112,23 +112,15 @@ export function Sidebar({
           tCount = openCount;
           uCount = summary.assignedToMeOpen ?? 0;
           appCount = byStatus.IN_REVIEW ?? 0;
-        } else {
-          // Fallback to GET /tasks if summary is unavailable
-          const tasksRes = await taskService.getTasks({ limit: 100 }).catch(() => []);
-          const list = Array.isArray(tasksRes) ? tasksRes : (tasksRes?.data || []);
-          const activeTasks = list.filter(
-            (t) => t && !['DONE', 'Completed', 'COMPLETED', 'CANCELLED'].includes(t.status)
-          );
-          tCount = activeTasks.length;
-          uCount = activeTasks.filter(
-            (t) =>
-              t.assigneeId === user?.id ||
-              t.assignedTo === user?.id ||
-              t.assignedTo?._id === user?.id ||
-              t.assignee?._id === user?.id
-          ).length;
-          appCount = activeTasks.filter((t) => t.status === 'IN_REVIEW' || t.reviewStatus === 'PENDING').length;
         }
+
+        // Fetch company-wide pending reviews directly from Swagger endpoint (GET /company/review-tasks-pending)
+        try {
+          const pendingRev = await taskAdvancedService.getPendingReviewCount();
+          if (typeof pendingRev === 'number' && pendingRev >= 0) {
+            appCount = pendingRev;
+          }
+        } catch {}
 
         if (isMounted) {
           const fresh = {
@@ -206,6 +198,7 @@ export function Sidebar({
   // Filter navigation items by role/permission and sort by order
   const filteredNav = mergedNav
     .filter((item) => hasPermission(item.permission))
+    .filter((item) => item.label !== 'Reports' && item.route !== ROUTES.REPORTS && item.id !== 'nav-11')
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 
   // Separate main workflow items from bottom utilities (Settings)

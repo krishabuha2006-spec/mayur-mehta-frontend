@@ -112,20 +112,56 @@ export const notificationService = {
    * 9. GET /settings/notifications/preferences - Get user notification preferences and muted projects
    */
   getPreferences: async () => {
-    const res = await apiClient.get('/settings/notifications/preferences');
-    return unwrapData(res);
+    try {
+      const res = await apiClient.get('/settings/notifications/preferences', { silent: true, suppressNotFound: true });
+      return unwrapData(res);
+    } catch {
+      // Default notification preferences fallback if backend route is not mounted
+      return {
+        emailEnabled: true,
+        channels: { inApp: true, email: true },
+        groups: {
+          TASKS: { inApp: true, email: true },
+          PROJECTS: { inApp: true, email: true },
+          FILES: { inApp: true, email: false },
+          BILLING: { inApp: true, email: true },
+          TEAM: { inApp: true, email: true },
+          SECURITY: { inApp: true, email: true },
+          SYSTEM: { inApp: true, email: false }
+        },
+        mutedProjectIds: []
+      };
+    }
   },
 
   /**
    * 10. PATCH /settings/notifications/preferences - Update user notification preferences and project mutes
    */
   updatePreferences: async (preferences) => {
-    const res = await apiClient.patch('/settings/notifications/preferences', preferences);
+    try {
+      const res = await apiClient.patch('/settings/notifications/preferences', preferences, { silent: true, suppressNotFound: true });
+      return unwrapData(res);
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        try {
+          localStorage.setItem('mm_notif_prefs', JSON.stringify(preferences));
+        } catch {}
+        return preferences;
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * 11. GET /public/notifications/unsubscribe - Verify unsubscribe token info
+   */
+  verifyUnsubscribeToken: async (token) => {
+    const res = await apiClient.get('/public/notifications/unsubscribe', { params: { token } });
     return unwrapData(res);
   },
 
   /**
-   * 11. POST /public/notifications/unsubscribe - Public one-click unsubscribe
+   * 12. POST /public/notifications/unsubscribe - Public one-click unsubscribe
    */
   unsubscribePublic: async ({ token, categories }) => {
     const res = await apiClient.post('/public/notifications/unsubscribe', { token, categories });

@@ -9,6 +9,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { SetPasswordPage } from './pages/auth/SetPasswordPage';
+import { UnsubscribePage } from './pages/auth/UnsubscribePage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { ProjectsPage } from './pages/projects/ProjectsPage';
 import { TasksPage } from './pages/tasks/TasksPage';
@@ -44,6 +45,8 @@ export function AppRoutes() {
       <Route path={`${ROUTES.SET_PASSWORD}/:token`} element={<SetPasswordPage />} />
       <Route path="/auth/set-password" element={<SetPasswordPage />} />
       <Route path="/auth/set-password/:token" element={<SetPasswordPage />} />
+      <Route path="/unsubscribe" element={<UnsubscribePage />} />
+      <Route path="/public/notifications/unsubscribe" element={<UnsubscribePage />} />
       <Route path="/portal" element={<ClientPortalPage />} />
       <Route path="/portal/:code" element={<ClientPortalPage />} />
 

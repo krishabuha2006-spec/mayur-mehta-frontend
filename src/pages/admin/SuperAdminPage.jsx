@@ -46,7 +46,8 @@ import {
   ChevronRight,
   Copy,
   Filter,
-  MoreVertical
+  MoreVertical,
+  MonitorOff
 } from 'lucide-react';
 import { Button } from '../../components/common/Button/Button';
 import { Badge } from '../../components/common/Badge/Badge';
@@ -545,7 +546,7 @@ export function SuperAdminPage() {
     setEditAdminName(admin.name || '');
     setEditAdminModalOpen(true);
     try {
-      const detail = await adminService.getAdmin(admin._id || admin.id);
+      const detail = await adminService.getAdminDetail(admin._id || admin.id);
       if (detail?.name) {
         setEditAdminName(detail.name);
       }
@@ -559,7 +560,9 @@ export function SuperAdminPage() {
     if (!selectedAdminForEdit || !editAdminName.trim()) return;
     setEditAdminLoading(true);
     try {
-      await adminService.updateAdmin(selectedAdminForEdit._id || selectedAdminForEdit.id, editAdminName.trim());
+      await adminService.updateAdminName(selectedAdminForEdit._id || selectedAdminForEdit.id, {
+        name: editAdminName.trim()
+      });
       showNotification(`Administrator updated to "${editAdminName.trim()}".`, 'success');
       setEditAdminModalOpen(false);
       fetchAdminData(true);
@@ -575,7 +578,7 @@ export function SuperAdminPage() {
     setAuditDetailModalOpen(true);
     setAuditDetailLoading(true);
     try {
-      const fullDetail = await adminService.getAuditLogEntry(log.id || log._id);
+      const fullDetail = await adminService.getAuditLogDetail(log.id || log._id);
       if (fullDetail) {
         setSelectedAuditLog((prev) => ({ ...prev, ...fullDetail }));
       }
@@ -693,7 +696,7 @@ export function SuperAdminPage() {
             setAdminChangePasswordOpen(true);
             setPasswordRequiredBanner(true);
             setAuthError('');
-          } else {
+          } else if (!adminUser?.isDemo) {
             setAuthError(errMsg || 'Super Admin platform authorization notice.');
           }
         }
@@ -721,6 +724,7 @@ export function SuperAdminPage() {
           const ownerName = finalOwner.name || c.ownerName || 'Firm Principal';
           const ownerEmail = finalOwner.email || c.ownerEmail || '—';
           const ownerPhone = finalOwner.mobile || c.ownerPhone || c.phone || '—';
+          const ownerStatus = (finalOwner.status || c.ownerStatus || c.owner?.status || (c.users?.find(u => u.email === ownerEmail)?.status) || 'ACTIVE').toUpperCase();
 
           return {
             id: c._id || c.id || `comp_${idx}`,
@@ -729,6 +733,7 @@ export function SuperAdminPage() {
             ownerName,
             ownerEmail,
             ownerPhone,
+            ownerStatus,
             phone: c.phone || ownerPhone !== '—' ? ownerPhone : '',
             gstNumber: c.gstNumber || '',
             status,
@@ -845,6 +850,14 @@ export function SuperAdminPage() {
   };
 
   const handleAdminLogoutAll = async () => {
+    const ok = await confirm({
+      title: 'Log Out All Admin Devices?',
+      message: 'This will immediately revoke your Super Admin sessions across all browsers and devices. You will need to sign in again.',
+      confirmText: 'Log Out All Devices',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
     await logoutAll();
     navigate(ROUTES.ADMIN_LOGIN, { replace: true });
   };
@@ -1128,7 +1141,12 @@ export function SuperAdminPage() {
       showNotification(`Support access session initiated for "${selectedCompanyForLogin.name}".`);
       navigate(ROUTES.DASHBOARD);
     } catch (err) {
-      setModalError(extractErrorMessage(err));
+      const msg = extractErrorMessage(err);
+      if (msg.includes('OWNER_NOT_ACTIVE')) {
+        setModalError('Company Owner has not completed activation yet. The owner status must be ACTIVE before entering their studio workspace.');
+      } else {
+        setModalError(msg);
+      }
     } finally {
       setModalLoading(false);
     }
@@ -1519,6 +1537,14 @@ export function SuperAdminPage() {
             <button
               type="button"
               className="admin-sidebar-logout"
+              onClick={handleAdminLogoutAll}
+              title="Logout All Devices"
+            >
+              <MonitorOff size={16} />
+            </button>
+            <button
+              type="button"
+              className="admin-sidebar-logout"
               onClick={handleAdminLogout}
               title="Sign Out"
             >
@@ -1859,7 +1885,25 @@ export function SuperAdminPage() {
                       <td>
                         <div className="owner-cell">
                           <span className="owner-name">{c.ownerName}</span>
-                          <span className="owner-email">{c.ownerEmail}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                            <span className="owner-email">{c.ownerEmail}</span>
+                            {c.ownerStatus === 'INVITED' && (
+                              <span
+                                style={{
+                                  fontSize: '10px',
+                                  fontWeight: 600,
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: '#FEF3C7',
+                                  color: '#92400E',
+                                  border: '1px solid #FCD34D'
+                                }}
+                                title="Owner has not set password yet. Send or resend invite."
+                              >
+                                Pending Invite
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
 

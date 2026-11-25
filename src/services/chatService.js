@@ -2,15 +2,15 @@ import { apiClient } from './apiClient';
 
 /**
  * Chat Service (Module M2.3)
- * Full integration with Swagger & Socket.io specification:
- * - GET    /chat/threads
- * - GET    /chat/{scopeType}/{scopeId}/messages
- * - POST   /chat/{scopeType}/{scopeId}/messages (REST fallback)
- * - PATCH  /chat/messages/{id}
- * - DELETE /chat/messages/{id}
- * - POST   /chat/{scopeType}/{scopeId}/read
- * - POST   /chat/{scopeType}/{scopeId}/mute
- * - GET    /chat/{scopeType}/{scopeId}/sync
+ * Full integration with Swagger & WebSocket specification:
+ * 1. GET    /chat/threads - List recent chat threads for user with unread counts
+ * 2. GET    /chat/{scopeType}/{scopeId}/messages - Get paginated message history
+ * 3. POST   /chat/{scopeType}/{scopeId}/messages - Send a new message (REST fallback)
+ * 4. PATCH  /chat/messages/{id} - Edit an existing message (author only, within 15 min)
+ * 5. DELETE /chat/messages/{id} - Delete a message (author self-delete or moderator deletion)
+ * 6. POST   /chat/{scopeType}/{scopeId}/read - Mark thread as read up to given sequence
+ * 7. POST   /chat/{scopeType}/{scopeId}/mute - Mute or unmute notifications for a thread
+ * 8. GET    /chat/{scopeType}/{scopeId}/sync - Sync missed messages after reconnection
  */
 
 function unwrapData(res) {
@@ -19,10 +19,16 @@ function unwrapData(res) {
   return payload?.data !== undefined ? payload.data : payload;
 }
 
+function normalizeScope(scope) {
+  if (!scope) return 'PROJECT';
+  const upper = String(scope).toUpperCase();
+  return upper === 'TASK' ? 'TASK' : 'PROJECT';
+}
+
 export const chatService = {
   /**
    * 1. GET /chat/threads - List recent chat threads for user with unread counts
-   * @param {Object} params - { scopeType, limit }
+   * @param {Object} params - { projectId, limit, cursor }
    */
   getThreads: async (params = {}) => {
     try {
@@ -37,15 +43,17 @@ export const chatService = {
 
   /**
    * 2. GET /chat/{scopeType}/{scopeId}/messages - Paginated message history
-   * @param {string} scopeType - 'project' | 'task'
+   * @param {string} scopeType - 'PROJECT' | 'TASK' | 'project' | 'task'
    * @param {string} scopeId - Project ID or Task ID
    * @param {Object} params - { beforeSeq, limit }
    */
   getMessages: async (scopeType, scopeId, params = {}) => {
+    if (!scopeId) return { messages: [], hasMore: false, lastSeq: 0 };
+    const scope = normalizeScope(scopeType);
     try {
-      const res = await apiClient.get(`/chat/${scopeType}/${scopeId}/messages`, { params, silent: true });
+      const res = await apiClient.get(`/chat/${scope}/${scopeId}/messages`, { params, silent: true });
       const data = unwrapData(res);
-      if (Array.isArray(data)) return { messages: data, hasMore: false };
+      if (Array.isArray(data)) return { messages: data, hasMore: false, lastSeq: 0 };
       return {
         messages: data?.messages || data?.items || [],
         hasMore: !!data?.hasMore,
@@ -57,65 +65,94 @@ export const chatService = {
   },
 
   /**
-   * 3. POST /chat/{scopeType}/{scopeId}/messages - Send message (REST fallback)
-   * @param {string} scopeType - 'project' | 'task'
-   * @param {string} scopeId
-   * @param {Object} payload - { content, clientMessageId, attachments, mentions }
+   * 3. POST /chat/{scopeType}/{scopeId}/messages - Send a new message
+   * @param {string} scopeType - 'PROJECT' | 'TASK'
+   * @param {string} scopeId - Project ID or Task ID
+   * @param {Object} payload - { body, clientMessageId, mentions, attachments }
    */
   sendMessage: async (scopeType, scopeId, payload) => {
+    if (!scopeId) return null;
+    const scope = normalizeScope(scopeType);
     const text = (payload.body !== undefined ? payload.body : payload.content || '').trim();
-    const res = await apiClient.post(`/chat/${scopeType}/${scopeId}/messages`, {
+    const clientMessageId =
+      payload.clientMessageId || `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    const res = await apiClient.post(`/chat/${scope}/${scopeId}/messages`, {
       body: text,
       content: text,
-      clientMessageId: payload.clientMessageId || `cmsg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
-      attachments: payload.attachments || [],
-      mentions: payload.mentions || []
+      clientMessageId,
+      mentions: payload.mentions || [],
+      attachments: payload.attachments || []
     });
     return unwrapData(res);
   },
 
   /**
-   * 4. PATCH /chat/messages/{id} - Edit message (author only, within 15 min)
+   * 4. PATCH /chat/messages/{id} - Edit message within 15 minutes
+   * @param {string} id - Message ID
+   * @param {string|Object} content - Updated message body string or object { body }
    */
   editMessage: async (id, content) => {
     const text = (typeof content === 'string' ? content : content?.body || content?.content || '').trim();
     const res = await apiClient.patch(`/chat/messages/${id}`, {
-      body: text,
-      content: text
+      body: text
     });
     return unwrapData(res);
   },
 
   /**
-   * 5. DELETE /chat/messages/{id} - Delete message (author self-delete or moderator)
+   * 5. DELETE /chat/messages/{id} - Delete message
+   * @param {string} id - Message ID
+   * @param {string} [reason] - Optional deletion reason
    */
-  deleteMessage: async (id) => {
-    const res = await apiClient.delete(`/chat/messages/${id}`);
+  deleteMessage: async (id, reason = '') => {
+    const config = reason ? { data: { reason } } : {};
+    const res = await apiClient.delete(`/chat/messages/${id}`, config);
     return unwrapData(res);
   },
 
   /**
-   * 6. POST /chat/{scopeType}/{scopeId}/read - Mark thread read up to sequence number
+   * 6. POST /chat/{scopeType}/{scopeId}/read - Mark thread as read
+   * @param {string} scopeType - 'PROJECT' | 'TASK'
+   * @param {string} scopeId - Project ID or Task ID
+   * @param {number} readSeq - Sequence number
    */
-  markRead: async (scopeType, scopeId, seq) => {
-    const res = await apiClient.post(`/chat/${scopeType}/${scopeId}/read`, { seq });
+  markRead: async (scopeType, scopeId, readSeq) => {
+    if (!scopeId) return null;
+    const scope = normalizeScope(scopeType);
+    const seq = Number(readSeq) || 1;
+    const res = await apiClient.post(`/chat/${scope}/${scopeId}/read`, {
+      readSeq: seq
+    });
     return unwrapData(res);
   },
 
   /**
    * 7. POST /chat/{scopeType}/{scopeId}/mute - Mute or unmute notifications
+   * @param {string} scopeType - 'PROJECT' | 'TASK'
+   * @param {string} scopeId - Project ID or Task ID
+   * @param {boolean} isMuted - Next muted state
    */
   toggleMute: async (scopeType, scopeId, isMuted) => {
-    const res = await apiClient.post(`/chat/${scopeType}/${scopeId}/mute`, { muted: !!isMuted });
+    if (!scopeId) return null;
+    const scope = normalizeScope(scopeType);
+    const res = await apiClient.post(`/chat/${scope}/${scopeId}/mute`, {
+      isMuted: !!isMuted
+    });
     return unwrapData(res);
   },
 
   /**
-   * 8. GET /chat/{scopeType}/{scopeId}/sync - Sync missed messages after reconnection
+   * 8. GET /chat/{scopeType}/{scopeId}/sync - Sync missed messages
+   * @param {string} scopeType - 'PROJECT' | 'TASK'
+   * @param {string} scopeId - Project ID or Task ID
+   * @param {number} sinceSeq - Sequence number to sync from
    */
   syncMessages: async (scopeType, scopeId, sinceSeq) => {
-    const res = await apiClient.get(`/chat/${scopeType}/${scopeId}/sync`, {
-      params: { sinceSeq }
+    if (!scopeId) return [];
+    const scope = normalizeScope(scopeType);
+    const res = await apiClient.get(`/chat/${scope}/${scopeId}/sync`, {
+      params: { sinceSeq: Number(sinceSeq) || 0 }
     });
     const data = unwrapData(res);
     return Array.isArray(data) ? data : data?.messages || [];
@@ -123,4 +160,3 @@ export const chatService = {
 };
 
 export default chatService;
-

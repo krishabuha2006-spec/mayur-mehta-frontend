@@ -49,6 +49,8 @@ export function AuthProvider({ children }) {
         path.startsWith('/reset-password') ||
         path.startsWith('/set-password') ||
         path.startsWith('/auth/') ||
+        path.startsWith('/unsubscribe') ||
+        path.startsWith('/public/') ||
         path.startsWith('/portal');
 
       // If user is on a public route and has no active token, mark unauthenticated
@@ -271,23 +273,37 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const clearLocalSession = () => {
+    clearAccessToken();
+    setUser(null);
+    setCompany(null);
+    setSubscription(null);
+    setBootstrapData(null);
+    setNavigation([]);
+    setPermissions([]);
+    try {
+      sessionStorage.removeItem('mm_user_session');
+      localStorage.removeItem('mm_user_session');
+    } catch {}
+  };
+
   const logout = async () => {
     try {
       await authService.logout();
     } catch (err) {
       console.warn('Backend logout notice:', err?.message);
     } finally {
-      clearAccessToken();
-      setUser(null);
-      setCompany(null);
-      setSubscription(null);
-      setBootstrapData(null);
-      setNavigation([]);
-      setPermissions([]);
-      try {
-        sessionStorage.removeItem('mm_user_session');
-        localStorage.removeItem('mm_user_session');
-      } catch {}
+      clearLocalSession();
+    }
+  };
+
+  const logoutAll = async () => {
+    try {
+      await authService.logoutAll();
+    } catch (err) {
+      console.warn('Backend logout-all notice:', err?.message);
+    } finally {
+      clearLocalSession();
     }
   };
 
@@ -381,6 +397,7 @@ export function AuthProvider({ children }) {
         exitImpersonation,
         login,
         logout,
+        logoutAll,
         refreshUser: loadCurrentUser,
         hasPermission,
         upgradeModalOpen,

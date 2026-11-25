@@ -23,9 +23,11 @@ import {
   ClipboardList,
   UserPlus,
   Building,
-  UploadCloud
+  UploadCloud,
+  MonitorOff
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
+import { useConfirm } from '../../../context/ConfirmationContext';
 import { IconButton } from '../../common/IconButton/IconButton';
 import { Avatar } from '../../common/Avatar/Avatar';
 import { Dropdown } from '../../common/Dropdown/Dropdown';
@@ -48,7 +50,8 @@ import { ROLES } from '../../../constants/enums';
 import './Header.css';
 
 export function Header({ onOpenMobileMenu, onToggleSidebar, sidebarExpanded }) {
-  const { user, company, headerBadges, logout, refreshUser } = useAuth();
+  const { user, company, headerBadges, logout, logoutAll, refreshUser } = useAuth();
+  const confirm = useConfirm();
   const [quickTaskOpen, setQuickTaskOpen] = useState(false);
   const [quickProjectOpen, setQuickProjectOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -132,6 +135,21 @@ export function Header({ onOpenMobileMenu, onToggleSidebar, sidebarExpanded }) {
   const handleLogout = () => {
     logout();
     navigate(ROUTES.LOGIN);
+  };
+
+  const handleLogoutAll = async () => {
+    const ok = await confirm({
+      title: 'Log Out From All Devices?',
+      message: 'This will immediately revoke your active sessions across all browsers, tablets, and mobile devices. You will need to sign in again.',
+      confirmText: 'Log Out All Devices',
+      cancelText: 'Cancel',
+      variant: 'danger'
+    });
+    if (!ok) return;
+    await logoutAll();
+    navigate(ROUTES.LOGIN, {
+      state: { message: 'Signed out from all devices successfully.' }
+    });
   };
 
   const handleChangePasswordSubmit = async (e) => {
@@ -385,6 +403,15 @@ export function Header({ onOpenMobileMenu, onToggleSidebar, sidebarExpanded }) {
             </button>
 
             <div className="header-menu-divider" />
+
+            <button
+              type="button"
+              className="dropdown-item dropdown-item-warning"
+              onClick={handleLogoutAll}
+            >
+              <MonitorOff size={16} className="dropdown-item-icon" />
+              <span>Logout All Devices</span>
+            </button>
 
             <button
               type="button"

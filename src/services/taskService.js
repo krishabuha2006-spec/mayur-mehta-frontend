@@ -140,11 +140,11 @@ export const taskService = {
   // 6. DELETE /tasks/{id} - Soft delete a task to trash
   deleteTask: async (id) => {
     try {
-      const res = await apiClient.delete(`/tasks/${id}`);
+      const res = await apiClient.delete(`/tasks/${id}`, { silent: true, suppressNotFound: true });
       return res?.data?.data || res?.data || res;
     } catch (err) {
       if (err?.response?.status === 404) {
-        // If task is not found on server or already soft-deleted, resolve gracefully
+        // If task or parent project is not found on server or already soft-deleted, resolve gracefully
         return { ok: true, alreadyDeleted: true };
       }
       throw err;
@@ -169,7 +169,7 @@ export const taskService = {
     const payload = { status: normStatus };
     const reason = typeof statusOrPayload === 'object' ? statusOrPayload.reason : maybeReason;
     if (reason) payload.reason = reason;
-    const res = await apiClient.put(`/tasks/${id}/status`, payload);
+    const res = await apiClient.put(`/tasks/${id}/status`, payload, { silent: true, suppressNotFound: true });
     return res?.data?.data || res?.data || res;
   },
 
@@ -182,7 +182,7 @@ export const taskService = {
     if (movePayload?.beforeTaskId) payload.beforeTaskId = movePayload.beforeTaskId;
     if (movePayload?.afterTaskId) payload.afterTaskId = movePayload.afterTaskId;
     if (movePayload?.reason) payload.reason = movePayload.reason;
-    const res = await apiClient.put(`/tasks/${id}/move`, payload);
+    const res = await apiClient.put(`/tasks/${id}/move`, payload, { silent: true, suppressNotFound: true });
     return res?.data?.data || res?.data || res;
   },
 

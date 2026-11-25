@@ -53,6 +53,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
 
   // Modals
   const [createInvoiceOpen, setCreateInvoiceOpen] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState(null);
   const [newInvoiceForm, setNewInvoiceForm] = useState({
     companyId: '',
     invoiceType: 'SUBSCRIPTION',
@@ -160,9 +161,15 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
         ]
       };
 
-      await adminService.createInvoiceDraft(payload);
-      onNotification?.('Draft invoice created successfully.', 'success');
+      if (editingDraftId) {
+        await adminService.updateDraftInvoice(editingDraftId, payload);
+        onNotification?.('Draft invoice updated successfully.', 'success');
+      } else {
+        await adminService.createInvoiceDraft(payload);
+        onNotification?.('Draft invoice created successfully.', 'success');
+      }
       setCreateInvoiceOpen(false);
+      setEditingDraftId(null);
       loadBillingData();
     } catch (err) {
       if (err?.response?.status === 404) {
@@ -173,6 +180,35 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  // Handle View Invoice Details (GET /admin/billing/invoices/:id)
+  const handleOpenViewInvoice = async (inv) => {
+    setViewInvoiceModal(inv);
+    try {
+      const detail = await adminService.getAdminInvoice(inv._id || inv.id);
+      if (detail) setViewInvoiceModal((prev) => ({ ...(prev || {}), ...detail }));
+    } catch {}
+  };
+
+  // Handle Edit Draft Invoice (PUT /admin/billing/invoices/:id)
+  const handleOpenEditDraft = (inv) => {
+    const firstItem = inv.lineItems?.[0] || {};
+    const amountInr = firstItem.unitPricePaise
+      ? Math.round((firstItem.unitPricePaise * (firstItem.quantity || 1)) / 100)
+      : Math.round((inv.subtotalPaise || 0) / 100);
+    setEditingDraftId(inv._id || inv.id);
+    setNewInvoiceForm({
+      companyId: inv.companyId?._id || inv.companyId || '',
+      invoiceType: inv.invoiceType || 'SUBSCRIPTION',
+      seats: inv.seats || 15,
+      billingCycle: inv.billingCycle || 'MONTHLY',
+      dueDate: inv.dueDate ? String(inv.dueDate).slice(0, 10) : '',
+      notes: inv.notes || '',
+      description: firstItem.description || `${inv.invoiceType || 'SUBSCRIPTION'} (${inv.seats || 15} seats)`,
+      amountInr
+    });
+    setCreateInvoiceOpen(true);
   };
 
   // Handle Issue Invoice (POST /admin/billing/invoices/:id/issue)
@@ -557,7 +593,10 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
                 variant="primary"
                 size="sm"
                 icon={Plus}
-                onClick={() => setCreateInvoiceOpen(true)}
+                onClick={() => {
+                  setEditingDraftId(null);
+                  setCreateInvoiceOpen(true);
+                }}
               >
                 Create Invoice Draft
               </Button>
@@ -643,25 +682,16 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
                 ))}
               </div>
 
-              <div style={{ minWidth: '200px' }}>
-                <select
+              <div style={{ minWidth: '220px' }}>
+                <Select
                   value={invoiceCompanyFilter}
                   onChange={(e) => setInvoiceCompanyFilter(e.target.value)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid #E5DFD7',
-                    fontSize: '12px',
-                    background: '#FFFFFF'
-                  }}
-                >
-                  <option value="ALL">All Companies ({companies.length})</option>
-                  {companies.map((c) => (
-                    <option key={c._id || c.id} value={c._id || c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                  options={[
+                    { value: 'ALL', label: `All Companies (${companies.length})` },
+                    ...companies.map((c) => ({ value: c._id || c.id, label: c.name }))
+                  ]}
+                  placeholder="All Companies"
+                />
               </div>
             </div>
 
@@ -726,7 +756,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
                               type="button"
                               className="action-icon-btn"
                               title="View Invoice Details"
-                              onClick={() => setViewInvoiceModal(inv)}
+                              onClick={() => handleOpenViewInvoice(inv)}
                             >
                               <Eye size={14} />
                             </button>
@@ -743,9 +773,17 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
                               </button>
                             )}
 
-                            {/* Draft actions: Issue or Delete */}
+                            {/* Draft actions: Edit, Issue, or Delete */}
                             {isDraft && (
                               <>
+                                <button
+                                  type="button"
+                                  className="action-icon-btn"
+                                  title="Edit Draft Invoice"
+                                  onClick={() => handleOpenEditDraft(inv)}
+                                >
+                                  <Edit2 size={14} />
+                                </button>
                                 <button
                                   type="button"
                                   className="action-icon-btn highlight"
@@ -1060,11 +1098,14 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
         )}
       </div>
 
-      {/* MODAL 1: CREATE INVOICE DRAFT */}
+      {/* MODAL 1: CREATE / EDIT INVOICE DRAFT */}
       <Modal
         isOpen={createInvoiceOpen}
-        onClose={() => setCreateInvoiceOpen(false)}
-        title="Create Invoice Draft"
+        onClose={() => {
+          setCreateInvoiceOpen(false);
+          setEditingDraftId(null);
+        }}
+        title={editingDraftId ? 'Edit Draft Invoice' : 'Create Invoice Draft'}
         maxWidth="620px"
       >
         <form onSubmit={handleCreateDraftInvoice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -1195,7 +1236,10 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setCreateInvoiceOpen(false)}
+              onClick={() => {
+                setCreateInvoiceOpen(false);
+                setEditingDraftId(null);
+              }}
               disabled={actionLoading}
             >
               Cancel
@@ -1205,7 +1249,7 @@ export function SuperAdminBilling({ companies = [], onNotification }) {
               variant="primary"
               disabled={actionLoading}
             >
-              {actionLoading ? 'Saving...' : 'Create Draft'}
+              {actionLoading ? 'Saving...' : editingDraftId ? 'Save Draft Changes' : 'Create Draft'}
             </Button>
           </div>
         </form>

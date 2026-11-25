@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { Button } from '../../components/common/Button/Button';
 import { Input } from '../../components/common/Input/Input';
+import { Select } from '../../components/common/Select/Select';
 import { Modal } from '../../components/common/Modal/Modal';
 import { MayurMehtaLogo } from '../../components/common/MayurMehtaLogo/MayurMehtaLogo';
 import { companyService } from '../../services/companyService';
@@ -80,6 +81,29 @@ export function SettingsPage() {
   const [supportLoading, setSupportLoading] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [logoTimestamp, setLogoTimestamp] = useState(Date.now());
+  const [logoBlobUrl, setLogoBlobUrl] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = null;
+    if (!profile?.branding?.hasLogo) {
+      setLogoBlobUrl(null);
+      return;
+    }
+    companyService.getLogoBlob()
+      .then((blob) => {
+        if (!active || !(blob instanceof Blob)) return;
+        objectUrl = URL.createObjectURL(blob);
+        setLogoBlobUrl(objectUrl);
+      })
+      .catch(() => {
+        if (active) setLogoBlobUrl(null);
+      });
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [profile?.branding?.hasLogo, logoTimestamp]);
 
   const showNotice = (text, type = 'success') => {
     setNotice({ text, type });
@@ -491,10 +515,14 @@ export function SettingsPage() {
     if (!userId) return;
     try {
       const data = await permissionService.getUserPermissions(userId);
+      const sourceList = (Array.isArray(data?.overrides) && data.overrides.length > 0)
+        ? data.overrides
+        : (Array.isArray(data?.effective) ? data.effective : (Array.isArray(data?.permissions) ? data.permissions : []));
       const overridesMap = {};
-      (data?.overrides || []).forEach((ov) => {
+      sourceList.forEach((ov) => {
+        if (!ov?.moduleKey) return;
         overridesMap[ov.moduleKey] = {
-          actions: ov.actions || [],
+          actions: Array.isArray(ov.actions) ? ov.actions : [],
           dataScope: ov.dataScope || 'ALL'
         };
       });
@@ -532,16 +560,18 @@ export function SettingsPage() {
   };
 
   const handleSaveOverrides = async () => {
-    if (!selectedUser) return;
+    const uid = selectedUser?.id || selectedUser?._id;
+    if (!uid) return;
     setPermSaving(true);
     try {
       const overridesArray = Object.entries(userOverrides).map(([moduleKey, val]) => ({
         moduleKey,
-        actions: val.actions,
-        dataScope: val.dataScope
+        actions: val.actions || [],
+        dataScope: val.dataScope || 'ALL'
       }));
-      await permissionService.setUserPermissions(selectedUser.id, overridesArray);
+      await permissionService.setUserPermissions(uid, overridesArray);
       showNotice(`Permissions updated for ${selectedUser.name}.`);
+      fetchUserPermissions(uid);
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to update permissions'), 'error');
     } finally {
@@ -550,7 +580,8 @@ export function SettingsPage() {
   };
 
   const handleResetUserPerms = async () => {
-    if (!selectedUser) return;
+    const uid = selectedUser?.id || selectedUser?._id;
+    if (!uid) return;
     const ok = await confirm({
       title: 'Reset Permissions?',
       message: `Reset custom permissions for ${selectedUser.name} to role defaults?`,
@@ -562,9 +593,9 @@ export function SettingsPage() {
 
     setPermSaving(true);
     try {
-      await permissionService.resetUserPermissions(selectedUser.id);
+      await permissionService.resetUserPermissions(uid);
       showNotice(`Reset permissions for ${selectedUser.name} to role defaults.`);
-      fetchUserPermissions(selectedUser.id);
+      fetchUserPermissions(uid);
     } catch (err) {
       showNotice(extractErrorMessage(err, 'Failed to reset permissions'), 'error');
     } finally {
@@ -655,10 +686,68 @@ export function SettingsPage() {
   }, [selectedType]);
 
   useEffect(() => {
-    if (selectedUser) {
-      fetchUserPermissions(selectedUser.id);
+    const uid = selectedUser?.id || selectedUser?._id;
+    if (uid) {
+      fetchUserPermissions(uid);
     }
   }, [selectedUser]);
+
+  // Filter out internal metadata or technical IDs from user-facing workspace preferences
+  const isExtraOrInternalSetting = (s) => {
+    if (!s || !s.key) return true;
+    const k = String(s.key).toLowerCase();
+    if (s.hidden || s.isInternal || s.readOnly) return true;
+    if (k === '_id' || k === 'id' || k === 'companyid' || k === '__v') return true;
+    if (k.endsWith('._id') || k.endsWith('.companyid') || k.endsWith('.createdat') || k.endsWith('.updatedat')) return true;
+    if (k.startsWith('system.') || k.startsWith('_')) return true;
+    return false;
+  };
+
+  const renderWorkingDaysSelector = (setting) => {
+    const rawVal = settingsValues[setting.key] ?? setting.default;
+    const currentDays = Array.isArray(rawVal)
+      ? rawVal
+      : typeof rawVal === 'string'
+      ? rawVal.split(',').map((d) => d.trim().toUpperCase())
+      : ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+    const DAYS = [
+      { id: 'MON', label: 'Mon' },
+      { id: 'TUE', label: 'Tue' },
+      { id: 'WED', label: 'Wed' },
+      { id: 'THU', label: 'Thu' },
+      { id: 'FRI', label: 'Fri' },
+      { id: 'SAT', label: 'Sat' },
+      { id: 'SUN', label: 'Sun' }
+    ];
+
+    const toggleDay = (dayId) => {
+      const next = currentDays.includes(dayId)
+        ? currentDays.filter((d) => d !== dayId)
+        : [...currentDays, dayId];
+
+      const isString = typeof (setting.value ?? setting.default) === 'string';
+      handleSettingChange(setting.key, isString ? next.join(',') : next);
+    };
+
+    return (
+      <div className="working-days-pill-group">
+        {DAYS.map((d) => {
+          const isSelected = currentDays.includes(d.id);
+          return (
+            <button
+              key={d.id}
+              type="button"
+              className={`working-day-btn ${isSelected ? 'is-active' : ''}`}
+              onClick={() => toggleDay(d.id)}
+            >
+              {d.label}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="settings-page-container">
@@ -740,9 +829,9 @@ export function SettingsPage() {
             {/* Header: Studio Identity & Logo */}
             <div className="studio-identity-section">
               <div className="studio-logo-avatar">
-                {profile?.branding?.hasLogo ? (
+                {profile?.branding?.hasLogo && logoBlobUrl ? (
                   <img
-                    src={`/api/v1/company/logo?t=${logoTimestamp}`}
+                    src={logoBlobUrl}
                     alt={profile?.name || 'Studio Logo'}
                     onError={(e) => {
                       e.target.style.display = 'none';
@@ -849,18 +938,18 @@ export function SettingsPage() {
 
                 <div className="settings-form-group">
                   <label className="settings-form-label">Studio Timezone</label>
-                  <select
-                    className="settings-select"
+                  <Select
                     value={profileForm.timezone}
                     onChange={(e) => setProfileForm({ ...profileForm, timezone: e.target.value })}
-                  >
-                    <option value="Asia/Kolkata">Asia/Kolkata (IST +5:30)</option>
-                    <option value="Asia/Dubai">Asia/Dubai (GST +4:00)</option>
-                    <option value="Asia/Singapore">Asia/Singapore (SGT +8:00)</option>
-                    <option value="Europe/London">Europe/London (GMT/BST)</option>
-                    <option value="America/New_York">America/New York (EST/EDT)</option>
-                    <option value="UTC">UTC (Universal Coordinated)</option>
-                  </select>
+                    options={[
+                      { value: 'Asia/Kolkata', label: 'Asia/Kolkata (IST +5:30)' },
+                      { value: 'Asia/Dubai', label: 'Asia/Dubai (GST +4:00)' },
+                      { value: 'Asia/Singapore', label: 'Asia/Singapore (SGT +8:00)' },
+                      { value: 'Europe/London', label: 'Europe/London (GMT/BST)' },
+                      { value: 'America/New_York', label: 'America/New York (EST/EDT)' },
+                      { value: 'UTC', label: 'UTC (Universal Coordinated)' }
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1019,58 +1108,85 @@ export function SettingsPage() {
               </div>
             ) : (
               <div className="settings-groups-container">
-                {settingsGroups.map((group) => (
-                  <div key={group.key} className="settings-group-block">
-                    <div className="settings-group-heading">
-                      {group.label}
-                    </div>
+                {settingsGroups.map((group) => {
+                  const visibleSettings = (group.settings || []).filter((s) => !isExtraOrInternalSetting(s));
+                  if (visibleSettings.length === 0) return null;
 
-                    <div className="settings-form-grid">
-                      {(group.settings || []).map((setting) => (
-                        <div key={setting.key} className="settings-form-group">
-                          <label className="settings-form-label">{setting.label}</label>
+                  return (
+                    <div key={group.key} className="settings-group-block">
+                      <div className="settings-group-heading">
+                        {group.label}
+                      </div>
 
-                          {setting.type === 'enum' && setting.options ? (
-                            <select
-                              className="settings-select"
-                              value={settingsValues[setting.key] ?? setting.default ?? ''}
-                              onChange={(e) => handleSettingChange(setting.key, e.target.value)}
-                            >
-                              {setting.options.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                            </select>
-                          ) : setting.type === 'boolean' ? (
-                            <div className="settings-checkbox-row">
-                              <input
-                                type="checkbox"
-                                id={`setting-${setting.key}`}
-                                checked={!!settingsValues[setting.key]}
-                                onChange={(e) => handleSettingChange(setting.key, e.target.checked)}
-                              />
-                              <label htmlFor={`setting-${setting.key}`}>
-                                Enable setting
-                              </label>
+                      <div className="settings-form-grid">
+                        {visibleSettings.map((setting) => {
+                          const isWorkingDays =
+                            setting.key === 'general.workingDays' ||
+                            setting.key?.toLowerCase().endsWith('workingdays');
+
+                          const isTimeField =
+                            !setting.options &&
+                            (setting.key?.toLowerCase().endsWith('starttime') ||
+                              setting.key?.toLowerCase().endsWith('endtime') ||
+                              setting.type === 'time');
+
+                          return (
+                            <div key={setting.key} className="settings-form-group">
+                              <label className="settings-form-label">{setting.label}</label>
+
+                              {setting.type === 'enum' && setting.options ? (
+                                <Select
+                                  value={settingsValues[setting.key] ?? setting.default ?? ''}
+                                  onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                                  options={(setting.options || []).map((opt) => ({
+                                    value: typeof opt === 'object' ? opt.value : opt,
+                                    label: typeof opt === 'object' ? opt.label : String(opt)
+                                  }))}
+                                />
+                              ) : isWorkingDays ? (
+                                renderWorkingDaysSelector(setting)
+                              ) : isTimeField ? (
+                                <input
+                                  type="time"
+                                  className="settings-input settings-time-input"
+                                  value={settingsValues[setting.key] ?? setting.default ?? ''}
+                                  onChange={(e) => handleSettingChange(setting.key, e.target.value)}
+                                />
+                              ) : setting.type === 'boolean' ? (
+                                <label className="settings-toggle-switch">
+                                  <input
+                                    type="checkbox"
+                                    id={`setting-${setting.key}`}
+                                    checked={!!settingsValues[setting.key]}
+                                    onChange={(e) => handleSettingChange(setting.key, e.target.checked)}
+                                  />
+                                  <span className="toggle-slider" />
+                                  <span className="toggle-label">{setting.description || 'Enable setting'}</span>
+                                </label>
+                              ) : (
+                                <input
+                                  type={setting.type === 'number' ? 'number' : 'text'}
+                                  className="settings-input"
+                                  value={settingsValues[setting.key] ?? setting.default ?? ''}
+                                  onChange={(e) =>
+                                    handleSettingChange(
+                                      setting.key,
+                                      setting.type === 'number' ? Number(e.target.value) : e.target.value
+                                    )
+                                  }
+                                />
+                              )}
+
+                              {setting.description && !isTimeField && setting.type !== 'boolean' && (
+                                <span className="settings-form-hint">{setting.description}</span>
+                              )}
                             </div>
-                          ) : (
-                            <input
-                              type={setting.type === 'number' ? 'number' : 'text'}
-                              className="settings-input"
-                              value={settingsValues[setting.key] ?? setting.default ?? ''}
-                              onChange={(e) => handleSettingChange(setting.key, setting.type === 'number' ? Number(e.target.value) : e.target.value)}
-                            />
-                          )}
-
-                          {setting.description && (
-                            <span className="settings-form-hint">{setting.description}</span>
-                          )}
-                        </div>
-                      ))}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1379,26 +1495,28 @@ export function SettingsPage() {
 
             {/* User Selector Dropdown */}
             <div className="settings-user-select-bar">
-              <span className="settings-form-label" style={{ margin: 0 }}>Select Team Member:</span>
-              <select
-                className="settings-select"
-                style={{ maxWidth: '340px' }}
-                value={selectedUser?.id || ''}
-                onChange={(e) => {
-                  const u = teamUsers.find((x) => x.id === e.target.value);
-                  setSelectedUser(u);
-                }}
-              >
-                {teamUsers.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role}) — {u.email}
-                  </option>
-                ))}
-              </select>
+              <span className="settings-form-label" style={{ margin: 0, whiteSpace: 'nowrap' }}>
+                Select Team Member:
+              </span>
+              <div style={{ flex: '1', minWidth: '280px', maxWidth: '440px' }}>
+                <Select
+                  value={selectedUser?.id || selectedUser?._id || ''}
+                  onChange={(e) => {
+                    const u = teamUsers.find((x) => (x.id || x._id) === e.target.value);
+                    setSelectedUser(u);
+                  }}
+                  options={teamUsers.map((u) => ({
+                    value: u.id || u._id,
+                    label: `${u.name || u.email?.split('@')[0]} (${u.role})`,
+                    sublabel: u.email
+                  }))}
+                />
+              </div>
               {selectedUser && (
-                <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                  Active Role: <strong>{selectedUser.role}</strong>
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#7B6F62' }}>Active Role:</span>
+                  <span className="card-code-pill">{selectedUser.role}</span>
+                </div>
               )}
             </div>
 
@@ -1419,7 +1537,7 @@ export function SettingsPage() {
                     <tr>
                       <th style={{ width: '220px' }}>Module</th>
                       <th>Allowed Action Privileges</th>
-                      <th style={{ width: '160px' }}>Data Scope</th>
+                      <th style={{ width: '190px' }}>Data Scope</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1429,11 +1547,17 @@ export function SettingsPage() {
                       return (
                         <tr key={mod.key}>
                           <td>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{mod.label}</span>
-                              <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                                {mod.group}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--color-text)', fontSize: '13.5px' }}>
+                                {mod.label}
                               </span>
+                              {mod.group &&
+                                mod.group !== 'PROJECT_DASHBOARD' &&
+                                mod.group !== 'GENERAL' && (
+                                  <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                                    {mod.group.replace(/_/g, ' ')}
+                                  </span>
+                                )}
                             </div>
                           </td>
                           <td>
@@ -1441,7 +1565,10 @@ export function SettingsPage() {
                               {(mod.actions || []).map((act) => {
                                 const isChecked = userOverride.actions.includes(act);
                                 return (
-                                  <label key={act} className="action-checkbox-label">
+                                  <label
+                                    key={act}
+                                    className={`action-checkbox-chip ${isChecked ? 'is-active' : ''}`}
+                                  >
                                     <input
                                       type="checkbox"
                                       checked={isChecked}
@@ -1453,19 +1580,20 @@ export function SettingsPage() {
                               })}
                             </div>
                           </td>
-                          <td>
+                          <td style={{ minWidth: '190px' }}>
                             {mod.supportsScope ? (
-                              <select
-                                className="settings-select"
-                                style={{ height: '34px', padding: '0 10px', fontSize: '12px' }}
+                              <Select
                                 value={userOverride.dataScope || 'ALL'}
                                 onChange={(e) => handleScopeChange(mod.key, e.target.value)}
-                              >
-                                <option value="ALL">ALL (Company Wide)</option>
-                                <option value="OWN">OWN (Assigned Only)</option>
-                              </select>
+                                options={[
+                                  { value: 'ALL', label: 'Company Wide (ALL)' },
+                                  { value: 'OWN', label: 'Assigned Only (OWN)' }
+                                ]}
+                              />
                             ) : (
-                              <span style={{ color: 'var(--color-text-muted)', fontSize: '12px' }}>Company Wide</span>
+                              <span className="scope-fixed-pill">
+                                Company Wide
+                              </span>
                             )}
                           </td>
                         </tr>

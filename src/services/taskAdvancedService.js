@@ -1,4 +1,5 @@
 import { apiClient } from './apiClient';
+import { timeService } from './timeService';
 
 /**
  * Module M2.2: Task Advanced Service
@@ -15,6 +16,8 @@ function unwrap(res) {
   const body = res?.data !== undefined ? res.data : res;
   return body?.data !== undefined ? body.data : body;
 }
+
+let isReviewTasksPendingSupported = false;
 
 export const taskAdvancedService = {
   // =========================================================================
@@ -152,113 +155,37 @@ export const taskAdvancedService = {
    * GET /company/review-tasks-pending - Pending review tasks count for navbar badge
    */
   getPendingReviewCount: async () => {
+    if (!isReviewTasksPendingSupported) return 0;
     try {
-      const res = await apiClient.get('/company/review-tasks-pending');
+      const res = await apiClient.get('/company/review-tasks-pending', { silent: true, suppressNotFound: true });
       const data = unwrap(res);
       if (typeof data === 'number') return data;
       return Number(data?.count ?? data?.pendingCount ?? 0);
-    } catch {
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        // Prevent repeated 404 network hits if route is unavailable on current deployment
+        isReviewTasksPendingSupported = false;
+      }
       return 0;
     }
   },
 
   // =========================================================================
-  // 5. Time Tracking & Live Stopwatch Timer
+  // 5. Time Tracking & Live Stopwatch Timer (Delegated to timeService)
   // =========================================================================
 
-  /**
-   * POST /tasks/:id/time - Log manual worked time
-   * @param {string} taskId
-   * @param {Object} payload - { minutes, workDate, note }
-   */
-  logManualTime: async (taskId, payload) => {
-    const res = await apiClient.post(`/tasks/${taskId}/time`, payload);
-    return unwrap(res);
-  },
-
-  /**
-   * GET /tasks/:id/time - Get booked time entries on a task
-   */
-  getTaskTimeLogs: async (taskId) => {
-    const res = await apiClient.get(`/tasks/${taskId}/time`);
-    const data = unwrap(res);
-    return Array.isArray(data) ? data : (data?.logs || data?.entries || []);
-  },
-
-  /**
-   * PATCH /time/:logId - Edit booked time entry
-   */
-  updateTimeLog: async (logId, payload) => {
-    const res = await apiClient.patch(`/time/${logId}`, payload);
-    return unwrap(res);
-  },
-
-  /**
-   * DELETE /time/:logId - Delete booked time entry
-   */
-  deleteTimeLog: async (logId) => {
-    const res = await apiClient.delete(`/time/${logId}`);
-    return unwrap(res);
-  },
-
-  /**
-   * POST /time/timer/start - Start live stopwatch timer
-   * @param {Object} payload - { taskId, projectId }
-   */
-  startTimer: async (payload) => {
-    const res = await apiClient.post('/time/timer/start', payload);
-    return unwrap(res);
-  },
-
-  /**
-   * POST /time/timer/stop - Stop active timer and book rounded minutes
-   * @param {Object} payload - { note }
-   */
-  stopTimer: async (payload = {}) => {
-    const res = await apiClient.post('/time/timer/stop', payload);
-    return unwrap(res);
-  },
-
-  /**
-   * GET /time/timer - Get active running timer status & elapsed seconds
-   */
-  getActiveTimer: async () => {
-    try {
-      const res = await apiClient.get('/time/timer');
-      return unwrap(res);
-    } catch {
-      return null;
-    }
-  },
-
-  /**
-   * GET /time/summary - Today, week, month totals & daily allowance remainder
-   */
-  getTimeSummary: async () => {
-    try {
-      const res = await apiClient.get('/time/summary');
-      return unwrap(res);
-    } catch {
-      return null;
-    }
-  },
-
-  /**
-   * GET /time/my - User time breakdown report
-   */
-  getMyTimeReport: async (params = {}) => {
-    const res = await apiClient.get('/time/my', { params });
-    return unwrap(res);
-  },
-
-  /**
-   * GET /projects/:projectId/time - Project-level time summary and breakdown
-   */
-  getProjectTimeReport: async (projectId, params = {}) => {
-    const res = await apiClient.get(`/projects/${projectId}/time`, { params });
-    return unwrap(res);
-  }
+  logManualTime: (taskId, payload) => timeService.logManualTime(taskId, payload),
+  getTaskTimeLogs: (taskId) => timeService.getTaskTimeLogs(taskId),
+  updateTimeLog: (logId, payload) => timeService.updateTimeLog(logId, payload),
+  deleteTimeLog: (logId) => timeService.deleteTimeLog(logId),
+  startTimer: (payload) => timeService.startTimer(payload),
+  stopTimer: (payload) => timeService.stopTimer(payload),
+  getActiveTimer: () => timeService.getActiveTimer(),
+  getTimeSummary: () => timeService.getTimeSummary(),
+  getMyTimeReport: (params) => timeService.getMyTimeReport(params),
+  getProjectTimeReport: (projectId, params) => timeService.getProjectTimeReport(projectId, params)
 };
 
+export { timeService };
 export default taskAdvancedService;
 

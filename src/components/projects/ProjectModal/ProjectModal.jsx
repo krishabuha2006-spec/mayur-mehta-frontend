@@ -167,27 +167,45 @@ export function ProjectModal({ isOpen, onClose, onSaved, projectToEdit = null })
     setServerError('');
     setSuccessMsg('');
 
-    // Payload builder conforming directly to backend Swagger /projects specification
+    // Payload builder conforming directly to backend Zod schema
     const payload = {
       name: formData.name.trim(),
       priority: formData.priority || 'MEDIUM',
       client: {
-        name: formData.clientName.trim(),
-        contactPerson: formData.contactPerson?.trim() || undefined,
-        phone: formData.phone?.trim() || undefined,
-        email: formData.email?.trim() || undefined
+        name: formData.clientName.trim()
       },
       site: {
-        city: formData.city?.trim() || 'Ahmedabad',
-        address: formData.address?.trim() || undefined
+        city: formData.city?.trim() || 'Ahmedabad'
       },
-      plannedStartDate: formData.plannedStartDate
+      startDate: formData.plannedStartDate
         ? new Date(formData.plannedStartDate).toISOString().slice(0, 10)
         : new Date().toISOString().slice(0, 10)
     };
 
+    if (formData.phone?.trim()) {
+      payload.client.phone = formData.phone.trim();
+    }
+    if (formData.email?.trim()) {
+      payload.client.email = formData.email.trim();
+    }
+    if (formData.address?.trim()) {
+      payload.site.line1 = formData.address.trim();
+    }
+
     if (formData.plannedEndDate) {
-      payload.plannedEndDate = new Date(formData.plannedEndDate).toISOString().slice(0, 10);
+      payload.expectedEndDate = new Date(formData.plannedEndDate).toISOString().slice(0, 10);
+    }
+
+    // Description & Contact person
+    const descParts = [];
+    if (formData.description?.trim()) {
+      descParts.push(formData.description.trim());
+    }
+    if (formData.contactPerson?.trim()) {
+      descParts.push(`Contact: ${formData.contactPerson.trim()}`);
+    }
+    if (descParts.length > 0) {
+      payload.description = descParts.join(' | ').slice(0, 2000);
     }
 
     // Budget in Paise (Integer)
@@ -198,14 +216,15 @@ export function ProjectModal({ isOpen, onClose, onSaved, projectToEdit = null })
       }
     }
 
-    // Built-up Area matching backend schema (area.builtUp and area.unit)
+    // Built-up Area matching backend schema (area.value and area.unit)
     if (formData.areaValue) {
       const areaClean = Number(formData.areaValue);
       if (!isNaN(areaClean) && areaClean > 0) {
+        const rawUnit = (formData.areaUnit || 'SQFT').toUpperCase();
+        const cleanUnit = rawUnit.includes('M') ? 'SQM' : 'SQFT';
         payload.area = {
-          builtUp: areaClean,
           value: areaClean,
-          unit: formData.areaUnit || 'SQFT'
+          unit: cleanUnit
         };
       }
     }

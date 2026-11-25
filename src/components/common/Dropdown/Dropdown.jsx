@@ -15,44 +15,76 @@ export function Dropdown({
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
 
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return;
+  const calculateCoords = useCallback(() => {
+    if (!triggerRef.current) return null;
     const rect = triggerRef.current.getBoundingClientRect();
-
-    // If trigger has scrolled completely off-screen, close menu
-    if (rect.bottom < 0 || rect.top > window.innerHeight) {
-      setIsOpen(false);
-      return;
-    }
+    if (rect.width === 0 && rect.height === 0) return null;
 
     const spaceBelow = window.innerHeight - rect.bottom;
     const spaceAbove = rect.top;
     
-    // Check if dropdown should pop upwards if space below is limited
-    const isAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    // Check if dropdown should pop upwards if space below is limited (< 260px)
+    const isAbove = spaceBelow < 260 && spaceAbove > spaceBelow;
+    const availableHeight = isAbove
+      ? Math.max(160, spaceAbove - 20)
+      : Math.max(160, spaceBelow - 20);
     
-    setCoords({
+    return {
       placement: isAbove ? 'top' : 'bottom',
-      top: rect.bottom + 6,
-      bottom: window.innerHeight - rect.top + 6,
-      left: Math.max(12, rect.left),
-      right: Math.max(12, window.innerWidth - rect.right),
-    });
+      top: Math.round(rect.bottom + 6),
+      bottom: Math.round(window.innerHeight - rect.top + 6),
+      left: Math.max(12, Math.round(rect.left)),
+      right: Math.max(12, Math.round(window.innerWidth - rect.right)),
+      maxHeight: Math.min(380, availableHeight)
+    };
   }, []);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+
+    // Close only if trigger scrolled substantially off-screen
+    if (rect.bottom < -100 || rect.top > window.innerHeight + 100) {
+      setIsOpen(false);
+      return;
+    }
+
+    const nextCoords = calculateCoords();
+    if (nextCoords) {
+      setCoords(nextCoords);
+    }
+  }, [calculateCoords]);
+
+  const handleToggle = (e) => {
+    e?.stopPropagation?.();
+    e?.preventDefault?.();
+    if (!isOpen) {
+      const nextCoords = calculateCoords();
+      if (nextCoords) {
+        setCoords(nextCoords);
+      }
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+    }
+  };
 
   useEffect(() => {
     if (!isOpen) return;
 
     updatePosition();
 
-    const handleScrollOrResize = () => {
+    const handleScrollOrResize = (e) => {
+      if (e?.target && menuRef.current && (menuRef.current === e.target || menuRef.current.contains(e.target))) {
+        return;
+      }
       updatePosition();
     };
 
     const handleClickOutside = (event) => {
       if (
-        (triggerRef.current && triggerRef.current.contains(event.target)) ||
-        (menuRef.current && menuRef.current.contains(event.target))
+        (triggerRef.current && (triggerRef.current === event.target || triggerRef.current.contains(event.target))) ||
+        (menuRef.current && (menuRef.current === event.target || menuRef.current.contains(event.target)))
       ) {
         return;
       }
@@ -61,9 +93,14 @@ export function Dropdown({
 
     window.addEventListener('resize', handleScrollOrResize);
     window.addEventListener('scroll', handleScrollOrResize, true);
-    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Attach mousedown listener safely on next microtask so the trigger event doesn't trigger it
+    const timer = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 0);
 
     return () => {
+      clearTimeout(timer);
       window.removeEventListener('resize', handleScrollOrResize);
       window.removeEventListener('scroll', handleScrollOrResize, true);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -82,12 +119,11 @@ export function Dropdown({
     ? {
         position: 'fixed',
         zIndex: 99999,
-        ...(coords.placement === 'top'
-          ? { bottom: `${coords.bottom}px` }
-          : { top: `${coords.top}px` }),
-        ...(align === 'right'
-          ? { right: `${coords.right}px` }
-          : { left: `${coords.left}px` }),
+        top: coords.placement === 'top' ? 'auto' : `${coords.top}px`,
+        bottom: coords.placement === 'top' ? `${coords.bottom}px` : 'auto',
+        left: align === 'left' ? `${coords.left}px` : 'auto',
+        right: align === 'right' ? `${coords.right}px` : 'auto',
+        maxHeight: coords.maxHeight ? `${coords.maxHeight}px` : undefined,
       }
     : undefined;
 
@@ -107,7 +143,7 @@ export function Dropdown({
       <div
         ref={triggerRef}
         className="dropdown-trigger"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleToggle}
       >
         {typeof trigger === 'function' ? trigger({ isOpen }) : trigger}
       </div>
